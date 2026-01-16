@@ -1,36 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
-import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput } from "@/components/neesh";
+import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
+import { useApplications } from "@/hooks/useApplications";
+import { toast } from "sonner";
 
-interface Application {
+interface ApplicationRow {
   id: string;
   name: string;
   type: 'Publisher' | 'Retailer';
   email: string;
   submittedDate: string;
   status: 'pending' | 'received' | 'unfulfilled';
+  originalType: 'publisher' | 'retailer';
   [key: string]: unknown;
 }
-
-const mockApplications: Application[] = [
-  { id: "1", name: "Kinfolk Magazine", type: "Publisher", email: "hello@kinfolk.com", submittedDate: "Jan 15, 2026", status: "pending" },
-  { id: "2", name: "Chapters Books", type: "Retailer", email: "orders@chapters.com", submittedDate: "Jan 14, 2026", status: "pending" },
-  { id: "3", name: "The Gourmand", type: "Publisher", email: "info@thegourmand.co.uk", submittedDate: "Jan 13, 2026", status: "received" },
-  { id: "4", name: "Rare Device", type: "Retailer", email: "shop@raredevice.net", submittedDate: "Jan 12, 2026", status: "received" },
-  { id: "5", name: "Drift Magazine", type: "Publisher", email: "hello@driftmag.com", submittedDate: "Jan 11, 2026", status: "pending" },
-  { id: "6", name: "McNally Jackson", type: "Retailer", email: "buyers@mcnallyjackson.com", submittedDate: "Jan 10, 2026", status: "pending" },
-  { id: "7", name: "Apartamento", type: "Publisher", email: "contact@apartamentomagazine.com", submittedDate: "Jan 9, 2026", status: "pending" },
-  { id: "8", name: "Powell's Books", type: "Retailer", email: "magazines@powells.com", submittedDate: "Jan 8, 2026", status: "received" },
-  { id: "9", name: "Cereal Magazine", type: "Publisher", email: "hello@readcereal.com", submittedDate: "Jan 7, 2026", status: "pending" },
-  { id: "10", name: "City Lights Books", type: "Retailer", email: "books@citylights.com", submittedDate: "Jan 6, 2026", status: "unfulfilled" },
-  { id: "11", name: "Monocle", type: "Publisher", email: "retail@monocle.com", submittedDate: "Jan 5, 2026", status: "pending" },
-  { id: "12", name: "Skylight Books", type: "Retailer", email: "info@skylightbooks.com", submittedDate: "Jan 4, 2026", status: "received" },
-  { id: "13", name: "MacGuffin Magazine", type: "Publisher", email: "hello@macguffin.nl", submittedDate: "Jan 3, 2026", status: "received" },
-  { id: "14", name: "The Strand", type: "Retailer", email: "buyers@strandbooks.com", submittedDate: "Jan 2, 2026", status: "pending" },
-  { id: "15", name: "Offscreen Magazine", type: "Publisher", email: "kai@offscreenmag.com", submittedDate: "Jan 1, 2026", status: "unfulfilled" },
-];
 
 const tabs = [
   { id: "all", label: "All" },
@@ -48,17 +34,40 @@ export const AdminApplications = () => {
   const [showBulkApprove, setShowBulkApprove] = useState(false);
   const [showBulkReject, setShowBulkReject] = useState(false);
 
-  const filteredApplications = mockApplications.filter((app) => {
-    const matchesSearch = app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          app.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "publishers") return matchesSearch && app.type === "Publisher";
-    if (activeTab === "retailers") return matchesSearch && app.type === "Retailer";
-    if (activeTab === "approved") return matchesSearch && app.status === "received";
-    if (activeTab === "rejected") return matchesSearch && app.status === "unfulfilled";
-    return matchesSearch;
-  });
+  // Determine filter options based on active tab
+  const getFilterOptions = () => {
+    switch (activeTab) {
+      case "publishers":
+        return { type: 'publisher' as const };
+      case "retailers":
+        return { type: 'retailer' as const };
+      case "approved":
+        return { status: 'approved' as const };
+      case "rejected":
+        return { status: 'rejected' as const };
+      default:
+        return {};
+    }
+  };
+
+  const { applications, isLoading, error, approveApplication, rejectApplication, refetch } = useApplications(getFilterOptions());
+
+  // Transform applications to table format
+  const tableData: ApplicationRow[] = applications
+    .filter((app) => {
+      if (!searchTerm) return true;
+      return app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             app.email.toLowerCase().includes(searchTerm.toLowerCase());
+    })
+    .map((app) => ({
+      id: app.id,
+      name: app.name,
+      type: app.type === 'publisher' ? 'Publisher' : 'Retailer',
+      email: app.email,
+      submittedDate: new Date(app.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: app.status === 'approved' ? 'received' : app.status === 'rejected' ? 'unfulfilled' : 'pending',
+      originalType: app.type,
+    }));
 
   const columns = [
     { key: "name", header: "Applicant Name", sortable: true },
@@ -91,7 +100,7 @@ export const AdminApplications = () => {
       key: "actions",
       header: "",
       align: "right" as const,
-      render: (_: unknown, row: Application) => (
+      render: (_: unknown, row: ApplicationRow) => (
         <ButtonSecondary 
           onClick={(e) => {
             e.stopPropagation();
@@ -105,17 +114,52 @@ export const AdminApplications = () => {
     },
   ];
 
-  const handleBulkApprove = () => {
-    console.log("Approving:", selectedRows);
+  const handleBulkApprove = async () => {
+    for (const id of selectedRows) {
+      const app = applications.find(a => a.id === id);
+      if (app) {
+        await approveApplication(id, app.type);
+      }
+    }
+    toast.success(`Approved ${selectedRows.length} applications`);
     setShowBulkApprove(false);
     setSelectedRows([]);
   };
 
-  const handleBulkReject = () => {
-    console.log("Rejecting:", selectedRows);
+  const handleBulkReject = async () => {
+    for (const id of selectedRows) {
+      const app = applications.find(a => a.id === id);
+      if (app) {
+        await rejectApplication(id, app.type, 'Bulk rejection');
+      }
+    }
+    toast.success(`Rejected ${selectedRows.length} applications`);
     setShowBulkReject(false);
     setSelectedRows([]);
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <LoadingScreen message="Loading applications..." />
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12" />}
+            title="Something went wrong"
+            description={error}
+            action={<ButtonPrimary onClick={refetch}>Try Again</ButtonPrimary>}
+          />
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -167,14 +211,22 @@ export const AdminApplications = () => {
       {/* Data Table */}
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh">
-          <DataTable
-            columns={columns}
-            data={filteredApplications}
-            selectable
-            selectedRows={selectedRows}
-            onSelectionChange={setSelectedRows}
-            onRowClick={(row) => navigate(`/admin/applications/${row.id}`)}
-          />
+          {tableData.length === 0 ? (
+            <EmptyState
+              icon={<AlertCircle className="w-12 h-12" />}
+              title="No applications found"
+              description="There are no applications matching your current filters."
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={tableData}
+              selectable
+              selectedRows={selectedRows}
+              onSelectionChange={setSelectedRows}
+              onRowClick={(row) => navigate(`/admin/applications/${row.id}`)}
+            />
+          )}
         </div>
       </div>
 
