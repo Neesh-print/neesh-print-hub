@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Check } from "lucide-react";
+import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Check, ShoppingBag } from "lucide-react";
 import { RetailerLayout } from "@/components/retailer";
-import { BackNavigation, TabNavigation, DataTable, StatusBadge } from "@/components/neesh";
+import { BackNavigation, TabNavigation, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
 import type { DataTableColumn } from "@/components/neesh";
 import type { StatusType } from "@/components/neesh/StatusBadge";
 
@@ -178,14 +178,27 @@ export const RetailerOrdersList = () => {
         </div>
 
         {/* Data Table */}
-        <DataTable<Order>
-          columns={columns}
-          data={filteredOrders}
-          selectable
-          selectedRows={selectedOrders}
-          onSelectionChange={handleSelectionChange}
-          onRowClick={(order) => navigate(`/retailer/orders/${order.id.replace("#", "")}`)}
-        />
+        {filteredOrders.length === 0 ? (
+          <EmptyState
+            icon={<ShoppingBag className="w-12 h-12" />}
+            title={searchQuery ? "No orders found" : "No orders yet"}
+            description={searchQuery ? "Try adjusting your search" : "Browse the catalogue to discover magazines for your store"}
+            action={!searchQuery ? (
+              <ButtonPrimary onClick={() => navigate("/retailer")}>
+                Browse Catalogue
+              </ButtonPrimary>
+            ) : undefined}
+          />
+        ) : (
+          <DataTable<Order>
+            columns={columns}
+            data={filteredOrders}
+            selectable
+            selectedRows={selectedOrders}
+            onSelectionChange={handleSelectionChange}
+            onRowClick={(order) => navigate(`/retailer/orders/${order.id.replace("#", "")}`)}
+          />
+        )}
       </div>
     </RetailerLayout>
   );

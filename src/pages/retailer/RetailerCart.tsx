@@ -25,10 +25,10 @@ export const RetailerCart = () => {
           <EmptyState
             icon={<ShoppingBag className="w-12 h-12" />}
             title="Your cart is empty"
-            description="Browse our catalogue to find magazines for your store."
+            description="Add magazines from the catalogue to get started"
             action={
               <ButtonPrimary onClick={() => navigate("/retailer")}>
-                Start browsing
+                Browse Catalogue
               </ButtonPrimary>
             }
           />

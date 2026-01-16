@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Home, Users, Settings, Send } from "lucide-react";
+import { ChevronLeft, Home, Users, Settings, Send, MessageSquare } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, TabNavigation, StatusBadge, FormSelect } from "@/components/neesh";
+import { BackNavigation, TabNavigation, StatusBadge, FormSelect, EmptyState } from "@/components/neesh";
 
 const tabs = [
   { id: "retailers", label: "Retailers" },
@@ -75,7 +75,16 @@ export const PublisherMessages = () => {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {mockConversations.map((conv) => (
+            {mockConversations.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  icon={<MessageSquare className="w-12 h-12" />}
+                  title="No messages"
+                  description="Conversations with Neesh and retailers will appear here"
+                />
+              </div>
+            ) : (
+            mockConversations.map((conv) => (
               <button
                 key={conv.id}
                 onClick={() => setSelectedConversation(conv)}
@@ -102,7 +111,8 @@ export const PublisherMessages = () => {
                   </p>
                 </div>
               </button>
-            ))}
+            ))
+            )}
           </div>
         </div>
 
