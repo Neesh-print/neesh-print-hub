@@ -7,3 +7,5 @@ export { PublisherTransactionHistory } from "./PublisherTransactionHistory";
 export { PublisherTransfers } from "./PublisherTransfers";
 export { PublisherWithdraw } from "./PublisherWithdraw";
 export { PublisherMessages } from "./PublisherMessages";
+export { PublisherTitlesList } from "./PublisherTitlesList";
+export { PublisherSettings } from "./PublisherSettings";

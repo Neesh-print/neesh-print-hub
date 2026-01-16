@@ -6,3 +6,4 @@ export { RetailerOrderConfirmation } from './RetailerOrderConfirmation';
 export { RetailerOrdersList } from './RetailerOrdersList';
 export { RetailerOrderDetail } from './RetailerOrderDetail';
 export { RetailerProfile } from './RetailerProfile';
+export { RetailerSettings } from './RetailerSettings';

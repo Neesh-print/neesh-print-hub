@@ -2,10 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { CartProvider } from "@/components/retailer/CartContext";
+import { ErrorBoundary } from "@/components/shared";
+
+// Auth pages
 import {
   LoginPage,
   RoleSelectionPage,
@@ -13,25 +16,388 @@ import {
   ResetPasswordPage,
 } from "./pages/auth";
 
+// Publisher pages
+import {
+  PublisherDashboard,
+  PublisherOrdersList,
+  PublisherOrderDetail,
+  PublisherProfile,
+  PublisherEditTitle,
+  PublisherTransactionHistory,
+  PublisherTransfers,
+  PublisherWithdraw,
+  PublisherMessages,
+} from "./pages/publisher";
+import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
+import { PublisherSettings } from "./pages/publisher/PublisherSettings";
+
+// Retailer pages
+import {
+  RetailerCatalogue,
+  RetailerTitleDetail,
+  RetailerCart,
+  RetailerCheckout,
+  RetailerOrderConfirmation,
+  RetailerOrdersList,
+  RetailerOrderDetail,
+  RetailerProfile,
+} from "./pages/retailer";
+import { RetailerSettings } from "./pages/retailer/RetailerSettings";
+
+// Admin pages
+import {
+  AdminDashboard,
+  AdminApplications,
+  AdminApplicationDetail,
+  AdminPublishers,
+  AdminPublisherDetail,
+  AdminRetailers,
+  AdminRetailerDetail,
+  AdminOrders,
+  AdminOrderDetail,
+  AdminAnalytics,
+} from "./pages/admin";
+import { AdminSettings } from "./pages/admin/AdminSettings";
+
+// Other pages
+import NotFound from "./pages/NotFound";
+
 const queryClient = new QueryClient();
+
+// Home redirect component that redirects based on auth state
+const HomeRedirect = () => {
+  const { user, userRole, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+  }
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // Redirect based on role
+  switch (userRole) {
+    case 'publisher':
+      return <Navigate to="/publisher" replace />;
+    case 'retailer':
+      return <Navigate to="/retailer" replace />;
+    case 'admin':
+      return <Navigate to="/admin" replace />;
+    default:
+      return <Navigate to="/login" replace />;
+  }
+};
+
+const AppRoutes = () => {
+  return (
+    <Routes>
+      {/* Home redirect */}
+      <Route path="/" element={<HomeRedirect />} />
+
+      {/* Public routes */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/apply" element={<RoleSelectionPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+      {/* Publisher routes */}
+      <Route
+        path="/publisher"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/orders"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherOrdersList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/orders/:id"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherOrderDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/profile"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/titles"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherTitlesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/titles/new"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherEditTitle />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/titles/:id/edit"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherEditTitle />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/transactions"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherTransactionHistory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/transfers"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherTransfers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/transfers/withdraw"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherWithdraw />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/messages"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherMessages />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/settings"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherSettings />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Retailer routes - wrapped in CartProvider */}
+      <Route
+        path="/retailer"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerCatalogue />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/catalogue/:id"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerTitleDetail />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/cart"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerCart />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/checkout"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerCheckout />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/order-confirmation/:id"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerOrderConfirmation />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/orders"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerOrdersList />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/orders/:id"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerOrderDetail />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/profile"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerProfile />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/settings"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <CartProvider>
+              <RetailerSettings />
+            </CartProvider>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Admin routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/applications"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminApplications />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/applications/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminApplicationDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/publishers"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminPublishers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/publishers/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminPublisherDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/retailers"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminRetailers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/retailers/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminRetailerDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/orders"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminOrders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/orders/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminOrderDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminSettings />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Catch-all route */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/apply" element={<RoleSelectionPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <ErrorBoundary>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </ErrorBoundary>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
