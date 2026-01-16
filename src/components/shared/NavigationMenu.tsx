@@ -38,10 +38,11 @@ export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProp
 
   const adminMenuItems: MenuItem[] = [
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/admin" },
+    { label: "Fulfillment", icon: <Package className="w-5 h-5" />, path: "/admin/fulfillment" },
     { label: "Applications", icon: <FileText className="w-5 h-5" />, path: "/admin/applications" },
     { label: "Publishers", icon: <Users className="w-5 h-5" />, path: "/admin/publishers" },
     { label: "Retailers", icon: <Store className="w-5 h-5" />, path: "/admin/retailers" },
-    { label: "Orders", icon: <Package className="w-5 h-5" />, path: "/admin/orders" },
+    { label: "Orders", icon: <ShoppingBag className="w-5 h-5" />, path: "/admin/orders" },
     { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/admin/analytics" },
     { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/admin/settings" },
   ];

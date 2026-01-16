@@ -1,0 +1,87 @@
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { FormInput, FormSelect, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+
+export interface AddTrackingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (trackingData: { carrier: string; trackingNumber: string }) => void;
+  orderNumber: string;
+  isLoading: boolean;
+}
+
+const carrierOptions = [
+  { value: 'usps', label: 'USPS' },
+  { value: 'ups', label: 'UPS' },
+  { value: 'fedex', label: 'FedEx' },
+  { value: 'dhl', label: 'DHL' },
+  { value: 'other', label: 'Other' },
+];
+
+export const AddTrackingModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  orderNumber,
+  isLoading,
+}: AddTrackingModalProps) => {
+  const [carrier, setCarrier] = useState('usps');
+  const [trackingNumber, setTrackingNumber] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (trackingNumber.trim()) {
+      onSubmit({ carrier, trackingNumber: trackingNumber.trim() });
+    }
+  };
+
+  const handleClose = () => {
+    setCarrier('usps');
+    setTrackingNumber('');
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Tracking - Order #{orderNumber}</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormSelect
+            label="Carrier"
+            value={carrier}
+            onChange={setCarrier}
+            options={carrierOptions}
+          />
+          
+          <FormInput
+            label="Tracking Number"
+            value={trackingNumber}
+            onChange={setTrackingNumber}
+            placeholder="Enter tracking number"
+            required
+          />
+          
+          <p className="text-sm text-muted-foreground">
+            The retailer will be notified with tracking information.
+          </p>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <ButtonSecondary type="button" onClick={handleClose}>
+              Cancel
+            </ButtonSecondary>
+            <ButtonPrimary
+              type="submit"
+              loading={isLoading}
+              disabled={!trackingNumber.trim()}
+            >
+              Mark as Shipped
+            </ButtonPrimary>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
