@@ -1,19 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { List, Grid3X3, Search, Filter, Check } from "lucide-react";
+import { List, Grid3X3, Search, Filter, Check, AlertCircle, Package } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, WalletDisplay, TabNavigation, DataTable, StatusBadge } from "@/components/neesh";
-
-const mockOrders = [
-  { id: "#0009", publisher: "Kinfolk", total: 450.00, time: "2h ago", date: "Dec 15, 2024", quantity: 15, shipping: "Standard", paymentStatus: "payment-received" as const, fulfillmentStatus: "received" as const },
-  { id: "#0008", publisher: "Cereal", total: 280.00, time: "5h ago", date: "Dec 15, 2024", quantity: 10, shipping: "Express", paymentStatus: "payment-pending" as const, fulfillmentStatus: "pending" as const },
-  { id: "#0007", publisher: "Apartamento", total: 320.00, time: "1d ago", date: "Dec 14, 2024", quantity: 12, shipping: "Standard", paymentStatus: "payment-received" as const, fulfillmentStatus: "unfulfilled" as const },
-  { id: "#0006", publisher: "Kinfolk", total: 180.00, time: "2d ago", date: "Dec 13, 2024", quantity: 6, shipping: "Express", paymentStatus: "payment-received" as const, fulfillmentStatus: "received" as const },
-  { id: "#0005", publisher: "Cereal", total: 560.00, time: "3d ago", date: "Dec 12, 2024", quantity: 20, shipping: "Standard", paymentStatus: "payment-pending" as const, fulfillmentStatus: "pending" as const },
-  { id: "#0004", publisher: "Apartamento", total: 420.00, time: "4d ago", date: "Dec 11, 2024", quantity: 14, shipping: "Standard", paymentStatus: "payment-received" as const, fulfillmentStatus: "received" as const },
-  { id: "#0003", publisher: "Kinfolk", total: 350.00, time: "5d ago", date: "Dec 10, 2024", quantity: 12, shipping: "Express", paymentStatus: "payment-received" as const, fulfillmentStatus: "received" as const },
-  { id: "#0002", publisher: "Cereal", total: 290.00, time: "6d ago", date: "Dec 9, 2024", quantity: 10, shipping: "Standard", paymentStatus: "payment-pending" as const, fulfillmentStatus: "unfulfilled" as const },
-];
+import { BackNavigation, WalletDisplay, TabNavigation, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { useOrders } from "@/hooks/useOrders";
 
 const tabs = [
   { id: "orders", label: "My Orders" },
@@ -27,6 +19,13 @@ export const PublisherOrdersList = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
+  const { publisher, isLoading: publisherLoading } = usePublisherProfile();
+  const { orders, isLoading: ordersLoading, error, refetch } = useOrders({
+    publisherId: publisher?.id,
+  });
+
+  const isLoading = publisherLoading || (publisher && ordersLoading);
+
   const handleCashOut = () => {
     navigate("/publisher/transfers/withdraw");
   };
@@ -36,38 +35,69 @@ export const PublisherOrdersList = () => {
   };
 
   const columns = [
-    { key: "id", header: "Order" },
-    { key: "publisher", header: "Publisher" },
-    { key: "total", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
+    { key: "order_number", header: "Order" },
+    { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
     { 
-      key: "time", 
+      key: "created_at", 
       header: "Time", 
-      render: (value: string, row: any) => (
-        <div>
-          <span className="text-foreground">{value}</span>
-          <span className="text-muted-foreground ml-1">· {row.date}</span>
-        </div>
-      )
+      render: (value: string) => {
+        const date = new Date(value);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${diffDays}d ago`;
+        return (
+          <div>
+            <span className="text-foreground">{timeAgo}</span>
+            <span className="text-muted-foreground ml-1">· {formattedDate}</span>
+          </div>
+        );
+      }
     },
     { key: "quantity", header: "Quantity" },
-    { key: "shipping", header: "Shipping" },
     { 
-      key: "paymentStatus", 
+      key: "payment_status", 
       header: "Payment Status", 
       render: (value: string) => (
         <div className="flex items-center gap-2">
           <StatusBadge status={value as any} />
-          {value === "payment-received" && <Check className="w-4 h-4 text-chart-green" />}
+          {value === "paid" && <Check className="w-4 h-4 text-chart-green" />}
         </div>
       )
     },
-    { key: "fulfillmentStatus", header: "Fulfillment Status", render: (value: string) => <StatusBadge status={value as any} /> },
+    { key: "fulfillment_status", header: "Fulfillment Status", render: (value: string) => <StatusBadge status={value as any} /> },
   ];
 
-  const filteredOrders = mockOrders.filter(order => 
-    order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.publisher.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredOrders = orders.filter(order => 
+    order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (order.magazine?.title || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+        <LoadingScreen message="Loading orders..." />
+      </PublisherLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PublisherLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12 text-destructive" />}
+            title="Something went wrong"
+            description={error}
+            action={<ButtonPrimary onClick={refetch}>Try Again</ButtonPrimary>}
+          />
+        </div>
+      </PublisherLayout>
+    );
+  }
 
   return (
     <PublisherLayout>
@@ -77,7 +107,7 @@ export const PublisherOrdersList = () => {
         rightContent={
           <WalletDisplay
             label="Balance"
-            amount={2720.00}
+            amount={publisher?.total_sales || 0}
             actionLabel="Cash Out"
             onAction={handleCashOut}
           />
@@ -124,14 +154,22 @@ export const PublisherOrdersList = () => {
       {/* Orders Table */}
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh overflow-x-auto">
-          <DataTable
-            columns={columns}
-            data={filteredOrders}
-            selectable
-            selectedRows={selectedOrders}
-            onSelectionChange={handleSelectionChange}
-            onRowClick={(order) => navigate(`/publisher/orders/${order.id.replace("#", "")}`)}
-          />
+          {filteredOrders.length === 0 ? (
+            <EmptyState
+              icon={<Package className="w-12 h-12 text-muted-foreground" />}
+              title={searchQuery ? "No orders found" : "No orders yet"}
+              description={searchQuery ? "Try adjusting your search" : "Orders will appear here once retailers start buying"}
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={filteredOrders}
+              selectable
+              selectedRows={selectedOrders}
+              onSelectionChange={handleSelectionChange}
+              onRowClick={(order) => navigate(`/publisher/orders/${order.id}`)}
+            />
+          )}
         </div>
       </div>
     </PublisherLayout>

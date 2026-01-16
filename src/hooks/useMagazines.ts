@@ -2,18 +2,22 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Magazine {
+  [key: string]: unknown; // Index signature for DataTable compatibility
   id: string;
   title: string;
   cover_image_url: string | null;
   wholesale_price: number;
-  retail_price: number;
+  suggested_retail_price: number;
+  price: number; // Alias for wholesale_price
   description: string | null;
   category: string | null;
-  page_count: number | null;
-  dimensions: string | null;
+  specs: string | null;
   issue_number: string | null;
-  status: string;
-  quantity_available: number;
+  issue_frequency: string | null;
+  publication_type: string | null;
+  is_active: boolean;
+  inventory_count: number;
+  sold_count: number;
   created_at: string;
   publisher: {
     id: string;
@@ -58,8 +62,11 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
           category,
           specs,
           issue_number,
+          issue_frequency,
+          publication_type,
           is_active,
           inventory_count,
+          sold_count,
           created_at,
           publisher_id,
           publishers (
@@ -96,14 +103,17 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         title: item.title,
         cover_image_url: item.cover_image_url,
         wholesale_price: Number(item.wholesale_price) || 0,
-        retail_price: Number(item.suggested_retail_price) || 0,
+        suggested_retail_price: Number(item.suggested_retail_price) || 0,
+        price: Number(item.wholesale_price) || 0,
         description: item.description,
         category: item.category,
-        page_count: null, // Not in current schema
-        dimensions: item.specs,
+        specs: item.specs,
         issue_number: item.issue_number,
-        status: item.is_active ? 'active' : 'archived',
-        quantity_available: item.inventory_count || 0,
+        issue_frequency: item.issue_frequency,
+        publication_type: item.publication_type,
+        is_active: item.is_active ?? true,
+        inventory_count: item.inventory_count || 0,
+        sold_count: item.sold_count || 0,
         created_at: item.created_at,
         publisher: item.publishers ? {
           id: item.publishers.id,

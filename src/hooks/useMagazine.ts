@@ -6,14 +6,15 @@ export interface MagazineDetail {
   title: string;
   cover_image_url: string | null;
   wholesale_price: number;
-  retail_price: number;
+  suggested_retail_price: number;
+  price: number;
   description: string | null;
   category: string | null;
-  page_count: number | null;
-  dimensions: string | null;
+  specs: string | null;
   issue_number: string | null;
-  status: string;
-  quantity_available: number;
+  is_active: boolean;
+  inventory_count: number;
+  sold_count: number;
   created_at: string;
   publication_type: string | null;
   issue_frequency: string | null;
@@ -63,6 +64,7 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_number,
           is_active,
           inventory_count,
+          sold_count,
           created_at,
           publication_type,
           issue_frequency,
@@ -87,15 +89,16 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           title: data.title,
           cover_image_url: data.cover_image_url,
           wholesale_price: Number(data.wholesale_price) || 0,
-          retail_price: Number(data.suggested_retail_price) || 0,
+          suggested_retail_price: Number(data.suggested_retail_price) || 0,
+          price: Number(data.wholesale_price) || 0,
           description: data.description,
           category: data.category,
-          page_count: null,
-          dimensions: data.specs,
+          specs: data.specs,
           issue_number: data.issue_number,
-          status: data.is_active ? 'active' : 'archived',
-          quantity_available: data.inventory_count || 0,
-          created_at: data.created_at,
+          is_active: data.is_active ?? true,
+          inventory_count: data.inventory_count || 0,
+          sold_count: data.sold_count || 0,
+          created_at: data.created_at || '',
           publication_type: data.publication_type,
           issue_frequency: data.issue_frequency,
           volume_pricing_tiers: data.volume_pricing_tiers,
