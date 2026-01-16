@@ -1,18 +1,22 @@
-import { ReactNode } from "react";
+import { useState, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { HeaderBar } from "@/components/neesh";
+import { NavigationMenu } from "@/components/shared";
 
 interface PublisherLayoutProps {
   children: ReactNode;
 }
 
 export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
+  const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const handleMenuClick = () => {
-    // TODO: Open menu drawer
-    console.log("Menu clicked");
+    setIsMenuOpen(true);
   };
 
   const handleLogoClick = () => {
-    window.location.href = "/publisher";
+    navigate("/publisher");
   };
 
   return (
@@ -25,6 +29,11 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
       <main className="pt-16">
         {children}
       </main>
+      <NavigationMenu
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        userRole="publisher"
+      />
     </div>
   );
 };
