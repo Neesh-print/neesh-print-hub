@@ -121,7 +121,7 @@ const Index = () => {
                 </div>
                 <ButtonPrimary
                   icon={<LogIn className="w-4 h-4" />}
-                  onClick={() => navigate("/auth")}
+                  onClick={() => navigate("/login")}
                 >
                   Sign In
                 </ButtonPrimary>
