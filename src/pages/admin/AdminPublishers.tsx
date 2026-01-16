@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { AdminLayout, StatCard } from "@/components/admin";
-import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput } from "@/components/neesh";
+import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Publisher {
   id: string;
@@ -15,33 +17,56 @@ interface Publisher {
   [key: string]: unknown;
 }
 
-const mockPublishers: Publisher[] = [
-  { id: "1", name: "Kinfolk Magazine", email: "hello@kinfolk.com", magazinesListed: 8, totalSales: 4520.00, joinDate: "Mar 2024", status: "received" },
-  { id: "2", name: "Cereal Magazine", email: "hello@readcereal.com", magazinesListed: 6, totalSales: 3280.00, joinDate: "Apr 2024", status: "received" },
-  { id: "3", name: "The Gourmand", email: "info@thegourmand.co.uk", magazinesListed: 4, totalSales: 2150.00, joinDate: "May 2024", status: "received" },
-  { id: "4", name: "Apartamento", email: "contact@apartamentomagazine.com", magazinesListed: 5, totalSales: 1890.00, joinDate: "Jun 2024", status: "received" },
-  { id: "5", name: "Drift Magazine", email: "hello@driftmag.com", magazinesListed: 3, totalSales: 980.00, joinDate: "Jul 2024", status: "received" },
-  { id: "6", name: "MacGuffin Magazine", email: "hello@macguffin.nl", magazinesListed: 4, totalSales: 1450.00, joinDate: "Aug 2024", status: "received" },
-  { id: "7", name: "Monocle", email: "retail@monocle.com", magazinesListed: 7, totalSales: 5200.00, joinDate: "Sep 2024", status: "received" },
-  { id: "8", name: "Offscreen Magazine", email: "kai@offscreenmag.com", magazinesListed: 2, totalSales: 680.00, joinDate: "Oct 2024", status: "pending" },
-  { id: "9", name: "Perdiz Magazine", email: "info@perdiz.com", magazinesListed: 3, totalSales: 920.00, joinDate: "Nov 2024", status: "received" },
-  { id: "10", name: "Works That Work", email: "hello@worksthatwork.com", magazinesListed: 1, totalSales: 340.00, joinDate: "Dec 2024", status: "received" },
-  { id: "11", name: "Weapons of Reason", email: "info@weaponsofreason.com", magazinesListed: 2, totalSales: 560.00, joinDate: "Jan 2025", status: "received" },
-  { id: "12", name: "Delayed Gratification", email: "hello@slow-journalism.com", magazinesListed: 2, totalSales: 780.00, joinDate: "Jan 2025", status: "unfulfilled" },
-];
-
 export const AdminPublishers = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredPublishers = mockPublishers.filter((pub) =>
+  const fetchPublishers = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('publishers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      // Transform data to match the table format
+      const transformed: Publisher[] = (data || []).map((pub: any) => ({
+        id: pub.id,
+        name: pub.company_name || 'Unknown Publisher',
+        email: pub.description ? `contact@${pub.company_name?.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A',
+        magazinesListed: pub.total_magazines || 0,
+        totalSales: Number(pub.total_sales) || 0,
+        joinDate: new Date(pub.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        status: pub.verified ? 'received' : 'pending',
+      }));
+
+      setPublishers(transformed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch publishers');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishers();
+  }, []);
+
+  const filteredPublishers = publishers.filter((pub) =>
     pub.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     pub.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalPublishers = mockPublishers.length;
-  const activeThisMonth = mockPublishers.filter(p => p.status === 'received').length;
-  const totalMagazines = mockPublishers.reduce((sum, p) => sum + p.magazinesListed, 0);
+  const totalPublishers = publishers.length;
+  const activeThisMonth = publishers.filter(p => p.status === 'received').length;
+  const totalMagazines = publishers.reduce((sum, p) => sum + p.magazinesListed, 0);
 
   const columns = [
     { key: "name", header: "Publisher Name", sortable: true },
@@ -84,6 +109,29 @@ export const AdminPublishers = () => {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <LoadingScreen message="Loading publishers..." />
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12" />}
+            title="Something went wrong"
+            description={error}
+            action={<ButtonPrimary onClick={fetchPublishers}>Try Again</ButtonPrimary>}
+          />
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
       <BackNavigation title="Publishers" onBack={() => navigate("/admin")} />
@@ -119,11 +167,19 @@ export const AdminPublishers = () => {
       {/* Data Table */}
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh">
-          <DataTable
-            columns={columns}
-            data={filteredPublishers}
-            onRowClick={(row) => navigate(`/admin/publishers/${row.id}`)}
-          />
+          {filteredPublishers.length === 0 ? (
+            <EmptyState
+              icon={<AlertCircle className="w-12 h-12" />}
+              title="No publishers found"
+              description="There are no publishers matching your search."
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={filteredPublishers}
+              onRowClick={(row) => navigate(`/admin/publishers/${row.id}`)}
+            />
+          )}
         </div>
       </div>
     </AdminLayout>

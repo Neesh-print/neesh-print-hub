@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { AdminLayout, StatCard } from "@/components/admin";
-import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput } from "@/components/neesh";
+import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Retailer {
   id: string;
@@ -17,34 +19,59 @@ interface Retailer {
   [key: string]: unknown;
 }
 
-const mockRetailers: Retailer[] = [
-  { id: "1", storeName: "Powell's Books", email: "magazines@powells.com", location: "Portland, OR", storeType: "Independent Bookstore", totalOrders: 45, totalSpent: 4520.00, joinDate: "Mar 2024", status: "received" },
-  { id: "2", storeName: "McNally Jackson", email: "buyers@mcnallyjackson.com", location: "New York, NY", storeType: "Independent Bookstore", totalOrders: 38, totalSpent: 3850.00, joinDate: "Apr 2024", status: "received" },
-  { id: "3", storeName: "City Lights Books", email: "books@citylights.com", location: "San Francisco, CA", storeType: "Independent Bookstore", totalOrders: 32, totalSpent: 2980.00, joinDate: "May 2024", status: "received" },
-  { id: "4", storeName: "Skylight Books", email: "info@skylightbooks.com", location: "Los Angeles, CA", storeType: "Independent Bookstore", totalOrders: 28, totalSpent: 2450.00, joinDate: "Jun 2024", status: "received" },
-  { id: "5", storeName: "The Strand", email: "buyers@strandbooks.com", location: "New York, NY", storeType: "Independent Bookstore", totalOrders: 52, totalSpent: 5200.00, joinDate: "Jul 2024", status: "received" },
-  { id: "6", storeName: "Rare Device", email: "shop@raredevice.net", location: "San Francisco, CA", storeType: "Boutique", totalOrders: 18, totalSpent: 1680.00, joinDate: "Aug 2024", status: "received" },
-  { id: "7", storeName: "Assembly Coffee", email: "orders@assemblycoffee.com", location: "Brooklyn, NY", storeType: "Coffee Shop", totalOrders: 22, totalSpent: 1890.00, joinDate: "Sep 2024", status: "received" },
-  { id: "8", storeName: "Wolfman", email: "hi@wolfmannyc.com", location: "New York, NY", storeType: "Boutique", totalOrders: 15, totalSpent: 1340.00, joinDate: "Oct 2024", status: "received" },
-  { id: "9", storeName: "Amoeba Music", email: "merch@amoeba.com", location: "Los Angeles, CA", storeType: "Record Store", totalOrders: 24, totalSpent: 2150.00, joinDate: "Nov 2024", status: "received" },
-  { id: "10", storeName: "Dusty Groove", email: "orders@dustygroove.com", location: "Chicago, IL", storeType: "Record Store", totalOrders: 19, totalSpent: 1720.00, joinDate: "Dec 2024", status: "received" },
-  { id: "11", storeName: "Chapters Books", email: "orders@chapters.com", location: "Seattle, WA", storeType: "Independent Bookstore", totalOrders: 8, totalSpent: 680.00, joinDate: "Jan 2025", status: "pending" },
-  { id: "12", storeName: "Café Integral", email: "shop@cafeintegral.com", location: "New York, NY", storeType: "Coffee Shop", totalOrders: 0, totalSpent: 0, joinDate: "Jan 2025", status: "unfulfilled" },
-];
-
 export const AdminRetailers = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredRetailers = mockRetailers.filter((ret) =>
+  const fetchRetailers = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('retailers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      // Transform data to match the table format
+      const transformed: Retailer[] = (data || []).map((ret: any) => ({
+        id: ret.id,
+        storeName: ret.shop_name || 'Unknown Store',
+        email: ret.shop_url ? `contact@${ret.shop_name?.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A',
+        location: [ret.city, ret.state].filter(Boolean).join(', ') || 'N/A',
+        storeType: 'Independent Store',
+        totalOrders: ret.total_orders || 0,
+        totalSpent: Number(ret.total_spent) || 0,
+        joinDate: new Date(ret.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        status: ret.verified ? 'received' : 'pending',
+      }));
+
+      setRetailers(transformed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch retailers');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRetailers();
+  }, []);
+
+  const filteredRetailers = retailers.filter((ret) =>
     ret.storeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ret.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ret.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalRetailers = mockRetailers.length;
-  const activeThisMonth = mockRetailers.filter(r => r.status === 'received').length;
-  const totalOrders = mockRetailers.reduce((sum, r) => sum + r.totalOrders, 0);
+  const totalRetailers = retailers.length;
+  const activeThisMonth = retailers.filter(r => r.status === 'received').length;
+  const totalOrders = retailers.reduce((sum, r) => sum + r.totalOrders, 0);
 
   const columns = [
     { key: "storeName", header: "Store Name", sortable: true },
@@ -97,6 +124,29 @@ export const AdminRetailers = () => {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <LoadingScreen message="Loading retailers..." />
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12" />}
+            title="Something went wrong"
+            description={error}
+            action={<ButtonPrimary onClick={fetchRetailers}>Try Again</ButtonPrimary>}
+          />
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
       <BackNavigation title="Retailers" onBack={() => navigate("/admin")} />
@@ -132,11 +182,19 @@ export const AdminRetailers = () => {
       {/* Data Table */}
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh">
-          <DataTable
-            columns={columns}
-            data={filteredRetailers}
-            onRowClick={(row) => navigate(`/admin/retailers/${row.id}`)}
-          />
+          {filteredRetailers.length === 0 ? (
+            <EmptyState
+              icon={<AlertCircle className="w-12 h-12" />}
+              title="No retailers found"
+              description="There are no retailers matching your search."
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={filteredRetailers}
+              onRowClick={(row) => navigate(`/admin/retailers/${row.id}`)}
+            />
+          )}
         </div>
       </div>
     </AdminLayout>
