@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Package, 
   BookOpen, 
   Plus,
   ArrowUpRight,
-  TrendingUp
+  TrendingUp,
+  LogIn,
+  LogOut
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import {
   HeaderBar,
   BackNavigation,
@@ -27,6 +31,8 @@ import {
 } from "@/components/neesh";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user, userRole, signOut, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("orders");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<string>("date");
@@ -80,13 +86,50 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <HeaderBar
-        userRole="publisher"
+        userRole={userRole || "retailer"}
         onMenuClick={() => console.log("Menu clicked")}
-        onLogoClick={() => console.log("Logo clicked")}
+        onLogoClick={() => navigate("/")}
       />
 
       {/* Main content with header offset */}
       <main className="pt-16">
+        {/* Auth Status Banner */}
+        <div className="px-4 md:px-6 py-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            {user ? (
+              <>
+                <div className="text-body">
+                  <span className="text-muted-foreground">Signed in as </span>
+                  <span className="font-medium text-foreground">{user.email}</span>
+                  {userRole && (
+                    <span className="ml-2 text-xs bg-secondary px-2 py-1 rounded-full uppercase text-muted-foreground">
+                      {userRole}
+                    </span>
+                  )}
+                </div>
+                <ButtonSecondary
+                  icon={<LogOut className="w-4 h-4" />}
+                  onClick={() => signOut()}
+                >
+                  Sign Out
+                </ButtonSecondary>
+              </>
+            ) : (
+              <>
+                <div className="text-body text-muted-foreground">
+                  Welcome to Neesh — Sign in to access your dashboard
+                </div>
+                <ButtonPrimary
+                  icon={<LogIn className="w-4 h-4" />}
+                  onClick={() => navigate("/auth")}
+                >
+                  Sign In
+                </ButtonPrimary>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Back Navigation with Wallet */}
         <BackNavigation
           title="Dashboard"
