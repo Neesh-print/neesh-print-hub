@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, Building2, Store, ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Building2, Store, ArrowRight, Receipt } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, TabNavigation } from "@/components/neesh";
+import { BackNavigation, TabNavigation, EmptyState } from "@/components/neesh";
 
 const tabs = [
   { id: "history", label: "Transaction History" },
@@ -74,6 +74,13 @@ export const PublisherTransactionHistory = () => {
       <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="px-4 md:px-6 py-6">
+        {mockTransactions.length === 0 ? (
+          <EmptyState
+            icon={<Receipt className="w-12 h-12" />}
+            title="No transactions yet"
+            description="Your sales and payouts will be recorded here"
+          />
+        ) : (
         <div className="space-y-4">
           {mockTransactions.map((group) => (
             <div key={group.date} className="card-neesh">
@@ -127,6 +134,7 @@ export const PublisherTransactionHistory = () => {
             </div>
           ))}
         </div>
+        )}
       </div>
     </PublisherLayout>
   );

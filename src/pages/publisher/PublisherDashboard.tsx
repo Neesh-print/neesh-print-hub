@@ -190,8 +190,8 @@ export const PublisherDashboard = () => {
                   <EmptyState
                     icon={<BookOpen className="w-8 h-8 text-muted-foreground" />}
                     title="No titles yet"
-                    description="Add your first magazine to get started"
-                    action={<ButtonPrimary onClick={() => navigate("/publisher/titles/new")}>Add Title</ButtonPrimary>}
+                    description="Add your first magazine to start receiving orders"
+                    action={<ButtonPrimary onClick={() => navigate("/publisher/titles/new")}>Add Your First Title</ButtonPrimary>}
                   />
                 ) : (
                   magazines.slice(0, 5).map((title) => (
@@ -230,7 +230,7 @@ export const PublisherDashboard = () => {
               <EmptyState
                 icon={<BookOpen className="w-8 h-8 text-muted-foreground" />}
                 title="No orders yet"
-                description="Orders will appear here once retailers start buying"
+                description="When retailers purchase your titles, orders will appear here"
               />
             ) : (
               <DataTable

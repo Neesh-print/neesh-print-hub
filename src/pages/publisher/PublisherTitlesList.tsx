@@ -102,12 +102,12 @@ export const PublisherTitlesList = () => {
         {titles.length === 0 ? (
           <EmptyState
             icon={<BookOpen className="w-12 h-12" />}
-            title="No titles yet"
-            description="Start by adding your first magazine title to the marketplace."
+            title="Your catalogue is empty"
+            description="Add magazines to make them available to retailers"
             action={
               <ButtonPrimary onClick={handleAddTitle}>
                 <Plus className="w-4 h-4 mr-2" />
-                Add Your First Title
+                Add Title
               </ButtonPrimary>
             }
           />

@@ -241,14 +241,14 @@ export const AdminFulfillmentQueue = () => {
             }
             title={
               activeTab === "pending"
-                ? "All orders packed!"
+                ? "All caught up"
                 : activeTab === "packed"
                 ? "No orders waiting for shipment"
                 : "No shipments yet today"
             }
             description={
               activeTab === "pending"
-                ? "Great job! All orders have been packed and are ready for shipping."
+                ? "No orders waiting for fulfillment"
                 : activeTab === "packed"
                 ? "Packed orders will appear here once you mark them as packed."
                 : "Shipped orders from today will appear here."

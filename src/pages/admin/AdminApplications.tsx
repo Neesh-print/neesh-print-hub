@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
+import { Search, SlidersHorizontal, AlertCircle, ClipboardList } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
@@ -213,9 +213,9 @@ export const AdminApplications = () => {
         <div className="card-neesh">
           {tableData.length === 0 ? (
             <EmptyState
-              icon={<AlertCircle className="w-12 h-12" />}
-              title="No applications found"
-              description="There are no applications matching your current filters."
+              icon={<ClipboardList className="w-12 h-12" />}
+              title="No pending applications"
+              description="New publisher and retailer applications will appear here"
             />
           ) : (
             <DataTable

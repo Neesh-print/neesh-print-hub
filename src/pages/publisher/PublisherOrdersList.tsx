@@ -155,11 +155,11 @@ export const PublisherOrdersList = () => {
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh overflow-x-auto">
           {filteredOrders.length === 0 ? (
-            <EmptyState
-              icon={<Package className="w-12 h-12 text-muted-foreground" />}
-              title={searchQuery ? "No orders found" : "No orders yet"}
-              description={searchQuery ? "Try adjusting your search" : "Orders will appear here once retailers start buying"}
-            />
+              <EmptyState
+                icon={<Package className="w-12 h-12 text-muted-foreground" />}
+                title={searchQuery ? "No orders found" : "No orders yet"}
+                description={searchQuery ? "Try adjusting your search" : "When retailers purchase your titles, orders will appear here"}
+              />
           ) : (
             <DataTable
               columns={columns}
