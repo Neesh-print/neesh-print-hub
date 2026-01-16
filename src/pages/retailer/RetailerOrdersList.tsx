@@ -4,8 +4,10 @@ import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Check } from "lu
 import { RetailerLayout } from "@/components/retailer";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge } from "@/components/neesh";
 import type { DataTableColumn } from "@/components/neesh";
+import type { StatusType } from "@/components/neesh/StatusBadge";
 
 interface Order {
+  [key: string]: unknown;
   id: string;
   publisher: string;
   total: number;
@@ -53,7 +55,7 @@ export const RetailerOrdersList = () => {
     {
       key: "id",
       header: "Order",
-      render: (order) => <span className="font-medium">{order.id}</span>,
+      render: (_, row) => <span className="font-medium">{row.id}</span>,
     },
     {
       key: "publisher",
@@ -64,15 +66,15 @@ export const RetailerOrdersList = () => {
       key: "total",
       header: "Total",
       sortable: true,
-      render: (order) => `$${order.total.toFixed(2)}`,
+      render: (_, row) => `$${row.total.toFixed(2)}`,
     },
     {
       key: "time",
       header: "Time",
-      render: (order) => (
+      render: (_, row) => (
         <div>
-          <span className="block">{order.time}</span>
-          <span className="text-xs text-muted-foreground">{order.date}</span>
+          <span className="block">{row.time}</span>
+          <span className="text-xs text-muted-foreground">{row.date}</span>
         </div>
       ),
     },
@@ -88,28 +90,29 @@ export const RetailerOrdersList = () => {
     {
       key: "paymentStatus",
       header: "Payment",
-      render: (order) => (
-        <div className="flex items-center gap-2">
-          <StatusBadge
-            status={order.paymentStatus === "paid" ? "success" : "warning"}
-            label={order.paymentStatus === "paid" ? "PAYMENT SENT" : "PAYMENT PENDING"}
-          />
-          {order.paymentStatus === "paid" && (
-            <Check className="w-4 h-4 text-green-600" />
-          )}
-        </div>
-      ),
+      render: (_, row) => {
+        const status: StatusType = row.paymentStatus === "paid" ? "payment-sent" : "payment-pending";
+        const label = row.paymentStatus === "paid" ? "PAYMENT SENT" : "PAYMENT PENDING";
+        return (
+          <div className="flex items-center gap-2">
+            <StatusBadge status={status} label={label} />
+            {row.paymentStatus === "paid" && (
+              <Check className="w-4 h-4 text-green-600" />
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "fulfillmentStatus",
       header: "Fulfillment",
-      render: (order) => {
-        const statusMap = {
-          pending: { status: "warning" as const, label: "PENDING" },
-          received: { status: "success" as const, label: "RECEIVED" },
-          unfulfilled: { status: "error" as const, label: "UNFULFILLED" },
+      render: (_, row) => {
+        const statusMap: Record<string, { status: StatusType; label: string }> = {
+          pending: { status: "pending", label: "PENDING" },
+          received: { status: "received", label: "RECEIVED" },
+          unfulfilled: { status: "unfulfilled", label: "UNFULFILLED" },
         };
-        const config = statusMap[order.fulfillmentStatus];
+        const config = statusMap[row.fulfillmentStatus];
         return <StatusBadge status={config.status} label={config.label} />;
       },
     },
@@ -175,7 +178,7 @@ export const RetailerOrdersList = () => {
         </div>
 
         {/* Data Table */}
-        <DataTable
+        <DataTable<Order>
           columns={columns}
           data={filteredOrders}
           selectable

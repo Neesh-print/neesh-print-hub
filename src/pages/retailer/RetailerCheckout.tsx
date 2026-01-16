@@ -98,26 +98,26 @@ export const RetailerCheckout = () => {
                 <FormInput
                   label="Street address"
                   value={shipping.address}
-                  onChange={(e) => setShipping({ ...shipping, address: e.target.value })}
+                  onChange={(value) => setShipping({ ...shipping, address: value })}
                   required
                 />
                 <FormInput
                   label="Apt / Suite (optional)"
                   value={shipping.apt}
-                  onChange={(e) => setShipping({ ...shipping, apt: e.target.value })}
+                  onChange={(value) => setShipping({ ...shipping, apt: value })}
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <FormInput
                     label="City"
                     value={shipping.city}
-                    onChange={(e) => setShipping({ ...shipping, city: e.target.value })}
+                    onChange={(value) => setShipping({ ...shipping, city: value })}
                     required
                   />
                   <FormSelect
                     label="State / Province"
                     options={states}
                     value={shipping.state}
-                    onChange={(e) => setShipping({ ...shipping, state: e.target.value })}
+                    onChange={(value) => setShipping({ ...shipping, state: value })}
                     required
                   />
                 </div>
@@ -125,14 +125,14 @@ export const RetailerCheckout = () => {
                   <FormInput
                     label="Postal code"
                     value={shipping.postalCode}
-                    onChange={(e) => setShipping({ ...shipping, postalCode: e.target.value })}
+                    onChange={(value) => setShipping({ ...shipping, postalCode: value })}
                     required
                   />
                   <FormSelect
                     label="Country"
                     options={countries}
                     value={shipping.country}
-                    onChange={(e) => setShipping({ ...shipping, country: e.target.value })}
+                    onChange={(value) => setShipping({ ...shipping, country: value })}
                     required
                   />
                 </div>
@@ -159,26 +159,26 @@ export const RetailerCheckout = () => {
                   <FormInput
                     label="Street address"
                     value={billing.address}
-                    onChange={(e) => setBilling({ ...billing, address: e.target.value })}
+                    onChange={(value) => setBilling({ ...billing, address: value })}
                     required
                   />
                   <FormInput
                     label="Apt / Suite (optional)"
                     value={billing.apt}
-                    onChange={(e) => setBilling({ ...billing, apt: e.target.value })}
+                    onChange={(value) => setBilling({ ...billing, apt: value })}
                   />
                   <div className="grid grid-cols-2 gap-4">
                     <FormInput
                       label="City"
                       value={billing.city}
-                      onChange={(e) => setBilling({ ...billing, city: e.target.value })}
+                      onChange={(value) => setBilling({ ...billing, city: value })}
                       required
                     />
                     <FormSelect
                       label="State / Province"
                       options={states}
                       value={billing.state}
-                      onChange={(e) => setBilling({ ...billing, state: e.target.value })}
+                      onChange={(value) => setBilling({ ...billing, state: value })}
                       required
                     />
                   </div>
@@ -186,14 +186,14 @@ export const RetailerCheckout = () => {
                     <FormInput
                       label="Postal code"
                       value={billing.postalCode}
-                      onChange={(e) => setBilling({ ...billing, postalCode: e.target.value })}
+                      onChange={(value) => setBilling({ ...billing, postalCode: value })}
                       required
                     />
                     <FormSelect
                       label="Country"
                       options={countries}
                       value={billing.country}
-                      onChange={(e) => setBilling({ ...billing, country: e.target.value })}
+                      onChange={(value) => setBilling({ ...billing, country: value })}
                       required
                     />
                   </div>
@@ -210,7 +210,7 @@ export const RetailerCheckout = () => {
                 <FormInput
                   label="Card number"
                   value={payment.cardNumber}
-                  onChange={(e) => setPayment({ ...payment, cardNumber: e.target.value })}
+                  onChange={(value) => setPayment({ ...payment, cardNumber: value })}
                   placeholder="1234 5678 9012 3456"
                   required
                 />
@@ -218,14 +218,14 @@ export const RetailerCheckout = () => {
                   <FormInput
                     label="Expiry date"
                     value={payment.expiry}
-                    onChange={(e) => setPayment({ ...payment, expiry: e.target.value })}
+                    onChange={(value) => setPayment({ ...payment, expiry: value })}
                     placeholder="MM/YY"
                     required
                   />
                   <FormInput
                     label="CVV"
                     value={payment.cvv}
-                    onChange={(e) => setPayment({ ...payment, cvv: e.target.value })}
+                    onChange={(value) => setPayment({ ...payment, cvv: value })}
                     placeholder="123"
                     required
                   />
@@ -233,7 +233,7 @@ export const RetailerCheckout = () => {
                 <FormInput
                   label="Name on card"
                   value={payment.name}
-                  onChange={(e) => setPayment({ ...payment, name: e.target.value })}
+                  onChange={(value) => setPayment({ ...payment, name: value })}
                   required
                 />
                 <p className="text-xs text-muted-foreground">🔒 Secured by Stripe</p>

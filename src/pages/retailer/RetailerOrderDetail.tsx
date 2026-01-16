@@ -16,7 +16,7 @@ const mockOrder = {
   msrpTotal: 60.00,
   revenue: 60.00,
   margin: 33.57,
-  paymentStatus: "paid" as const,
+  paymentStatus: "payment-received" as const,
   fulfillmentStatus: "received" as const,
   trackingNumber: "1Z999AA10123456784",
   billingAddress: {
@@ -122,15 +122,15 @@ export const RetailerOrderDetail = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Type</span>
-                <StatusBadge status="info" label={mockOrder.type} />
+                <StatusBadge status="new-order" label={mockOrder.type} />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Fulfillment</span>
-                <StatusBadge status="success" label="RECEIVED" />
+                <StatusBadge status="received" label="RECEIVED" />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Payment</span>
-                <StatusBadge status="success" label="PAID" />
+                <StatusBadge status="payment-received" label="PAID" />
               </div>
             </div>
           </InfoCard>
@@ -228,12 +228,6 @@ export const RetailerOrderDetail = () => {
                 </p>
                 {event.date && (
                   <p className="text-xs text-muted-foreground">{event.date}</p>
-                )}
-                {index < mockOrder.trackingEvents.length - 1 && (
-                  <div className={`
-                    absolute h-0.5 w-full top-4
-                    ${event.completed ? 'bg-accent' : 'bg-secondary'}
-                  `} />
                 )}
               </div>
             ))}
