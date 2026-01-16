@@ -163,7 +163,7 @@ export const PublisherOrdersList = () => {
           ) : (
             <DataTable
               columns={columns}
-              data={filteredOrders}
+              data={filteredOrders as any}
               selectable
               selectedRows={selectedOrders}
               onSelectionChange={handleSelectionChange}

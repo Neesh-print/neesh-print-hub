@@ -228,7 +228,7 @@ export const AdminFulfillmentQueue = () => {
 
       {/* Orders Grid */}
       <div className="px-4 md:px-6 py-6">
-        {fulfillmentOrders.length === 0 ? (
+      {fulfillmentOrders.length === 0 ? (
           <EmptyState
             icon={
               activeTab === "pending" ? (
@@ -261,7 +261,7 @@ export const AdminFulfillmentQueue = () => {
                 key={order.id}
                 order={order}
                 isSelected={selectedIds.has(order.id)}
-                onSelect={(selected) => handleSelectOrder(order.id, selected)}
+                onSelect={(selected: boolean) => handleSelectOrder(order.id, selected)}
                 onPrintSlip={() => handlePrintSlip(order.id)}
                 onMarkPacked={() => handleMarkPacked(order.id)}
                 onMarkShipped={() => {}}
