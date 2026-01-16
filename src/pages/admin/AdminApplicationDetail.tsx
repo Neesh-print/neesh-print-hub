@@ -51,13 +51,12 @@ export const AdminApplicationDetail = () => {
         </div>
       );
     }
-    // For approved/other statuses - using if statements to avoid type comparison issues
+    // For approved/other statuses
     return (
       <div className="bg-status-success/20 border border-status-success text-status-success-text px-4 py-3 rounded-lg">
         Approved on January 16, 2026 by Sarah M.
       </div>
-        );
-    }
+    );
   };
 
   const handleApprove = () => {
