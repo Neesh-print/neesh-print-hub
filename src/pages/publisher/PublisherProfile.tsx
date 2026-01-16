@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ChevronDown, ChevronUp, Instagram, Globe, Share2 } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, Instagram, Globe, Share2, Camera, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, WalletDisplay, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { toast } from "sonner";
 
 const mockProfile = {
   avatar: "/placeholder.svg",
@@ -39,10 +41,40 @@ export const PublisherProfile = () => {
   const navigate = useNavigate();
   const [titlesExpanded, setTitlesExpanded] = useState(true);
   const [retailersExpanded, setRetailersExpanded] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const avatarUpload = useFileUpload({
+    bucket: 'magazine-assets',
+    folder: 'avatars',
+    maxSizeMB: 5,
+    onUploadComplete: (url) => {
+      setAvatarUrl(url);
+      toast.success("Profile photo updated successfully");
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
 
   const handleTransfer = () => {
     navigate("/publisher/transfers");
   };
+
+  const triggerAvatarUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      avatarUpload.upload(file);
+    }
+    // Reset input to allow re-selecting the same file
+    e.target.value = '';
+  };
+
+  const displayAvatar = avatarUrl || mockProfile.avatar;
 
   return (
     <PublisherLayout>
@@ -57,13 +89,38 @@ export const PublisherProfile = () => {
           <div className="space-y-6">
             {/* Avatar and Basic Info */}
             <div className="flex flex-col items-center md:items-start">
-              <div className="w-32 h-32 rounded-full bg-secondary overflow-hidden mb-4">
-                <img
-                  src={mockProfile.avatar}
-                  alt={mockProfile.publicationName}
-                  className="w-full h-full object-cover"
+              {/* Clickable Avatar */}
+              <div 
+                className="relative group cursor-pointer mb-4"
+                onClick={triggerAvatarUpload}
+              >
+                <div className="w-32 h-32 rounded-full bg-secondary overflow-hidden">
+                  {avatarUpload.isUploading ? (
+                    <div className="w-full h-full flex items-center justify-center bg-secondary">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <img
+                      src={displayAvatar}
+                      alt={mockProfile.publicationName}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
                 />
               </div>
+              <p className="text-xs text-muted-foreground mb-2">Click to change photo</p>
 
               <h1 className="font-display font-bold text-display-sm text-foreground mb-2">
                 {mockProfile.publicationName}

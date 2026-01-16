@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { toast } from "sonner";
 
 export const PublisherEditTitle = () => {
   const { id } = useParams();
@@ -31,9 +33,50 @@ export const PublisherEditTitle = () => {
     paymentTerms: isNew ? "" : "Net 30",
   });
 
-  const [coverImages, setCoverImages] = useState<Array<{ name: string; url?: string }>>([]);
-  const [spreadImages, setSpreadImages] = useState<Array<{ name: string; url?: string }>>([]);
-  const [logoImages, setLogoImages] = useState<Array<{ name: string; url?: string }>>([]);
+  // Uploaded image URLs
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [sampleSpreadUrl, setSampleSpreadUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  // File upload hooks
+  const coverUpload = useFileUpload({
+    bucket: 'magazine-assets',
+    folder: 'covers',
+    maxSizeMB: 10, // Covers can be larger
+    onUploadComplete: (url) => {
+      setCoverImageUrl(url);
+      toast.success("Cover image uploaded successfully");
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
+
+  const spreadUpload = useFileUpload({
+    bucket: 'magazine-assets',
+    folder: 'spreads',
+    maxSizeMB: 10,
+    onUploadComplete: (url) => {
+      setSampleSpreadUrl(url);
+      toast.success("Sample spread uploaded successfully");
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
+
+  const logoUpload = useFileUpload({
+    bucket: 'magazine-assets',
+    folder: 'logos',
+    maxSizeMB: 2,
+    onUploadComplete: (url) => {
+      setLogoUrl(url);
+      toast.success("Logo uploaded successfully");
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
 
   const handleInputChange = (field: string) => (value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -43,16 +86,42 @@ export const PublisherEditTitle = () => {
     setFormData(prev => ({ ...prev, [field]: e.target.checked }));
   };
 
+  const handleCoverUpload = (files: File[]) => {
+    if (files[0]) {
+      coverUpload.upload(files[0]);
+    }
+  };
+
+  const handleSpreadUpload = (files: File[]) => {
+    if (files[0]) {
+      spreadUpload.upload(files[0]);
+    }
+  };
+
+  const handleLogoUpload = (files: File[]) => {
+    if (files[0]) {
+      logoUpload.upload(files[0]);
+    }
+  };
+
   const handleSubmit = () => {
-    console.log("Submitting:", formData);
-    navigate("/publisher");
+    const magazineData = {
+      ...formData,
+      cover_image_url: coverImageUrl,
+      sample_spread_url: sampleSpreadUrl,
+      logo_url: logoUrl,
+    };
+    
+    console.log("Submitting:", magazineData);
+    toast.success(isNew ? "Magazine created successfully" : "Magazine updated successfully");
+    navigate("/publisher/titles");
   };
 
   return (
     <PublisherLayout>
       <BackNavigation
         title={isNew ? "Add New Title" : "Edit Title"}
-        onBack={() => navigate("/publisher")}
+        onBack={() => navigate("/publisher/titles")}
       />
 
       <div className="px-4 md:px-6 pb-8">
@@ -159,10 +228,7 @@ export const PublisherEditTitle = () => {
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">File Format</h3>
               <p className="text-body text-muted-foreground">
-                All high-resolution images should be submitted in SVG format
-              </p>
-              <p className="text-body text-accent mt-2">
-                Send to: hi@neesh.art
+                Upload high-resolution images (JPG, PNG, or WebP). For best results, use 300 DPI images.
               </p>
             </div>
           </div>
@@ -173,30 +239,60 @@ export const PublisherEditTitle = () => {
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">Assets</h3>
               <div className="space-y-6">
-                <FileUploadZone
-                  title="Upload Cover Image"
-                  subtitle="High-resolution cover image 300 DPI"
-                  accept="image/*"
-                  onFilesSelected={(files) => setCoverImages(files.map(f => ({ name: f.name })))}
-                  currentFiles={coverImages}
-                  onRemoveFile={(index) => setCoverImages(prev => prev.filter((_, i) => i !== index))}
-                />
-                <FileUploadZone
-                  title="Upload Sample Spread"
-                  subtitle="Representative 2-page spread 300 DPI"
-                  accept="image/*"
-                  onFilesSelected={(files) => setSpreadImages(files.map(f => ({ name: f.name })))}
-                  currentFiles={spreadImages}
-                  onRemoveFile={(index) => setSpreadImages(prev => prev.filter((_, i) => i !== index))}
-                />
-                <FileUploadZone
-                  title="Upload Logo"
-                  subtitle="Vector format preferred"
-                  accept="image/*,.svg"
-                  onFilesSelected={(files) => setLogoImages(files.map(f => ({ name: f.name })))}
-                  currentFiles={logoImages}
-                  onRemoveFile={(index) => setLogoImages(prev => prev.filter((_, i) => i !== index))}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Cover Image</label>
+                  <FileUploadZone
+                    title="Upload Cover Image"
+                    subtitle="High-resolution cover image (max 10MB)"
+                    accept="image/*"
+                    onFilesSelected={handleCoverUpload}
+                    isUploading={coverUpload.isUploading}
+                    uploadProgress={coverUpload.progress}
+                    uploadedUrl={coverImageUrl || undefined}
+                    error={coverUpload.error || undefined}
+                    onRemove={() => {
+                      setCoverImageUrl(null);
+                      coverUpload.reset();
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Sample Spread</label>
+                  <FileUploadZone
+                    title="Upload Sample Spread"
+                    subtitle="Representative 2-page spread (max 10MB)"
+                    accept="image/*"
+                    onFilesSelected={handleSpreadUpload}
+                    isUploading={spreadUpload.isUploading}
+                    uploadProgress={spreadUpload.progress}
+                    uploadedUrl={sampleSpreadUrl || undefined}
+                    error={spreadUpload.error || undefined}
+                    onRemove={() => {
+                      setSampleSpreadUrl(null);
+                      spreadUpload.reset();
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Logo</label>
+                  <FileUploadZone
+                    title="Upload Logo"
+                    subtitle="Vector format preferred (max 2MB)"
+                    accept="image/*,.svg"
+                    onFilesSelected={handleLogoUpload}
+                    isUploading={logoUpload.isUploading}
+                    uploadProgress={logoUpload.progress}
+                    uploadedUrl={logoUrl || undefined}
+                    error={logoUpload.error || undefined}
+                    onRemove={() => {
+                      setLogoUrl(null);
+                      logoUpload.reset();
+                    }}
+                  />
+                </div>
+
                 <FormTextarea
                   label="Promotional Text"
                   value={formData.promotionalText}
@@ -257,8 +353,9 @@ export const PublisherEditTitle = () => {
             variant="purple"
             icon={<Check className="w-4 h-4" />}
             onClick={handleSubmit}
+            disabled={coverUpload.isUploading || spreadUpload.isUploading || logoUpload.isUploading}
           >
-            Confirm Edits
+            {isNew ? "Create Magazine" : "Confirm Edits"}
           </ButtonPrimary>
         </div>
       </div>
