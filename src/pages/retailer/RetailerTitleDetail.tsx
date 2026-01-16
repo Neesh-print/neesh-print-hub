@@ -1,43 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Bookmark, Copy, MessageCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Bookmark, Copy, MessageCircle, AlertCircle, BookOpen } from "lucide-react";
 import { RetailerLayout, QuantitySelector, useCart } from "@/components/retailer";
-import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary } from "@/components/neesh";
+import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
 import { toast } from "@/hooks/use-toast";
-
-const mockMagazine = {
-  id: "1",
-  title: "Weird Walk Issue 8",
-  publisher: "Weird Walk",
-  issue: "Issue 8",
-  year: "2024",
-  pages: "48",
-  dimensions: "148mm x 210mm",
-  sku: "WW-008",
-  coverType: "Soft Cover",
-  genre: "Folklore, Horror",
-  description: `Weird Walk is a zine about walking, the ritual landscape, folklore and folk horror. Each issue explores the strange and ancient places of the British Isles, from standing stones to holy wells, from sacred groves to haunted lanes.
-
-This issue features articles on the prehistoric landscape of the Marlborough Downs, the folklore of the Sussex Weald, and a walking guide to the ancient trackways of Dartmoor. We also delve into the world of folk horror cinema and music, with reviews and interviews.
-
-Whether you're a seasoned walker or an armchair traveler, Weird Walk invites you to explore the weird and wonderful landscape of these islands.`,
-  wspPrice: 8.81,
-  msrpPrice: 20.00,
-  images: [
-    "/placeholder.svg",
-    "/placeholder.svg",
-    "/placeholder.svg",
-    "/placeholder.svg",
-    "/placeholder.svg",
-  ],
-};
-
-const mockSimilarTitles = [
-  { id: "10", coverImage: "/placeholder.svg", title: "Folklore Journal #5", publisher: "Folklore Press", region: "UK", price: 12.00 },
-  { id: "11", coverImage: "/placeholder.svg", title: "Haunted Lands", publisher: "Ghost Stories", region: "Ireland", price: 15.00 },
-  { id: "12", coverImage: "/placeholder.svg", title: "Sacred Stones", publisher: "Ancient Ways", region: "Wales", price: 18.00 },
-  { id: "13", coverImage: "/placeholder.svg", title: "Walking Britain", publisher: "Trail Press", region: "UK", price: 14.00 },
-];
+import { useMagazine } from "@/hooks/useMagazine";
+import { useMagazines } from "@/hooks/useMagazines";
 
 export const RetailerTitleDetail = () => {
   const navigate = useNavigate();
@@ -46,28 +15,64 @@ export const RetailerTitleDetail = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
-  const margin = mockMagazine.msrpPrice - mockMagazine.wspPrice;
+  const { magazine, isLoading, error, refetch } = useMagazine(id || '');
+  const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
+
+  if (isLoading) {
+    return (
+      <RetailerLayout>
+        <LoadingScreen message="Loading magazine details..." />
+      </RetailerLayout>
+    );
+  }
+
+  if (error || !magazine) {
+    return (
+      <RetailerLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12 text-destructive" />}
+            title="Magazine not found"
+            description={error || "This magazine doesn't exist or has been removed"}
+            action={<ButtonPrimary onClick={() => navigate("/retailer")}>Back to Catalogue</ButtonPrimary>}
+          />
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  // Build images array from available URLs
+  const images = [
+    magazine.cover_image_url || "/placeholder.svg",
+  ].filter(Boolean);
+
+  const wspPrice = magazine.wholesale_price || magazine.price;
+  const msrpPrice = magazine.suggested_retail_price || magazine.price * 1.5;
+  const margin = msrpPrice - wspPrice;
 
   const handleAddToCart = () => {
     addToCart({
-      magazineId: mockMagazine.id,
-      title: mockMagazine.title,
-      coverImage: mockMagazine.images[0],
-      publisher: mockMagazine.publisher,
-      issue: mockMagazine.issue,
-      price: mockMagazine.wspPrice,
+      magazineId: magazine.id,
+      title: magazine.title,
+      coverImage: magazine.cover_image_url || "/placeholder.svg",
+      publisher: magazine.publisher?.company_name || "Unknown Publisher",
+      issue: magazine.issue_number || "",
+      price: wspPrice,
       quantity,
     });
     toast({
       title: "Added to cart",
-      description: `${quantity}x ${mockMagazine.title} added to your cart`,
+      description: `${quantity}x ${magazine.title} added to your cart`,
     });
   };
 
   const handleCopyInfo = () => {
-    navigator.clipboard.writeText(`${mockMagazine.title} - ${mockMagazine.publisher} - WSP: $${mockMagazine.wspPrice}`);
+    navigator.clipboard.writeText(`${magazine.title} - WSP: $${wspPrice.toFixed(2)}`);
     toast({ title: "Copied to clipboard" });
   };
+
+  // Filter out current magazine from similar titles
+  const filteredSimilar = similarMagazines.filter(m => m.id !== magazine.id).slice(0, 4);
 
   return (
     <RetailerLayout>
@@ -84,43 +89,49 @@ export const RetailerTitleDetail = () => {
             {/* Main Image */}
             <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary mb-4">
               <img
-                src={mockMagazine.images[selectedImageIndex]}
-                alt={mockMagazine.title}
+                src={images[selectedImageIndex] || "/placeholder.svg"}
+                alt={magazine.title}
                 className="w-full h-full object-cover"
               />
               
               {/* Navigation Arrows */}
-              <button
-                onClick={() => setSelectedImageIndex(prev => Math.max(0, prev - 1))}
-                disabled={selectedImageIndex === 0}
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setSelectedImageIndex(prev => Math.min(mockMagazine.images.length - 1, prev + 1))}
-                disabled={selectedImageIndex === mockMagazine.images.length - 1}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setSelectedImageIndex(prev => Math.max(0, prev - 1))}
+                    disabled={selectedImageIndex === 0}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedImageIndex(prev => Math.min(images.length - 1, prev + 1))}
+                    disabled={selectedImageIndex === images.length - 1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Thumbnail Row */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {mockMagazine.images.map((img, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImageIndex(index)}
-                  className={`
-                    flex-shrink-0 w-16 h-20 rounded-md overflow-hidden border-2 transition-all
-                    ${selectedImageIndex === index ? 'border-accent' : 'border-transparent'}
-                  `}
-                >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
+            {images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {images.map((img, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`
+                      flex-shrink-0 w-16 h-20 rounded-md overflow-hidden border-2 transition-all
+                      ${selectedImageIndex === index ? 'border-accent' : 'border-transparent'}
+                    `}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-2 mt-4">
@@ -139,58 +150,70 @@ export const RetailerTitleDetail = () => {
           {/* Right Column - Details */}
           <div>
             <h1 className="font-display font-bold text-3xl text-foreground mb-2">
-              {mockMagazine.title}
+              {magazine.title}
             </h1>
             <p className="text-muted-foreground mb-6">
-              {mockMagazine.publisher} · {mockMagazine.issue}
+              {magazine.publisher?.company_name || "Unknown Publisher"} · {magazine.issue_number || ""}
             </p>
 
             {/* Specs Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
+              {magazine.issue_frequency && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Frequency</span>
+                  <p className="font-medium">{magazine.issue_frequency}</p>
+                </div>
+              )}
+              {magazine.specs && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Specs</span>
+                  <p className="font-medium">{magazine.specs}</p>
+                </div>
+              )}
+              {magazine.issue_number && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Issue</span>
+                  <p className="font-medium">{magazine.issue_number}</p>
+                </div>
+              )}
+              {magazine.category && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Category</span>
+                  <p className="font-medium">{magazine.category}</p>
+                </div>
+              )}
+              {magazine.publication_type && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Type</span>
+                  <p className="font-medium">{magazine.publication_type}</p>
+                </div>
+              )}
               <div>
-                <span className="text-caption text-muted-foreground">Year</span>
-                <p className="font-medium">{mockMagazine.year}</p>
-              </div>
-              <div>
-                <span className="text-caption text-muted-foreground">Pages</span>
-                <p className="font-medium">{mockMagazine.pages}</p>
-              </div>
-              <div>
-                <span className="text-caption text-muted-foreground">Dimensions</span>
-                <p className="font-medium">{mockMagazine.dimensions}</p>
-              </div>
-              <div>
-                <span className="text-caption text-muted-foreground">SKU</span>
-                <p className="font-medium">{mockMagazine.sku}</p>
-              </div>
-              <div>
-                <span className="text-caption text-muted-foreground">Cover type</span>
-                <p className="font-medium">{mockMagazine.coverType}</p>
-              </div>
-              <div>
-                <span className="text-caption text-muted-foreground">Genre</span>
-                <p className="font-medium">{mockMagazine.genre}</p>
+                <span className="text-caption text-muted-foreground">In Stock</span>
+                <p className="font-medium">{magazine.inventory_count || 0} copies</p>
               </div>
             </div>
 
             {/* Description */}
-            <div className="mb-8">
-              {mockMagazine.description.split('\n\n').map((para, index) => (
-                <p key={index} className="text-muted-foreground mb-4 last:mb-0">
-                  {para}
-                </p>
-              ))}
-            </div>
+            {magazine.description && (
+              <div className="mb-8">
+                {magazine.description.split('\n\n').map((para, index) => (
+                  <p key={index} className="text-muted-foreground mb-4 last:mb-0">
+                    {para}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {/* Price Section */}
             <div className="card-neesh mb-6">
               <p className="text-caption text-muted-foreground mb-2">Price</p>
               <div className="space-y-1">
                 <p className="font-display font-bold text-2xl text-accent">
-                  ${mockMagazine.wspPrice.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">WSP</span>
+                  ${wspPrice.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">WSP</span>
                 </p>
                 <p className="text-muted-foreground">
-                  ${mockMagazine.msrpPrice.toFixed(2)} <span className="text-sm">MSRP</span>
+                  ${msrpPrice.toFixed(2)} <span className="text-sm">MSRP</span>
                 </p>
                 <p className="text-green-600 font-medium">
                   ${margin.toFixed(2)} <span className="text-sm font-normal">MY MARGIN</span>
@@ -204,7 +227,7 @@ export const RetailerTitleDetail = () => {
                 value={quantity}
                 onChange={setQuantity}
                 min={1}
-                max={100}
+                max={magazine.inventory_count || 100}
               />
               <ButtonPrimary fullWidth onClick={handleAddToCart}>
                 Add To Cart
@@ -214,24 +237,26 @@ export const RetailerTitleDetail = () => {
         </div>
 
         {/* Similar Titles */}
-        <section>
-          <h2 className="font-display font-semibold text-xl text-foreground mb-6">
-            Explore similar titles
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-            {mockSimilarTitles.map((mag) => (
-              <MagazineCard
-                key={mag.id}
-                coverImage={mag.coverImage}
-                title={mag.title}
-                publisher={mag.publisher}
-                region={mag.region}
-                price={mag.price}
-                onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
-              />
-            ))}
-          </div>
-        </section>
+        {filteredSimilar.length > 0 && (
+          <section>
+            <h2 className="font-display font-semibold text-xl text-foreground mb-6">
+              Explore similar titles
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+              {filteredSimilar.map((mag) => (
+                <MagazineCard
+                  key={mag.id}
+                  coverImage={mag.cover_image_url || "/placeholder.svg"}
+                  title={mag.title}
+                  publisher={mag.publisher?.company_name || "Unknown"}
+                  region=""
+                  price={mag.wholesale_price || mag.price}
+                  onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </RetailerLayout>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Order {
+  [key: string]: unknown; // Index signature for DataTable compatibility
   id: string;
   order_number: string;
   status: string;

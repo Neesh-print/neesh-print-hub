@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, ChevronDown, ChevronUp, AlertCircle, BookOpen } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, WalletDisplay, ProgressBar, DataTable, StatusBadge } from "@/components/neesh";
+import { BackNavigation, WalletDisplay, ProgressBar, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { LoadingScreen } from "@/components/shared";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { useMagazines } from "@/hooks/useMagazines";
+import { useOrders } from "@/hooks/useOrders";
 
-// Mock data
+// Mock sales chart data (would come from analytics in production)
 const salesChartData = [
   { month: "Jan", sales: 1200 },
   { month: "Feb", sales: 1800 },
@@ -15,20 +19,6 @@ const salesChartData = [
   { month: "Jun", sales: 3200 },
 ];
 
-const mockTitles = [
-  { id: "1", title: "Kinfolk Magazine", coverImage: "/placeholder.svg", inventory: 45, total: 100 },
-  { id: "2", title: "Cereal Magazine", coverImage: "/placeholder.svg", inventory: 23, total: 50 },
-  { id: "3", title: "Apartamento", coverImage: "/placeholder.svg", inventory: 67, total: 80 },
-];
-
-const mockOrders = [
-  { id: "#0009", publisher: "Kinfolk", total: 450.00, time: "2h ago", volume: 15, type: "Wholesale", status: "received" as const },
-  { id: "#0008", publisher: "Cereal", total: 280.00, time: "5h ago", volume: 10, type: "Wholesale", status: "pending" as const },
-  { id: "#0007", publisher: "Apartamento", total: 320.00, time: "1d ago", volume: 12, type: "Consignment", status: "unfulfilled" as const },
-  { id: "#0006", publisher: "Kinfolk", total: 180.00, time: "2d ago", volume: 6, type: "Wholesale", status: "received" as const },
-  { id: "#0005", publisher: "Cereal", total: 560.00, time: "3d ago", volume: 20, type: "Wholesale", status: "received" as const },
-];
-
 const timePeriods = ["D", "W", "M", "Q", "YTD", "Y", "ALL"];
 
 export const PublisherDashboard = () => {
@@ -36,19 +26,66 @@ export const PublisherDashboard = () => {
   const [activePeriod, setActivePeriod] = useState("M");
   const [titlesExpanded, setTitlesExpanded] = useState(true);
 
+  const { publisher, isLoading: publisherLoading, error: publisherError } = usePublisherProfile();
+  const { magazines, isLoading: magazinesLoading, error: magazinesError, refetch: refetchMagazines } = useMagazines({
+    publisherId: publisher?.id,
+  });
+  const { orders, isLoading: ordersLoading, error: ordersError, refetch: refetchOrders } = useOrders({
+    publisherId: publisher?.id,
+    limit: 5,
+  });
+
+  const isLoading = publisherLoading || (publisher && (magazinesLoading || ordersLoading));
+  const error = publisherError || magazinesError || ordersError;
+
   const handleTransfer = () => {
     navigate("/publisher/transfers");
   };
 
   const orderColumns = [
-    { key: "id", header: "Order" },
-    { key: "publisher", header: "Publisher" },
-    { key: "total", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
-    { key: "time", header: "Time" },
-    { key: "volume", header: "Volume" },
-    { key: "type", header: "Type" },
-    { key: "status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as any} /> },
+    { key: "order_number", header: "Order" },
+    { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
+    { key: "created_at", header: "Time", render: (value: string) => {
+      const date = new Date(value);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    }},
+    { key: "quantity", header: "Volume" },
+    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as any} /> },
   ];
+
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+        <LoadingScreen message="Loading dashboard..." />
+      </PublisherLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PublisherLayout>
+        <div className="p-6">
+          <EmptyState
+            icon={<AlertCircle className="w-12 h-12 text-destructive" />}
+            title="Something went wrong"
+            description={error}
+            action={<ButtonPrimary onClick={() => { refetchMagazines(); refetchOrders(); }}>Try Again</ButtonPrimary>}
+          />
+        </div>
+      </PublisherLayout>
+    );
+  }
+
+  // Calculate totals from real data
+  const totalSales = orders.reduce((sum, order) => sum + order.total_amount, 0);
+  const totalSold = orders.reduce((sum, order) => sum + order.quantity, 0);
+  const totalInventory = magazines.reduce((sum, mag) => sum + (mag.inventory_count || 0), 0);
 
   return (
     <PublisherLayout>
@@ -58,7 +95,7 @@ export const PublisherDashboard = () => {
         rightContent={
           <WalletDisplay
             label="Account Balance"
-            amount={2720.00}
+            amount={publisher?.total_sales || 0}
             actionLabel="Transfer"
             onAction={handleTransfer}
           />
@@ -73,13 +110,13 @@ export const PublisherDashboard = () => {
             <div className="lg:w-1/3">
               <p className="text-caption text-muted-foreground mb-1">Total Sales</p>
               <div className="flex items-baseline gap-3">
-                <span className="font-display font-bold text-display-md text-foreground">$3,200.90</span>
+                <span className="font-display font-bold text-display-md text-foreground">${totalSales.toFixed(2)}</span>
                 <div className="flex items-center gap-1 text-chart-green">
                   <TrendingUp className="w-4 h-4" />
                   <span className="text-body font-medium">+12.30%</span>
                 </div>
               </div>
-              <p className="text-caption text-muted-foreground mt-2">1,000/2,000 Sold</p>
+              <p className="text-caption text-muted-foreground mt-2">{totalSold}/{totalInventory + totalSold} Sold</p>
             </div>
 
             {/* Sales Chart */}
@@ -149,30 +186,39 @@ export const PublisherDashboard = () => {
 
             {titlesExpanded && (
               <div className="space-y-4">
-                {mockTitles.map((title) => (
-                  <div
-                    key={title.id}
-                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                    onClick={() => navigate(`/publisher/titles/${title.id}/edit`)}
-                  >
-                    <img
-                      src={title.coverImage}
-                      alt={title.title}
-                      className="w-12 h-16 object-cover rounded bg-secondary"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-display font-medium text-body text-foreground truncate">
-                        {title.title}
-                      </p>
-                      <p className="text-caption text-muted-foreground">
-                        {title.inventory} in stock
-                      </p>
-                      <div className="mt-2">
-                        <ProgressBar current={title.inventory} total={title.total} />
+                {magazines.length === 0 ? (
+                  <EmptyState
+                    icon={<BookOpen className="w-8 h-8 text-muted-foreground" />}
+                    title="No titles yet"
+                    description="Add your first magazine to get started"
+                    action={<ButtonPrimary onClick={() => navigate("/publisher/titles/new")}>Add Title</ButtonPrimary>}
+                  />
+                ) : (
+                  magazines.slice(0, 5).map((title) => (
+                    <div
+                      key={title.id}
+                      className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
+                      onClick={() => navigate(`/publisher/titles/${title.id}/edit`)}
+                    >
+                      <img
+                        src={title.cover_image_url || "/placeholder.svg"}
+                        alt={title.title}
+                        className="w-12 h-16 object-cover rounded bg-secondary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-display font-medium text-body text-foreground truncate">
+                          {title.title}
+                        </p>
+                        <p className="text-caption text-muted-foreground">
+                          {title.inventory_count || 0} in stock
+                        </p>
+                        <div className="mt-2">
+                          <ProgressBar current={title.inventory_count || 0} total={(title.inventory_count || 0) + (title.sold_count || 0) || 100} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -180,11 +226,19 @@ export const PublisherDashboard = () => {
           {/* Latest Orders */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-heading text-foreground mb-4">Latest Orders</h3>
-            <DataTable
-              columns={orderColumns}
-              data={mockOrders}
-              onRowClick={(order) => navigate(`/publisher/orders/${order.id.replace("#", "")}`)}
-            />
+            {orders.length === 0 ? (
+              <EmptyState
+                icon={<BookOpen className="w-8 h-8 text-muted-foreground" />}
+                title="No orders yet"
+                description="Orders will appear here once retailers start buying"
+              />
+            ) : (
+              <DataTable
+                columns={orderColumns}
+                data={orders}
+                onRowClick={(order) => navigate(`/publisher/orders/${order.id}`)}
+              />
+            )}
           </div>
         </div>
       </div>
