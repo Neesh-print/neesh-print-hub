@@ -220,6 +220,18 @@ const Auth = () => {
               required
             />
 
+            {activeTab === 'login' && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-sm text-accent-purple hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
             {activeTab === 'signup' && (
               <>
                 <FormInput
