@@ -9,3 +9,5 @@ export { AdminOrders } from './AdminOrders';
 export { AdminOrderDetail } from './AdminOrderDetail';
 export { AdminAnalytics } from './AdminAnalytics';
 export { AdminSettings } from './AdminSettings';
+export { AdminFulfillmentQueue } from './AdminFulfillmentQueue';
+export { PrintSlipsPage } from './PrintSlipsPage';
