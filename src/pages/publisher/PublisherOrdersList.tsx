@@ -31,20 +31,8 @@ export const PublisherOrdersList = () => {
     navigate("/publisher/transfers/withdraw");
   };
 
-  const handleSelectAll = (selected: boolean) => {
-    if (selected) {
-      setSelectedOrders(mockOrders.map(o => o.id));
-    } else {
-      setSelectedOrders([]);
-    }
-  };
-
-  const handleSelectOrder = (orderId: string, selected: boolean) => {
-    if (selected) {
-      setSelectedOrders([...selectedOrders, orderId]);
-    } else {
-      setSelectedOrders(selectedOrders.filter(id => id !== orderId));
-    }
+  const handleSelectionChange = (selectedIds: string[]) => {
+    setSelectedOrders(selectedIds);
   };
 
   const columns = [
@@ -140,9 +128,8 @@ export const PublisherOrdersList = () => {
             columns={columns}
             data={filteredOrders}
             selectable
-            selectedItems={selectedOrders}
-            onSelectAll={handleSelectAll}
-            onSelectItem={handleSelectOrder}
+            selectedRows={selectedOrders}
+            onSelectionChange={handleSelectionChange}
             onRowClick={(order) => navigate(`/publisher/orders/${order.id.replace("#", "")}`)}
           />
         </div>

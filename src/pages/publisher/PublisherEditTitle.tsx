@@ -177,24 +177,24 @@ export const PublisherEditTitle = () => {
                   title="Upload Cover Image"
                   subtitle="High-resolution cover image 300 DPI"
                   accept="image/*"
-                  onFileSelect={(files) => setCoverImages(files.map(f => ({ name: f.name })))}
-                  uploadedFiles={coverImages}
+                  onFilesSelected={(files) => setCoverImages(files.map(f => ({ name: f.name })))}
+                  currentFiles={coverImages}
                   onRemoveFile={(index) => setCoverImages(prev => prev.filter((_, i) => i !== index))}
                 />
                 <FileUploadZone
                   title="Upload Sample Spread"
                   subtitle="Representative 2-page spread 300 DPI"
                   accept="image/*"
-                  onFileSelect={(files) => setSpreadImages(files.map(f => ({ name: f.name })))}
-                  uploadedFiles={spreadImages}
+                  onFilesSelected={(files) => setSpreadImages(files.map(f => ({ name: f.name })))}
+                  currentFiles={spreadImages}
                   onRemoveFile={(index) => setSpreadImages(prev => prev.filter((_, i) => i !== index))}
                 />
                 <FileUploadZone
                   title="Upload Logo"
                   subtitle="Vector format preferred"
                   accept="image/*,.svg"
-                  onFileSelect={(files) => setLogoImages(files.map(f => ({ name: f.name })))}
-                  uploadedFiles={logoImages}
+                  onFilesSelected={(files) => setLogoImages(files.map(f => ({ name: f.name })))}
+                  currentFiles={logoImages}
                   onRemoveFile={(index) => setLogoImages(prev => prev.filter((_, i) => i !== index))}
                 />
                 <FormTextarea
