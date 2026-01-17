@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { FileText, Store, Search, Send, LayoutDashboard, CheckCircle } from 'lucide-react';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
+import heroFlatlay from '@/assets/hero-magazine-flatlay.jpg';
 
 export const HomePage = () => {
   return (
@@ -29,13 +30,11 @@ export const HomePage = () => {
             <div className="order-1 lg:order-2">
               <div className="relative">
                 <div className="aspect-[4/3] rounded-lg overflow-hidden bg-secondary">
-                  {/* Placeholder for magazine flatlay image */}
-                  <div className="w-full h-full bg-gradient-to-br from-muted to-secondary flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm">Magazine Flatlay Image</p>
-                    </div>
-                  </div>
+                  <img
+                    src={heroFlatlay}
+                    alt="A colorful flatlay of independent magazines including Precog, Subway, and other titles"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               </div>
             </div>
