@@ -1,17 +1,15 @@
 import { useNavigate } from 'react-router-dom';
-import { FileText, Store } from 'lucide-react';
+import { Copy, Store, ChevronRight } from 'lucide-react';
 import { AuthLayout, AuthDivider, AuthLink } from '@/components/auth';
-import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 
 // TODO: Move to environment variables
-const PUBLISHER_TYPEFORM_URL = 'https://neesh.typeform.com/publisher';
 const RETAILER_TYPEFORM_URL = 'https://neesh.typeform.com/retailer';
 
 const RoleSelectionPage = () => {
   const navigate = useNavigate();
 
   const handlePublisherApply = () => {
-    window.location.href = PUBLISHER_TYPEFORM_URL;
+    navigate('/apply/publisher');
   };
 
   const handleRetailerApply = () => {
@@ -32,56 +30,60 @@ const RoleSelectionPage = () => {
 
       {/* Role Selection Buttons */}
       <div className="space-y-4">
-        <ButtonPrimary
-          fullWidth
-          icon={<FileText className="w-5 h-5" />}
+        <button
           onClick={handlePublisherApply}
+          className="w-full flex items-center gap-4 px-6 py-5 bg-cream hover:bg-cream/80 rounded-lg transition-colors text-left"
         >
-          Apply as a Publisher
-        </ButtonPrimary>
+          <Copy className="w-6 h-6 text-foreground flex-shrink-0" />
+          <span className="font-display font-medium text-body text-foreground">
+            Apply as a Publisher
+          </span>
+        </button>
 
-        <ButtonPrimary
-          fullWidth
-          icon={<Store className="w-5 h-5" />}
+        <button
           onClick={handleRetailerApply}
+          className="w-full flex items-center gap-4 px-6 py-5 bg-cream hover:bg-cream/80 rounded-lg transition-colors text-left"
         >
-          Apply as a Retailer
-        </ButtonPrimary>
-      </div>
-
-      {/* Already applied note */}
-      <div className="mt-6 text-center">
-        <p className="text-caption text-muted-foreground">
-          Already applied? Check your email for next steps, or{' '}
-          <button
-            onClick={() => navigate('/login')}
-            className="text-foreground hover:text-accent transition-colors font-medium"
-          >
-            sign in
-          </button>
-          {' '}if you've been approved.
-        </p>
+          <Store className="w-6 h-6 text-foreground flex-shrink-0" />
+          <span className="font-display font-medium text-body text-foreground">
+            Apply as a Retailer
+          </span>
+        </button>
       </div>
 
       {/* Divider */}
       <AuthDivider />
 
       {/* Login link */}
-      <AuthLink
-        text="Already found your Neesh?"
-        actionText="Log in"
-        to="/login"
-      />
+      <div className="flex items-center justify-center gap-2">
+        <span className="text-body text-text-secondary">
+          Already found your Neesh?
+        </span>
+        <button
+          onClick={() => navigate('/login')}
+          className="inline-flex items-center gap-1 font-display font-medium text-body text-foreground hover:opacity-70 transition-opacity"
+        >
+          Log in
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
 
       {/* Divider */}
       <AuthDivider />
 
       {/* Talk to team link */}
-      <AuthLink
-        text="Have any questions?"
-        actionText="Talk to the team"
-        onClick={() => window.open('mailto:hello@neesh.com', '_blank')}
-      />
+      <div className="flex items-center justify-center gap-2">
+        <span className="text-body text-text-secondary">
+          Have any questions?
+        </span>
+        <button
+          onClick={() => window.open('mailto:hi@neesh.art', '_blank')}
+          className="inline-flex items-center gap-1 font-display font-medium text-body text-foreground hover:opacity-70 transition-opacity"
+        >
+          Talk to the team
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
     </AuthLayout>
   );
 };
