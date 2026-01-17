@@ -19,6 +19,9 @@ import {
   ApplicationPendingPage,
 } from "./pages/auth";
 
+// Apply pages
+import { PublisherApplication } from "./pages/apply";
+
 // Publisher pages
 import {
   PublisherDashboard,
@@ -114,6 +117,7 @@ const AppRoutes = () => {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/apply" element={<RoleSelectionPage />} />
+      <Route path="/apply/publisher" element={<PublisherApplication />} />
       <Route path="/apply/submitted" element={<ApplicationSubmittedPage />} />
       <Route path="/pending" element={<ApplicationPendingPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
