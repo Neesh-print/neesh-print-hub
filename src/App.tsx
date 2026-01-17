@@ -73,6 +73,9 @@ import {
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
+// Marketing pages
+import { HomePage } from "./pages/marketing";
+
 // Other pages
 import NotFound from "./pages/NotFound";
 
@@ -111,8 +114,11 @@ const HomeRedirect = () => {
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Home redirect */}
-      <Route path="/" element={<HomeRedirect />} />
+      {/* Marketing homepage */}
+      <Route path="/" element={<HomePage />} />
+
+      {/* Legacy home redirect for logged-in users */}
+      <Route path="/home" element={<HomeRedirect />} />
 
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
