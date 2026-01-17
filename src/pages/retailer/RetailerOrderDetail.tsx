@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Copy, MessageCircle, User, RefreshCw } from "lucide-react";
+import { Copy, MessageCircle, User, RefreshCw, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { RetailerLayout } from "@/components/retailer";
 import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary } from "@/components/neesh";
@@ -235,6 +235,17 @@ export const RetailerOrderDetail = () => {
                 Report Issue
               </ButtonSecondary>
             </>
+          )}
+
+          {/* View Invoice - Only for confirmed/shipped/delivered orders */}
+          {['confirmed', 'shipped', 'delivered'].includes(mockOrder.status) && (
+            <ButtonSecondary
+              fullWidth
+              icon={<FileText className="w-4 h-4" />}
+              onClick={() => navigate(`/retailer/orders/${id}/invoice`)}
+            >
+              View Invoice
+            </ButtonSecondary>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
