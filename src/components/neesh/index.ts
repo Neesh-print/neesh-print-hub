@@ -57,6 +57,8 @@ export type { ButtonSecondaryProps } from './ButtonSecondary';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 
+export { ShareProfileModal } from './ShareProfileModal';
+
 // Notifications
 export { NotificationBell } from './NotificationBell';
 export type { NotificationBellProps } from './NotificationBell';

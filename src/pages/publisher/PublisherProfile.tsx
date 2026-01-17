@@ -2,9 +2,10 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, ChevronDown, ChevronUp, Instagram, Globe, Share2, Camera, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, WalletDisplay, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, WalletDisplay, ButtonSecondary, ShareProfileModal } from "@/components/neesh";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { toast } from "sonner";
+import { slugify } from "@/lib/slugify";
 
 const mockProfile = {
   avatar: "/placeholder.svg",
@@ -42,7 +43,11 @@ export const PublisherProfile = () => {
   const [titlesExpanded, setTitlesExpanded] = useState(true);
   const [retailersExpanded, setRetailersExpanded] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate slug from publisher name
+  const publisherSlug = slugify(mockProfile.publicationName);
 
   const avatarUpload = useFileUpload({
     bucket: 'magazine-assets',
@@ -173,10 +178,22 @@ export const PublisherProfile = () => {
                 <ButtonSecondary fullWidth onClick={() => navigate("/publisher/profile/edit")}>
                   Edit Profile
                 </ButtonSecondary>
-                <ButtonSecondary fullWidth icon={<Share2 className="w-4 h-4" />}>
+                <ButtonSecondary 
+                  fullWidth 
+                  icon={<Share2 className="w-4 h-4" />}
+                  onClick={() => setShowShareModal(true)}
+                >
                   Share Profile
                 </ButtonSecondary>
               </div>
+
+              {/* Share Modal */}
+              <ShareProfileModal
+                isOpen={showShareModal}
+                onClose={() => setShowShareModal(false)}
+                publisherName={mockProfile.publicationName}
+                slug={publisherSlug}
+              />
             </div>
           </div>
 
