@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
+import { Logo } from "@/components/neesh/Logo";
 import {
   Sheet,
   SheetContent,
@@ -56,9 +57,9 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
         <div className="h-full px-4 flex items-center justify-center">
           <button
             onClick={() => navigate("/admin")}
-            className="font-display font-bold text-lg tracking-tight text-foreground"
+            className="hover:opacity-80 transition-opacity"
           >
-            NEESH
+            <Logo size="md" />
           </button>
         </div>
       </header>

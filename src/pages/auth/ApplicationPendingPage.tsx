@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { ButtonSecondary } from '@/components/neesh/ButtonSecondary';
 import { useAuth } from '@/hooks/useAuth';
+import { Logo } from '@/components/neesh/Logo';
 
 const ApplicationPendingPage = () => {
   const navigate = useNavigate();
@@ -16,9 +17,9 @@ const ApplicationPendingPage = () => {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         {/* Logo */}
-        <h1 className="font-display font-bold text-2xl tracking-tight text-foreground mb-12">
-          neesh
-        </h1>
+        <div className="mb-12">
+          <Logo size="xl" />
+        </div>
 
         {/* Clock icon */}
         <div className="mb-6">

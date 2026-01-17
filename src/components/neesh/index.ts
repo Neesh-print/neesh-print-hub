@@ -1,5 +1,8 @@
 // Neesh Component Library - The OS for Indie Print
 
+// Branding
+export { Logo } from './Logo';
+
 // Navigation
 export { HeaderBar } from './HeaderBar';
 export type { HeaderBarProps } from './HeaderBar';
