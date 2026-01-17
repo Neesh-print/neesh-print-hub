@@ -122,8 +122,8 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="flex-1 input-neesh"
+              placeholder="Enter your email address"
+              className="flex-1 px-4 py-3 bg-white border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
               required
             />
             <ButtonPrimary type="submit" variant="black">
