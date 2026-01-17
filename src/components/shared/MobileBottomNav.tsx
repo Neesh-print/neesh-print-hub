@@ -8,7 +8,8 @@ import {
   ShoppingCart, 
   Heart,
   Truck, 
-  Menu 
+  Menu,
+  BarChart3
 } from "lucide-react";
 
 interface NavTab {
@@ -38,7 +39,7 @@ export const MobileBottomNav = ({
     { label: "Home", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
     { label: "Titles", icon: <BookOpen className="w-5 h-5" />, path: "/publisher/titles" },
     { label: "Orders", icon: <Package className="w-5 h-5" />, path: "/publisher/orders" },
-    { label: "Profile", icon: <User className="w-5 h-5" />, path: "/publisher/profile" },
+    { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/publisher/analytics" },
   ];
 
   const retailerTabs: NavTab[] = [

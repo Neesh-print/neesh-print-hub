@@ -30,6 +30,7 @@ import {
   PublisherTransfers,
   PublisherWithdraw,
   PublisherMessages,
+  PublisherAnalytics,
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
@@ -212,6 +213,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/analytics"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherAnalytics />
           </ProtectedRoute>
         }
       />

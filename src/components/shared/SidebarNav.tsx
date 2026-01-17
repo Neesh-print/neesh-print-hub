@@ -39,6 +39,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
     { label: "My Titles", icon: <BookOpen className="w-5 h-5" />, path: "/publisher/titles" },
     { label: "Orders", icon: <Package className="w-5 h-5" />, path: "/publisher/orders" },
+    { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/publisher/analytics" },
     { label: "Transactions", icon: <Receipt className="w-5 h-5" />, path: "/publisher/transactions" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/publisher/messages" },
   ];

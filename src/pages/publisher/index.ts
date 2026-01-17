@@ -9,3 +9,4 @@ export { PublisherWithdraw } from "./PublisherWithdraw";
 export { PublisherMessages } from "./PublisherMessages";
 export { PublisherTitlesList } from "./PublisherTitlesList";
 export { PublisherSettings } from "./PublisherSettings";
+export { PublisherAnalytics } from "./PublisherAnalytics";
