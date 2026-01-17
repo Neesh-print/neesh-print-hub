@@ -147,6 +147,24 @@
     @apply bg-input border-0 rounded-lg px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 transition-all;
   }
 
+  /* Typeform-style underline input */
+  .input-typeform {
+    @apply w-full border-0 border-b-2 border-border bg-transparent px-0 py-3 text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:border-accent transition-colors;
+  }
+
+  .input-typeform::placeholder {
+    @apply text-muted-foreground/50 font-light;
+  }
+
+  /* Typeform-style select option card */
+  .option-card-typeform {
+    @apply w-full px-5 py-4 bg-secondary/50 rounded-xl text-left text-foreground transition-all hover:bg-secondary cursor-pointer;
+  }
+
+  .option-card-typeform.selected {
+    @apply bg-accent/10 ring-2 ring-accent;
+  }
+
   .card-neesh {
     @apply bg-card border border-border rounded-lg p-4 md:p-6;
   }
