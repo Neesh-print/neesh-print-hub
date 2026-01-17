@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
-import { ArrowLeft, CheckCircle, ChevronRight } from "lucide-react";
+import { ChevronLeft, CheckCircle, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone } from "@/components/neesh";
@@ -846,25 +846,14 @@ export const PublisherApplication = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background">
-        <div className="flex items-center justify-between px-4 md:px-6 py-4">
-          {/* Back button / Logo */}
-          <div className="flex items-center gap-4">
-            {currentStep > 1 && currentStep < 13 && (
-              <button
-                onClick={handleBack}
-                className="p-2 -ml-2 rounded-lg hover:bg-secondary transition-colors"
-                aria-label="Go back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            )}
-            <a 
-              href="/" 
-              className="font-display text-xl font-bold tracking-tight text-foreground"
-            >
-              neesh
-            </a>
-          </div>
+        <div className="flex items-center justify-between px-6 md:px-8 py-4">
+          {/* Logo */}
+          <a 
+            href="/" 
+            className="font-display text-xl font-bold tracking-tight text-foreground"
+          >
+            NEESH<span className="text-foreground">"</span>
+          </a>
           
           {/* Progress indicator */}
           {currentStep > 1 && currentStep < 13 && (
@@ -884,6 +873,19 @@ export const PublisherApplication = () => {
           </div>
         )}
       </header>
+
+      {/* Back button - positioned below header */}
+      {currentStep > 1 && currentStep < 13 && (
+        <div className="fixed top-20 left-6 md:left-8 z-40">
+          <button
+            onClick={handleBack}
+            className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Go back"
+          >
+            <ChevronLeft className="w-6 h-6" strokeWidth={1.5} />
+          </button>
+        </div>
+      )}
 
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 md:px-6 pt-20 pb-8">
