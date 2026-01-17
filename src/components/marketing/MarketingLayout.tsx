@@ -54,7 +54,7 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
               ))}
               <Link
                 to="/login"
-                className="text-body font-medium text-accent hover:text-accent/80 transition-colors"
+                className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
               >
                 Log In
               </Link>
@@ -94,7 +94,7 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
               <Link
                 to="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors"
+                className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
               >
                 Log In
               </Link>
