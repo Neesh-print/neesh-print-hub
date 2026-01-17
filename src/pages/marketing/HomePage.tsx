@@ -245,49 +245,44 @@ export const HomePage = () => {
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-20 md:py-32 relative overflow-hidden">
-        {/* Left Image - Couch */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/4 w-[280px] md:w-[320px] lg:w-[380px] hidden md:block">
-          <div className="aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
-            <img
-              src={ctaCouch}
-              alt="Person reading magazines on a couch"
-              className="w-full h-full object-cover"
-            />
-          </div>
+      <section className="py-24 md:py-32 relative overflow-hidden bg-white">
+        {/* Left Image - Couch (editorial/lifestyle) */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/3 rotate-[-3deg] hidden md:block">
+          <img
+            src={ctaCouch}
+            alt=""
+            className="w-56 md:w-64 lg:w-80 rounded-xl shadow-lg"
+          />
         </div>
 
-        {/* Right Image - Flowers */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/4 w-[280px] md:w-[320px] lg:w-[380px] hidden md:block">
-          <div className="aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
-            <img
-              src={ctaFlowers}
-              alt="Flowers in a vase on top of stacked magazines"
-              className="w-full h-full object-cover"
-            />
-          </div>
+        {/* Right Image - Flowers (still life) */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/3 rotate-[2deg] hidden md:block">
+          <img
+            src={ctaFlowers}
+            alt=""
+            className="w-56 md:w-64 lg:w-80 rounded-xl shadow-lg"
+          />
         </div>
 
-        <div className="container mx-auto px-4 md:px-6 relative z-10">
-          <div className="text-center max-w-2xl mx-auto">
-            <h2 className="text-display-md md:text-display-lg font-display font-bold mb-2">
-              Find Your Neesh.
-            </h2>
-            <p className="text-display-sm md:text-display-md font-display font-bold mb-10">
-              Keep Indie Print Moving Forward.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/publishers">
-                <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
-                  For Publishers
-                </ButtonPrimary>
-              </Link>
-              <Link to="/retailers">
-                <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
-                  For Retailers
-                </ButtonPrimary>
-              </Link>
-            </div>
+        {/* Center content */}
+        <div className="relative z-10 text-center px-4">
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-2">
+            Find Your Neesh.
+          </h2>
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-12">
+            Keep Indie Print Moving Forward.
+          </h2>
+          <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-8 lg:gap-32">
+            <Link to="/publishers">
+              <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
+                For Publishers
+              </ButtonPrimary>
+            </Link>
+            <Link to="/retailers">
+              <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
+                For Retailers
+              </ButtonPrimary>
+            </Link>
           </div>
         </div>
       </section>
