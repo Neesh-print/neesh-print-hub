@@ -9,7 +9,7 @@ const sizeClasses = {
   sm: 'h-5',
   md: 'h-6',
   lg: 'h-8',
-  xl: 'h-10',
+  xl: 'h-12',
 };
 
 export const Logo = ({ size = 'md', className = '' }: LogoProps) => {
