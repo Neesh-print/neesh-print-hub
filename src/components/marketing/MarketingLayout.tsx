@@ -36,7 +36,7 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center">
-              <Logo size="lg" />
+              <Logo size="xl" />
             </Link>
 
             {/* Desktop Navigation */}
