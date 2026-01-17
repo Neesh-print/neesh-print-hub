@@ -8,6 +8,7 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "rec
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOrders } from "@/hooks/useOrders";
+import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
 
 // Mock sales chart data (would come from analytics in production)
 const salesChartData = [
@@ -101,6 +102,11 @@ export const PublisherDashboard = () => {
           />
         }
       />
+
+      {/* Onboarding prompt for users who skipped onboarding */}
+      <div className="px-4 md:px-6">
+        <PublisherOnboardingPrompt />
+      </div>
 
       {/* Hero Metrics Section */}
       <div className="px-4 md:px-6 pb-6">
