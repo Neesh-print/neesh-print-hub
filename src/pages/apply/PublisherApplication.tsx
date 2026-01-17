@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
-import { ArrowLeft, CheckCircle, ChevronRight, Search } from "lucide-react";
+import { ArrowLeft, CheckCircle, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { ButtonPrimary, ButtonSecondary, FileUploadZone } from "@/components/neesh";
+import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone } from "@/components/neesh";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
@@ -63,124 +63,6 @@ const FULFILLMENT_OPTIONS = [
     description: "We'll figure it out together" 
   },
 ];
-
-// Typeform-style components
-interface TypeformInputProps {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (value: string) => void;
-  error?: string;
-  required?: boolean;
-  type?: string;
-}
-
-const TypeformInput = ({ label, placeholder, value, onChange, error, required, type = "text" }: TypeformInputProps) => (
-  <div className="space-y-2">
-    <label className="block text-base font-normal text-foreground">
-      {label}{required && <span className="text-muted-foreground">*</span>}
-    </label>
-    <input
-      type={type}
-      placeholder={placeholder || "Type your answer here..."}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="input-typeform"
-    />
-    {error && <p className="text-sm text-destructive">{error}</p>}
-  </div>
-);
-
-interface TypeformTextareaProps {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (value: string) => void;
-  error?: string;
-  required?: boolean;
-  maxLength?: number;
-  helperText?: string;
-}
-
-const TypeformTextarea = ({ label, placeholder, value, onChange, error, required, maxLength, helperText }: TypeformTextareaProps) => (
-  <div className="space-y-2">
-    <label className="block text-base font-normal text-foreground">
-      {label}{required && <span className="text-muted-foreground">*</span>}
-    </label>
-    <textarea
-      placeholder={placeholder || "Type your answer here..."}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      maxLength={maxLength}
-      rows={4}
-      className="input-typeform resize-none min-h-[120px]"
-    />
-    <div className="flex justify-between text-sm text-muted-foreground">
-      {helperText && <span>{helperText}</span>}
-      {maxLength && <span>{value.length}/{maxLength}</span>}
-    </div>
-    {error && <p className="text-sm text-destructive">{error}</p>}
-  </div>
-);
-
-interface TypeformSelectProps {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (value: string) => void;
-  error?: string;
-  required?: boolean;
-}
-
-const TypeformSelect = ({ label, options, value, onChange, error, required }: TypeformSelectProps) => {
-  const [search, setSearch] = useState("");
-  const filteredOptions = options.filter(opt => 
-    opt.label.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div className="space-y-3">
-      <label className="block text-base font-normal text-foreground">
-        {label}{required && <span className="text-muted-foreground">*</span>}
-      </label>
-      <div className="relative">
-        <div className="flex items-center border-b-2 border-border focus-within:border-accent transition-colors">
-          <input
-            type="text"
-            placeholder="Type or select an option"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent py-3 text-lg placeholder:text-muted-foreground/50 focus:outline-none"
-          />
-          <Search className="w-5 h-5 text-muted-foreground" />
-        </div>
-        <div className="mt-4 space-y-2 max-h-[280px] overflow-y-auto">
-          {filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setSearch(option.label);
-              }}
-              className={`option-card-typeform ${value === option.value ? 'selected' : ''}`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
-  );
-};
-
-// Step number badge component
-const StepBadge = ({ step }: { step: number }) => (
-  <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-secondary text-sm font-medium text-foreground mr-3">
-    {step}
-  </span>
-);
 
 interface FormData {
   firstName: string;
@@ -411,19 +293,19 @@ export const PublisherApplication = () => {
 
       case 2:
         return (
-          <div className="space-y-8 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-              <StepBadge step={1} />
-              First, tell us a bit about you<span className="text-muted-foreground">*</span>
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+              First, tell us a bit about you
             </h1>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <Controller
                 name="firstName"
                 control={control}
                 rules={{ required: "First name is required" }}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="First Name"
+                    placeholder="Your first name"
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.firstName?.message}
@@ -436,8 +318,9 @@ export const PublisherApplication = () => {
                 control={control}
                 rules={{ required: "Last name is required" }}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="Last Name"
+                    placeholder="Your last name"
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.lastName?.message}
@@ -456,9 +339,10 @@ export const PublisherApplication = () => {
                   }
                 }}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="Email Address"
                     type="email"
+                    placeholder="you@example.com"
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.email?.message}
@@ -467,7 +351,7 @@ export const PublisherApplication = () => {
                 )}
               />
             </div>
-            <ButtonPrimary onClick={handleNext} fullWidth className="mt-8">
+            <ButtonPrimary onClick={handleNext} fullWidth className="mt-6">
               Continue
             </ButtonPrimary>
           </div>
@@ -475,17 +359,16 @@ export const PublisherApplication = () => {
 
       case 3:
         return (
-          <div className="space-y-8 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-              <StepBadge step={2} />
-              What's your publication called?<span className="text-muted-foreground">*</span>
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+              What's your publication called?
             </h1>
             <Controller
               name="businessName"
               control={control}
               rules={{ required: "Publication name is required" }}
               render={({ field }) => (
-                <TypeformInput
+                <FormInput
                   label="Publication / Company Name"
                   placeholder="e.g., Kinfolk, Monocle, Apartamento"
                   value={field.value}
@@ -503,13 +386,12 @@ export const PublisherApplication = () => {
 
       case 4:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={3} />
-                Which title are you looking to sell?<span className="text-muted-foreground">*</span>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Which title are you looking to sell?
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 Start with one - you can add more later
               </p>
             </div>
@@ -518,7 +400,7 @@ export const PublisherApplication = () => {
               control={control}
               rules={{ required: "Magazine title is required" }}
               render={({ field }) => (
-                <TypeformInput
+                <FormInput
                   label="Magazine Title"
                   placeholder="e.g., Issue 45, Spring 2025 Edition"
                   value={field.value}
@@ -536,13 +418,12 @@ export const PublisherApplication = () => {
 
       case 5:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={4} />
-                Show us your magazine<span className="text-muted-foreground">*</span>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Show us your magazine
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 Upload a cover image so we can see your work
               </p>
             </div>
@@ -572,17 +453,16 @@ export const PublisherApplication = () => {
 
       case 6:
         return (
-          <div className="space-y-8 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-              <StepBadge step={5} />
-              Tell us about your publication<span className="text-muted-foreground">*</span>
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+              Tell us about your publication
             </h1>
             <Controller
               name="description"
               control={control}
               rules={{ required: "Description is required" }}
               render={({ field }) => (
-                <TypeformTextarea
+                <FormTextarea
                   label="Description"
                   placeholder="What's your magazine about? Who's it for?"
                   value={field.value}
@@ -590,6 +470,7 @@ export const PublisherApplication = () => {
                   error={errors.description?.message}
                   maxLength={500}
                   helperText="2-3 sentences is perfect"
+                  rows={5}
                   required
                 />
               )}
@@ -602,17 +483,16 @@ export const PublisherApplication = () => {
 
       case 7:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={6} />
-                Where can we find you online?<span className="text-muted-foreground">*</span>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Where can we find you online?
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 We use this to verify your publication
               </p>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <Controller
                 name="websiteUrl"
                 control={control}
@@ -623,7 +503,7 @@ export const PublisherApplication = () => {
                   }
                 }}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="Website URL"
                     placeholder="https://yourmagazine.com"
                     value={field.value}
@@ -636,7 +516,7 @@ export const PublisherApplication = () => {
                 name="instagramHandle"
                 control={control}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="Instagram Handle"
                     placeholder="@yourmagazine"
                     value={field.value}
@@ -665,19 +545,19 @@ export const PublisherApplication = () => {
 
       case 8:
         return (
-          <div className="space-y-8 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-              <StepBadge step={7} />
-              Where will you ship from?<span className="text-muted-foreground">*</span>
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+              Where will you ship from?
             </h1>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <Controller
                 name="shippingCountry"
                 control={control}
                 rules={{ required: "Country is required" }}
                 render={({ field }) => (
-                  <TypeformSelect
+                  <FormSelect
                     label="Country"
+                    placeholder="Select a country"
                     options={COUNTRIES}
                     value={field.value}
                     onChange={field.onChange}
@@ -690,7 +570,7 @@ export const PublisherApplication = () => {
                 name="shippingCity"
                 control={control}
                 render={({ field }) => (
-                  <TypeformInput
+                  <FormInput
                     label="City"
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
@@ -707,23 +587,23 @@ export const PublisherApplication = () => {
 
       case 9:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={8} />
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
                 A few more details
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 Optional, but helps us understand your publication
               </p>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-4">
               <Controller
                 name="issueFrequency"
                 control={control}
                 render={({ field }) => (
-                  <TypeformSelect
+                  <FormSelect
                     label="Publication Frequency"
+                    placeholder="How often do you publish?"
                     options={FREQUENCIES}
                     value={field.value}
                     onChange={field.onChange}
@@ -731,49 +611,65 @@ export const PublisherApplication = () => {
                 )}
               />
               
-              <div className="space-y-3">
-                <label className="block text-base font-normal text-foreground">
+              <div>
+                <label className="block mb-2 font-display font-medium text-body text-foreground">
                   Publication Type
                 </label>
-                <div className="space-y-2">
+                <div className="flex gap-4">
                   {["Single Issue", "Series"].map((type) => (
-                    <button
+                    <label
                       key={type}
-                      type="button"
-                      onClick={() => setValue("publicationType", type.toLowerCase().replace(" ", "_"))}
-                      className={`option-card-typeform ${
-                        formValues.publicationType === type.toLowerCase().replace(" ", "_") ? 'selected' : ''
-                      }`}
+                      className={`
+                        flex-1 p-4 rounded-lg border-2 cursor-pointer transition-all text-center
+                        ${formValues.publicationType === type.toLowerCase().replace(" ", "_")
+                          ? "border-accent bg-accent/5"
+                          : "border-border hover:border-accent/50"
+                        }
+                      `}
                     >
-                      {type}
-                    </button>
+                      <input
+                        type="radio"
+                        name="publicationType"
+                        value={type.toLowerCase().replace(" ", "_")}
+                        checked={formValues.publicationType === type.toLowerCase().replace(" ", "_")}
+                        onChange={(e) => setValue("publicationType", e.target.value)}
+                        className="sr-only"
+                      />
+                      <span className="font-medium">{type}</span>
+                    </label>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-base font-normal text-foreground">
+              <div>
+                <label className="block mb-2 font-display font-medium text-body text-foreground">
                   Regions Currently Sold In
                 </label>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                   {REGIONS.map((region) => (
-                    <button
+                    <label
                       key={region.id}
-                      type="button"
-                      onClick={() => {
-                        const current = formValues.regionsCurrentlySold;
-                        if (current.includes(region.id)) {
-                          setValue("regionsCurrentlySold", current.filter(r => r !== region.id));
-                        } else {
-                          setValue("regionsCurrentlySold", [...current, region.id]);
+                      className={`
+                        flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all
+                        ${formValues.regionsCurrentlySold.includes(region.id)
+                          ? "border-accent bg-accent/5"
+                          : "border-border hover:border-accent/50"
                         }
-                      }}
-                      className={`option-card-typeform ${
-                        formValues.regionsCurrentlySold.includes(region.id) ? 'selected' : ''
-                      }`}
+                      `}
                     >
-                      {region.label}
-                    </button>
+                      <Checkbox
+                        checked={formValues.regionsCurrentlySold.includes(region.id)}
+                        onCheckedChange={(checked) => {
+                          const current = formValues.regionsCurrentlySold;
+                          if (checked) {
+                            setValue("regionsCurrentlySold", [...current, region.id]);
+                          } else {
+                            setValue("regionsCurrentlySold", current.filter(r => r !== region.id));
+                          }
+                        }}
+                      />
+                      <span className="text-sm">{region.label}</span>
+                    </label>
                   ))}
                 </div>
               </div>
@@ -786,29 +682,38 @@ export const PublisherApplication = () => {
 
       case 10:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={9} />
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
                 How would you like to ship orders?
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 You can change this later
               </p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {FULFILLMENT_OPTIONS.map((option) => (
-                <button
+                <label
                   key={option.value}
-                  type="button"
-                  onClick={() => setValue("fulfillmentMethod", option.value)}
-                  className={`option-card-typeform text-left ${
-                    formValues.fulfillmentMethod === option.value ? 'selected' : ''
-                  }`}
+                  className={`
+                    block p-4 rounded-lg border-2 cursor-pointer transition-all
+                    ${formValues.fulfillmentMethod === option.value
+                      ? "border-accent bg-accent/5"
+                      : "border-border hover:border-accent/50"
+                    }
+                  `}
                 >
+                  <input
+                    type="radio"
+                    name="fulfillmentMethod"
+                    value={option.value}
+                    checked={formValues.fulfillmentMethod === option.value}
+                    onChange={(e) => setValue("fulfillmentMethod", e.target.value)}
+                    className="sr-only"
+                  />
                   <span className="font-medium text-foreground">{option.label}</span>
                   <p className="text-sm text-muted-foreground mt-1">{option.description}</p>
-                </button>
+                </label>
               ))}
             </div>
             <ButtonPrimary onClick={handleNext} fullWidth>
@@ -819,13 +724,12 @@ export const PublisherApplication = () => {
 
       case 11:
         return (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-                <StepBadge step={10} />
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
                 Anything else to share?
               </h1>
-              <p className="text-muted-foreground mt-2 ml-10">
+              <p className="text-muted-foreground mt-2">
                 Optional - link to a press kit, media folder, or additional images
               </p>
             </div>
@@ -833,7 +737,7 @@ export const PublisherApplication = () => {
               name="cloudLink"
               control={control}
               render={({ field }) => (
-                <TypeformInput
+                <FormInput
                   label="Cloud Link"
                   placeholder="Dropbox, Google Drive, or website link"
                   value={field.value}
@@ -849,13 +753,12 @@ export const PublisherApplication = () => {
 
       case 12:
         return (
-          <div className="space-y-8 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground flex items-center">
-              <StepBadge step={11} />
+          <div className="space-y-6 animate-fade-in">
+            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
               Almost done!
             </h1>
             
-            <div className="bg-secondary/50 rounded-xl p-5 space-y-4">
+            <div className="card-neesh space-y-4">
               <div className="flex gap-4">
                 {formValues.coverImageUrl && (
                   <img 
@@ -873,34 +776,26 @@ export const PublisherApplication = () => {
             </div>
 
             <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => setValue("confirmRights", !formValues.confirmRights)}
-                className={`option-card-typeform flex items-start gap-3 ${formValues.confirmRights ? 'selected' : ''}`}
-              >
+              <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
                   checked={formValues.confirmRights}
                   onCheckedChange={(checked) => setValue("confirmRights", !!checked)}
                   className="mt-0.5"
                 />
-                <span className="text-sm text-left">
+                <span className="text-sm">
                   I confirm that I have distribution rights for this content <span className="text-destructive">*</span>
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setValue("optInUpdates", !formValues.optInUpdates)}
-                className={`option-card-typeform flex items-start gap-3 ${formValues.optInUpdates ? 'selected' : ''}`}
-              >
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
                   checked={formValues.optInUpdates}
                   onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
                   className="mt-0.5"
                 />
-                <span className="text-sm text-left text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   I'd like to receive platform updates and retailer insights
                 </span>
-              </button>
+              </label>
             </div>
 
             <ButtonPrimary 
@@ -991,8 +886,8 @@ export const PublisherApplication = () => {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 flex items-center justify-center px-6 md:px-8 pt-24 pb-12">
-        <div className="w-full max-w-xl">
+      <main className="flex-1 flex items-center justify-center px-4 md:px-6 pt-20 pb-8">
+        <div className="w-full max-w-md">
           {renderStep()}
         </div>
       </main>
