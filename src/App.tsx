@@ -14,6 +14,8 @@ import {
   RoleSelectionPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  ApplicationSubmittedPage,
+  ApplicationPendingPage,
 } from "./pages/auth";
 
 // Publisher pages
@@ -78,6 +80,10 @@ const HomeRedirect = () => {
     return <Navigate to="/login" replace />;
   }
   
+  // TODO: Check user.application_status === 'pending' and redirect to /pending
+  // This requires the useAuth hook to expose application status
+  // For now, users with no approved role are redirected to /pending
+  
   // Redirect based on role
   switch (userRole) {
     case 'publisher':
@@ -87,7 +93,8 @@ const HomeRedirect = () => {
     case 'admin':
       return <Navigate to="/admin" replace />;
     default:
-      return <Navigate to="/login" replace />;
+      // User exists but has no approved role - redirect to pending
+      return <Navigate to="/pending" replace />;
   }
 };
 
@@ -100,6 +107,8 @@ const AppRoutes = () => {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/apply" element={<RoleSelectionPage />} />
+      <Route path="/apply/submitted" element={<ApplicationSubmittedPage />} />
+      <Route path="/pending" element={<ApplicationPendingPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
