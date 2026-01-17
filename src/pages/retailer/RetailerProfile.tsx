@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { RetailerLayout } from "@/components/retailer";
+import { useWishlistContext } from "@/components/retailer/WishlistContext";
 import { BackNavigation, ButtonSecondary, InfoCard } from "@/components/neesh";
+import { useMagazines } from "@/hooks/useMagazines";
 
 const mockProfile = {
   avatar: "/placeholder.svg",
@@ -23,19 +25,25 @@ const mockProfile = {
     { id: "3", name: "MacGuffin" },
     { id: "4", name: "Kinfolk" },
   ],
-  bookmarkedTitles: [
-    { id: "1", title: "Weird Walk Issue 8", coverImage: "/placeholder.svg" },
-    { id: "2", title: "Apartamento #32", coverImage: "/placeholder.svg" },
-    { id: "3", title: "Kinfolk Issue 48", coverImage: "/placeholder.svg" },
-    { id: "4", title: "Cabana Issue 21", coverImage: "/placeholder.svg" },
-    { id: "5", title: "Monocle Issue 172", coverImage: "/placeholder.svg" },
-  ],
 };
 
 export const RetailerProfile = () => {
   const navigate = useNavigate();
   const [publishersExpanded, setPublishersExpanded] = useState(true);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+  
+  // Connect to real wishlist
+  const { wishlistIds, wishlistCount } = useWishlistContext();
+  const { magazines } = useMagazines({ status: 'active' });
+  
+  // Get actual bookmarked magazines from wishlist
+  const bookmarkedTitles = magazines
+    .filter((mag) => wishlistIds.includes(mag.id))
+    .map((mag) => ({
+      id: mag.id,
+      title: mag.title,
+      coverImage: mag.cover_image_url || "/placeholder.svg",
+    }));
 
   return (
     <RetailerLayout>
@@ -179,7 +187,7 @@ export const RetailerProfile = () => {
                 className="w-full flex items-center justify-between"
               >
                 <h3 className="font-display font-semibold text-foreground">
-                  Bookmarked Titles
+                  Bookmarked Titles ({wishlistCount})
                 </h3>
                 {bookmarksExpanded ? (
                   <ChevronUp className="w-5 h-5 text-muted-foreground" />
@@ -189,20 +197,42 @@ export const RetailerProfile = () => {
               </button>
               
               {bookmarksExpanded && (
-                <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-                  {mockProfile.bookmarkedTitles.map((title) => (
-                    <div
-                      key={title.id}
-                      className="w-16 h-20 rounded overflow-hidden bg-secondary flex-shrink-0 cursor-pointer"
-                      onClick={() => navigate(`/retailer/catalogue/${title.id}`)}
-                    >
-                      <img
-                        src={title.coverImage}
-                        alt={title.title}
-                        className="w-full h-full object-cover"
-                      />
+                <div className="mt-4">
+                  {bookmarkedTitles.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No saved titles yet.{" "}
+                      <button 
+                        onClick={() => navigate("/retailer")}
+                        className="text-accent hover:underline"
+                      >
+                        Browse catalogue
+                      </button>
+                    </p>
+                  ) : (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {bookmarkedTitles.map((title) => (
+                        <div
+                          key={title.id}
+                          className="w-16 h-20 rounded overflow-hidden bg-secondary flex-shrink-0 cursor-pointer"
+                          onClick={() => navigate(`/retailer/catalogue/${title.id}`)}
+                        >
+                          <img
+                            src={title.coverImage}
+                            alt={title.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {bookmarkedTitles.length > 0 && (
+                    <button 
+                      onClick={() => navigate("/retailer/wishlist")}
+                      className="mt-2 text-sm text-accent hover:underline"
+                    >
+                      View all →
+                    </button>
+                  )}
                 </div>
               )}
             </div>
