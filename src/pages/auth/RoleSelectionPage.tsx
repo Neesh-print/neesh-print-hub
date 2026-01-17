@@ -3,8 +3,20 @@ import { FileText, Store } from 'lucide-react';
 import { AuthLayout, AuthDivider, AuthLink } from '@/components/auth';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 
+// TODO: Move to environment variables
+const PUBLISHER_TYPEFORM_URL = 'https://neesh.typeform.com/publisher';
+const RETAILER_TYPEFORM_URL = 'https://neesh.typeform.com/retailer';
+
 const RoleSelectionPage = () => {
   const navigate = useNavigate();
+
+  const handlePublisherApply = () => {
+    window.location.href = PUBLISHER_TYPEFORM_URL;
+  };
+
+  const handleRetailerApply = () => {
+    window.location.href = RETAILER_TYPEFORM_URL;
+  };
 
   return (
     <AuthLayout showBackArrow onBack={() => navigate('/login')}>
@@ -23,7 +35,7 @@ const RoleSelectionPage = () => {
         <ButtonPrimary
           fullWidth
           icon={<FileText className="w-5 h-5" />}
-          onClick={() => navigate('/apply/publisher')}
+          onClick={handlePublisherApply}
         >
           Apply as a Publisher
         </ButtonPrimary>
@@ -31,10 +43,24 @@ const RoleSelectionPage = () => {
         <ButtonPrimary
           fullWidth
           icon={<Store className="w-5 h-5" />}
-          onClick={() => navigate('/apply/retailer')}
+          onClick={handleRetailerApply}
         >
           Apply as a Retailer
         </ButtonPrimary>
+      </div>
+
+      {/* Already applied note */}
+      <div className="mt-6 text-center">
+        <p className="text-caption text-muted-foreground">
+          Already applied? Check your email for next steps, or{' '}
+          <button
+            onClick={() => navigate('/login')}
+            className="text-foreground hover:text-accent transition-colors font-medium"
+          >
+            sign in
+          </button>
+          {' '}if you've been approved.
+        </p>
       </div>
 
       {/* Divider */}
