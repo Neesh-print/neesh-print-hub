@@ -51,6 +51,7 @@ import {
   RetailerOrderDetail,
   RetailerProfile,
   RetailerWishlist,
+  RetailerMessages,
 } from "./pages/retailer";
 import { RetailerSettings } from "./pages/retailer/RetailerSettings";
 
@@ -376,6 +377,18 @@ const AppRoutes = () => {
             <WishlistProvider>
               <CartProvider>
                 <RetailerSettings />
+              </CartProvider>
+            </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/messages"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerMessages />
               </CartProvider>
             </WishlistProvider>
           </ProtectedRoute>

@@ -8,3 +8,4 @@ export { RetailerOrderDetail } from './RetailerOrderDetail';
 export { RetailerProfile } from './RetailerProfile';
 export { RetailerSettings } from './RetailerSettings';
 export { RetailerWishlist } from './RetailerWishlist';
+export { RetailerMessages } from './RetailerMessages';

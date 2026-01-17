@@ -56,6 +56,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Browse Catalogue", icon: <Search className="w-5 h-5" />, path: "/retailer" },
     { label: "Saved Titles", icon: <Heart className="w-5 h-5" />, path: "/retailer/wishlist" },
     { label: "My Orders", icon: <Package className="w-5 h-5" />, path: "/retailer/orders" },
+    { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/retailer/messages" },
     { label: "Cart", icon: <ShoppingCart className="w-5 h-5" />, path: "/retailer/cart" },
   ];
 
