@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MapPin, Instagram, Globe, ExternalLink, Lock } from "lucide-react";
 import { MagazineCard, ButtonPrimary, ButtonSecondary, Modal } from "@/components/neesh";
+import { useWishlist } from "@/hooks/useWishlist";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 // Mock data - expanded for public profile
 const mockPublisher = {
@@ -84,6 +87,10 @@ export const PublisherPublicProfile = () => {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const { user } = useAuth();
+  
+  // Use wishlist hook directly (works with localStorage for non-authenticated users)
+  const { isInWishlist, toggleWishlist, wishlistCount } = useWishlist();
 
   // In real app, fetch publisher by slug
   const publisher = mockPublisher;
@@ -91,6 +98,12 @@ export const PublisherPublicProfile = () => {
 
   const handleTitleClick = () => {
     setShowSignUpModal(true);
+  };
+
+  const handleBookmark = (id: string) => {
+    const wasInWishlist = isInWishlist(id);
+    toggleWishlist(id);
+    toast.success(wasInWishlist ? "Removed from wishlist" : "Saved to wishlist");
   };
 
   return (
@@ -229,9 +242,25 @@ export const PublisherPublicProfile = () => {
                     publisher={title.issueNumber}
                     price={title.price}
                     onClick={handleTitleClick}
+                    onBookmark={() => handleBookmark(title.id)}
+                    isBookmarked={isInWishlist(title.id)}
                   />
                 ))}
               </div>
+              
+              {wishlistCount > 0 && (
+                <p className="mt-4 text-sm text-muted-foreground text-center">
+                  {wishlistCount} {wishlistCount === 1 ? 'title' : 'titles'} saved • {user ? (
+                    <button onClick={() => navigate("/retailer/wishlist")} className="text-accent hover:underline">
+                      View wishlist
+                    </button>
+                  ) : (
+                    <button onClick={() => navigate("/login")} className="text-accent hover:underline">
+                      Sign in to access your wishlist
+                    </button>
+                  )}
+                </p>
+              )}
             </section>
 
             {/* CTA Section */}
