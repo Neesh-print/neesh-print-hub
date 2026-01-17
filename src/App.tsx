@@ -74,7 +74,7 @@ import {
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
 // Marketing pages
-import { HomePage, PublishersPage, RetailersPage, PricingPage } from "./pages/marketing";
+import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage } from "./pages/marketing";
 
 // Other pages
 import NotFound from "./pages/NotFound";
@@ -119,6 +119,7 @@ const AppRoutes = () => {
       <Route path="/publishers" element={<PublishersPage />} />
       <Route path="/retailers" element={<RetailersPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/faq" element={<FAQPage />} />
 
       {/* Legacy home redirect for logged-in users */}
       <Route path="/home" element={<HomeRedirect />} />
