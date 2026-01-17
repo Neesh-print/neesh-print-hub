@@ -1,9 +1,6 @@
 import { useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell } from "lucide-react";
-import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
-import { useOrderNotifications } from "@/hooks/useOrderNotifications";
-import { NotificationBell } from "@/components/neesh/NotificationBell";
+import { NavigationMenu, MobileBottomNav, SidebarNav, NotificationCenter } from "@/components/shared";
 import { Logo } from "@/components/neesh/Logo";
 
 interface PublisherLayoutProps {
@@ -13,17 +10,6 @@ interface PublisherLayoutProps {
 export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-  } = useOrderNotifications();
-
-  const handleNotificationClick = (orderId: string) => {
-    navigate(`/publisher/orders/${orderId}`);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,13 +26,7 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
             <Logo size="md" />
           </button>
           
-          <NotificationBell
-            notifications={notifications}
-            unreadCount={unreadCount}
-            onMarkAsRead={markAsRead}
-            onMarkAllAsRead={markAllAsRead}
-            onNotificationClick={handleNotificationClick}
-          />
+          <NotificationCenter userRole="publisher" />
         </div>
       </header>
 
