@@ -132,7 +132,7 @@ export const DataTable = <T extends Record<string, unknown>>({
               <tr
                 key={rowId}
                 className={`
-                  border-b border-border last:border-b-0 transition-colors
+                  border-b border-border last:border-b-0 transition-colors group
                   ${rowIndex % 2 === 1 ? 'bg-secondary' : 'bg-background'}
                   ${onRowClick ? 'cursor-pointer hover:bg-secondary/80' : ''}
                   ${isSelected ? 'bg-accent/5' : ''}
