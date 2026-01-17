@@ -1,73 +1,117 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MapPin, MessageCircle, User, Package, Truck, CheckCircle } from "lucide-react";
+import { Copy, MessageCircle, User, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { RetailerLayout } from "@/components/retailer";
 import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary } from "@/components/neesh";
+import { OrderStatusTimeline, OrderStatus } from "@/components/retailer/OrderStatusTimeline";
+import { useCart } from "@/components/retailer/CartContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
+// Mock data demonstrating "shipped" state
 const mockOrder = {
   id: "#0001",
-  date: "January 15, 2026",
-  time: "2:30 PM",
-  quantity: 3,
-  type: "Wholesale",
+  status: "shipped" as OrderStatus,
+  timestamps: {
+    pending: "Jan 15, 2:30 PM",
+    confirmed: "Jan 15, 4:45 PM",
+    shipped: "Jan 16, 9:00 AM",
+  },
+  estimatedDelivery: "Jan 18-20",
+  trackingNumber: "1Z999AA10123456784",
+  carrier: "USPS",
+  lastUpdated: "Jan 16, 2:30 PM",
   subtotal: 26.43,
   shipping: 12.50,
-  total: 38.93,
-  wspTotal: 26.43,
-  msrpTotal: 60.00,
-  revenue: 60.00,
-  margin: 33.57,
-  paymentStatus: "payment-received" as const,
-  fulfillmentStatus: "received" as const,
-  trackingNumber: "1Z999AA10123456784",
-  billingAddress: {
-    name: "Jane Smith",
-    street: "456 Market Street",
-    apt: "Suite 200",
-    city: "Portland",
-    state: "OR",
-    postalCode: "97201",
-    country: "United States",
-  },
+  tax: 2.35,
+  total: 41.28,
+  paymentMethod: "Visa ending in 4242",
   shippingAddress: {
-    name: "Jane Smith",
-    street: "456 Market Street",
-    apt: "Suite 200",
-    city: "Portland",
-    state: "OR",
-    postalCode: "97201",
+    name: "Brooklyn Books",
+    street: "142 Smith Street",
+    apt: "",
+    city: "Brooklyn",
+    state: "NY",
+    postalCode: "11201",
     country: "United States",
   },
   items: [
-    { id: "1", title: "Weird Walk Issue 8", issue: "Issue 8", coverImage: "/placeholder.svg", quantity: 3, price: 8.81 },
-  ],
-  trackingEvents: [
-    { status: "Ordered", date: "Jan 15, 2026", time: "2:30 PM", location: "Online", completed: true },
-    { status: "Order Ready", date: "Jan 15, 2026", time: "4:00 PM", location: "London, UK", completed: true },
-    { status: "In Transit", date: "Jan 16, 2026", time: "9:00 AM", location: "London Sorting Center", completed: true },
-    { status: "Out for Delivery", date: "Jan 18, 2026", time: "8:00 AM", location: "Portland, OR", completed: false },
-    { status: "Delivered", date: "", time: "", location: "", completed: false },
-  ],
-  latestUpdates: [
-    { time: "Jan 18, 2026 8:00 AM", status: "Out for delivery", location: "Portland, OR" },
-    { time: "Jan 17, 2026 6:00 PM", status: "Arrived at local facility", location: "Portland, OR" },
-    { time: "Jan 16, 2026 9:00 AM", status: "In transit", location: "London Sorting Center" },
-    { time: "Jan 15, 2026 4:00 PM", status: "Package picked up", location: "London, UK" },
+    { 
+      id: "1", 
+      magazineId: "mag-1",
+      title: "Weird Walk Issue 8", 
+      issue: "Issue 8", 
+      coverImage: "/placeholder.svg", 
+      quantity: 3, 
+      price: 8.81,
+      publisher: "Weird Walk Press"
+    },
   ],
 };
 
 export const RetailerOrderDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { addToCart } = useCart();
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  const formatAddress = (addr: typeof mockOrder.billingAddress) => {
-    return `${addr.name}\n${addr.street}${addr.apt ? `, ${addr.apt}` : ''}\n${addr.city}, ${addr.state} ${addr.postalCode}\n${addr.country}`;
+  const formatAddress = (addr: typeof mockOrder.shippingAddress) => {
+    const lines = [
+      addr.name,
+      addr.street,
+      addr.apt,
+      `${addr.city}, ${addr.state} ${addr.postalCode}`,
+      addr.country,
+    ].filter(Boolean);
+    return lines.join("\n");
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(price);
+  };
+
+  const copyAddress = () => {
+    const addressText = formatAddress(mockOrder.shippingAddress);
+    navigator.clipboard.writeText(addressText.replace(/\n/g, ", "));
+    toast.success("Address copied to clipboard");
+  };
+
+  const handleCancelOrder = () => {
+    setShowCancelDialog(false);
+    toast.success("Order cancelled successfully");
+    navigate("/retailer/orders");
+  };
+
+  const handleReorder = () => {
+    mockOrder.items.forEach((item) => {
+      addToCart({
+        magazineId: item.magazineId,
+        title: item.title,
+        coverImage: item.coverImage,
+        publisher: item.publisher,
+        issue: item.issue,
+        quantity: item.quantity,
+        price: item.price,
+      });
+    });
+    toast.success("Items added to cart");
+    navigate("/retailer/cart");
+  };
+
+  const handleReportIssue = () => {
+    toast.info("Report issue feature coming soon");
   };
 
   return (
@@ -77,103 +121,127 @@ export const RetailerOrderDetail = () => {
         onBack={() => navigate("/retailer/orders")}
       />
 
-      <div className="px-4 md:px-6 pb-12 space-y-6">
-        {/* Info Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <InfoCard title="Order Info">
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Order</span>
-                <span className="font-medium">{mockOrder.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date</span>
-                <span>{mockOrder.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Time</span>
-                <span>{mockOrder.time}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Volume</span>
-                <span>{mockOrder.quantity} units</span>
-              </div>
-            </div>
-          </InfoCard>
+      <div className="px-4 md:px-6 pb-24 md:pb-12 space-y-6">
+        {/* Order Status Timeline */}
+        <OrderStatusTimeline
+          status={mockOrder.status}
+          timestamps={mockOrder.timestamps}
+          trackingNumber={mockOrder.trackingNumber}
+          carrier={mockOrder.carrier}
+          estimatedDelivery={mockOrder.estimatedDelivery}
+          lastUpdated={mockOrder.lastUpdated}
+        />
 
-          <InfoCard title="Pricing">
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatPrice(mockOrder.subtotal)}</span>
+        {/* Order Items */}
+        <div className="card-neesh">
+          <h3 className="font-display font-semibold text-lg mb-4">Items</h3>
+          <div className="space-y-4">
+            {mockOrder.items.map((item) => (
+              <div key={item.id} className="flex gap-4">
+                <div className="w-16 h-22 rounded overflow-hidden bg-secondary flex-shrink-0">
+                  <img
+                    src={item.coverImage}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium truncate">{item.title}</h4>
+                  <p className="text-sm text-muted-foreground">{item.issue}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Qty: {item.quantity} × {formatPrice(item.price)}
+                  </p>
+                </div>
+                <p className="font-medium flex-shrink-0">
+                  {formatPrice(item.price * item.quantity)}
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Shipping</span>
-                <span>{formatPrice(mockOrder.shipping)}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span>Total</span>
-                <span>{formatPrice(mockOrder.total)}</span>
-              </div>
-            </div>
-          </InfoCard>
-
-          <InfoCard title="Status">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Type</span>
-                <StatusBadge status="new-order" label={mockOrder.type} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Fulfillment</span>
-                <StatusBadge status="received" label="RECEIVED" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Payment</span>
-                <StatusBadge status="payment-received" label="PAID" />
-              </div>
-            </div>
-          </InfoCard>
-
-          <InfoCard title="Margins">
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">WSP</span>
-                <span>{formatPrice(mockOrder.wspTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">MSRP</span>
-                <span>{formatPrice(mockOrder.msrpTotal)}</span>
-              </div>
-              <div className="flex justify-between text-green-600 font-medium">
-                <span>My Margin</span>
-                <span>{formatPrice(mockOrder.margin)}</span>
-              </div>
-            </div>
-          </InfoCard>
+            ))}
+          </div>
         </div>
 
-        {/* Addresses and Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <InfoCard title="Billing Address">
-            <p className="text-sm text-muted-foreground whitespace-pre-line">
-              {formatAddress(mockOrder.billingAddress)}
-            </p>
-          </InfoCard>
-
-          <InfoCard title="Shipping Address">
-            <p className="text-sm text-muted-foreground whitespace-pre-line">
-              {formatAddress(mockOrder.shippingAddress)}
-            </p>
-          </InfoCard>
-
-          <div className="space-y-2">
-            <ButtonSecondary fullWidth>Edit Order</ButtonSecondary>
-            <ButtonSecondary fullWidth destructive>Cancel Order</ButtonSecondary>
+        {/* Shipping Address */}
+        <div className="card-neesh">
+          <div className="flex items-start justify-between mb-4">
+            <h3 className="font-display font-semibold text-lg">Shipping Address</h3>
+            <button
+              onClick={copyAddress}
+              className="p-2 hover:bg-secondary rounded-md transition-colors"
+              aria-label="Copy address"
+            >
+              <Copy className="w-4 h-4 text-muted-foreground" />
+            </button>
           </div>
+          <p className="text-muted-foreground whitespace-pre-line">
+            {formatAddress(mockOrder.shippingAddress)}
+          </p>
+        </div>
 
-          <div className="space-y-2">
-            <ButtonSecondary fullWidth icon={<MessageCircle className="w-4 h-4" />}>
+        {/* Payment Summary */}
+        <div className="card-neesh">
+          <h3 className="font-display font-semibold text-lg mb-4">Payment Summary</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{formatPrice(mockOrder.subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Shipping</span>
+              <span>{formatPrice(mockOrder.shipping)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tax</span>
+              <span>{formatPrice(mockOrder.tax)}</span>
+            </div>
+            <div className="h-px bg-border my-3" />
+            <div className="flex justify-between font-semibold text-base">
+              <span>Total</span>
+              <span>{formatPrice(mockOrder.total)}</span>
+            </div>
+            <p className="text-muted-foreground pt-2">
+              Paid with {mockOrder.paymentMethod}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons - Conditional based on status */}
+        <div className="space-y-3">
+          {mockOrder.status === "pending" && (
+            <ButtonSecondary
+              fullWidth
+              destructive
+              onClick={() => setShowCancelDialog(true)}
+            >
+              Cancel Order
+            </ButtonSecondary>
+          )}
+
+          {mockOrder.status === "shipped" && (
+            <ButtonSecondary fullWidth onClick={handleReportIssue}>
+              Report Issue
+            </ButtonSecondary>
+          )}
+
+          {mockOrder.status === "delivered" && (
+            <>
+              <ButtonSecondary
+                fullWidth
+                icon={<RefreshCw className="w-4 h-4" />}
+                onClick={handleReorder}
+              >
+                Reorder
+              </ButtonSecondary>
+              <ButtonSecondary fullWidth onClick={handleReportIssue}>
+                Report Issue
+              </ButtonSecondary>
+            </>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <ButtonSecondary
+              fullWidth
+              icon={<MessageCircle className="w-4 h-4" />}
+            >
               Contact Publisher
             </ButtonSecondary>
             <ButtonSecondary fullWidth icon={<User className="w-4 h-4" />}>
@@ -181,93 +249,29 @@ export const RetailerOrderDetail = () => {
             </ButtonSecondary>
           </div>
         </div>
-
-        {/* Line Items */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-lg mb-4">Order Items</h3>
-          {mockOrder.items.map((item) => (
-            <div key={item.id} className="flex gap-4">
-              <div className="w-16 h-22 rounded overflow-hidden bg-secondary flex-shrink-0">
-                <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium">{item.title}</h4>
-                <p className="text-sm text-muted-foreground">{item.issue}</p>
-                <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-              </div>
-              <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Tracking Section */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-lg mb-4">Track Shipment</h3>
-          
-          <div className="mb-6">
-            <p className="text-sm text-muted-foreground">Tracking Number</p>
-            <p className="font-mono font-medium">{mockOrder.trackingNumber}</p>
-          </div>
-
-          {/* Timeline */}
-          <div className="flex items-center justify-between mb-8">
-            {mockOrder.trackingEvents.map((event, index) => (
-              <div key={index} className="flex flex-col items-center flex-1">
-                <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center mb-2
-                  ${event.completed ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground'}
-                `}>
-                  {index === 0 && <Package className="w-4 h-4" />}
-                  {index === 1 && <CheckCircle className="w-4 h-4" />}
-                  {index === 2 && <Truck className="w-4 h-4" />}
-                  {index === 3 && <Truck className="w-4 h-4" />}
-                  {index === 4 && <CheckCircle className="w-4 h-4" />}
-                </div>
-                <p className={`text-xs text-center ${event.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {event.status}
-                </p>
-                {event.date && (
-                  <p className="text-xs text-muted-foreground">{event.date}</p>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <span>Order: {mockOrder.id}</span>
-            <span>Date: {mockOrder.date}</span>
-          </div>
-        </div>
-
-        {/* Latest Updates */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-lg mb-4">Latest Update</h3>
-          <div className="space-y-3">
-            {mockOrder.latestUpdates.map((update, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-accent mt-2" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{update.status}</p>
-                  <p className="text-xs text-muted-foreground">{update.location}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">{update.time}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Map Placeholder */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-lg mb-4">Current Location</h3>
-          <div className="aspect-video bg-secondary rounded-lg flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <MapPin className="w-8 h-8 mx-auto mb-2" />
-              <p>Map placeholder</p>
-              <p className="text-sm">Portland, OR</p>
-            </div>
-          </div>
-        </div>
       </div>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this order? This action cannot be
+              undone and you will receive a full refund within 5-7 business days.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Order</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelOrder}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Cancel Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </RetailerLayout>
   );
 };
