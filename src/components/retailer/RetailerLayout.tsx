@@ -1,7 +1,7 @@
 import { useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShoppingCart } from "lucide-react";
-import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
+import { NavigationMenu, MobileBottomNav, SidebarNav, NotificationCenter } from "@/components/shared";
 import { useCart } from "./CartContext";
 import { useWishlistContext } from "./WishlistContext";
 import { Logo } from "@/components/neesh/Logo";
@@ -31,18 +31,21 @@ export const RetailerLayout = ({ children }: RetailerLayoutProps) => {
             <Logo size="md" />
           </button>
           
-          <button
-            onClick={() => navigate("/retailer/cart")}
-            className="relative p-2 rounded-lg hover:bg-secondary transition-colors"
-            aria-label={`Shopping cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`}
-          >
-            <ShoppingCart className="w-5 h-5 text-foreground" />
-            {cartItemCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-accent text-accent-foreground text-[10px] font-medium rounded-full px-1">
-                {cartItemCount > 99 ? '99+' : cartItemCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationCenter userRole="retailer" />
+            <button
+              onClick={() => navigate("/retailer/cart")}
+              className="relative p-2 rounded-lg hover:bg-secondary transition-colors"
+              aria-label={`Shopping cart${cartItemCount > 0 ? `, ${cartItemCount} items` : ''}`}
+            >
+              <ShoppingCart className="w-5 h-5 text-foreground" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-accent text-accent-foreground text-[10px] font-medium rounded-full px-1">
+                  {cartItemCount > 99 ? '99+' : cartItemCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
