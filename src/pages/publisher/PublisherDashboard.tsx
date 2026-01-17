@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { TrendingUp, ChevronDown, ChevronUp, AlertCircle, BookOpen } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, WalletDisplay, ProgressBar, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
-import { LoadingScreen } from "@/components/shared";
+import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOrders } from "@/hooks/useOrders";
 import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 
 // Mock sales chart data (would come from analytics in production)
 const salesChartData = [
@@ -38,6 +39,15 @@ export const PublisherDashboard = () => {
 
   const isLoading = publisherLoading || (publisher && (magazinesLoading || ordersLoading));
   const error = publisherError || magazinesError || ordersError;
+
+  // Onboarding progress
+  const onboarding = useOnboardingProgress('publisher', {
+    hasProfileBio: !!publisher?.description,
+    hasProfileWebsite: !!publisher?.website_url,
+    hasProfileInstagram: !!publisher?.instagram_handle,
+    titleCount: magazines.length,
+    publisherName: publisher?.company_name || undefined,
+  });
 
   const handleTransfer = () => {
     navigate("/publisher/transfers");
@@ -103,10 +113,26 @@ export const PublisherDashboard = () => {
         }
       />
 
+      {/* Onboarding Checklist for new users */}
+      {!onboarding.dismissed && !onboarding.allComplete && (
+        <div className="px-4 md:px-6">
+          <OnboardingChecklist
+            items={onboarding.items}
+            userName={publisher?.company_name}
+            welcomeTitle="Welcome to Neesh!"
+            welcomeSubtitle="Let's get your storefront set up. Complete these steps to start receiving orders."
+            onDismiss={onboarding.markDismissed}
+            onItemClick={onboarding.markItemViewed}
+          />
+        </div>
+      )}
+
       {/* Onboarding prompt for users who skipped onboarding */}
-      <div className="px-4 md:px-6">
-        <PublisherOnboardingPrompt />
-      </div>
+      {onboarding.dismissed && !onboarding.allComplete && (
+        <div className="px-4 md:px-6">
+          <PublisherOnboardingPrompt />
+        </div>
+      )}
 
       {/* Hero Metrics Section */}
       <div className="px-4 md:px-6 pb-6">

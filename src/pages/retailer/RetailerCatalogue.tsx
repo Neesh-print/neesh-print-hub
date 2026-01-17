@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Bookmark, BookOpen, AlertCircle } from "lucide-react";
 import { RetailerLayout, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
-import { LoadingScreen } from "@/components/shared";
+import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { toast } from "sonner";
 
 export const RetailerCatalogue = () => {
@@ -12,11 +13,23 @@ export const RetailerCatalogue = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
-  const { isInWishlist, toggleWishlist } = useWishlistContext();
+  const { isInWishlist, toggleWishlist, wishlistCount } = useWishlistContext();
 
   const { magazines, isLoading, error, refetch } = useMagazines({ 
     status: 'active',
     searchQuery: searchQuery || undefined,
+  });
+
+  // Onboarding progress for retailers
+  // TODO: Wire these to real profile data from Supabase
+  const onboarding = useOnboardingProgress('retailer', {
+    hasProfile: false, // Check if profile has location
+    hasProfileWebsite: false,
+    hasProfileInstagram: false,
+    hasShippingAddress: false, // Check if shipping address exists
+    orderCount: 0, // Get from orders query
+    wishlistCount: wishlistCount,
+    storeName: undefined, // Get from retailer profile
   });
 
   const handleToggleBookmark = (id: string) => {
@@ -75,6 +88,19 @@ export const RetailerCatalogue = () => {
         title="Neesh Favs"
         onBack={() => navigate("/")}
       />
+
+      {/* Onboarding Checklist for new retailers */}
+      {!onboarding.dismissed && !onboarding.allComplete && (
+        <div className="px-4 md:px-6">
+          <OnboardingChecklist
+            items={onboarding.items}
+            welcomeTitle="Welcome to Neesh!"
+            welcomeSubtitle="You now have access to our curated catalog. Here's how to get started."
+            onDismiss={onboarding.markDismissed}
+            onItemClick={onboarding.markItemViewed}
+          />
+        </div>
+      )}
 
       {/* Hero Carousel Section */}
       {featuredMagazines.length > 0 && (
