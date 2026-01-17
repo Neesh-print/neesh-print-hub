@@ -20,7 +20,7 @@ import {
 } from "./pages/auth";
 
 // Apply pages
-import { PublisherApplication } from "./pages/apply";
+import { PublisherApplication, RetailerApplication } from "./pages/apply";
 
 // Publisher pages
 import {
@@ -118,6 +118,7 @@ const AppRoutes = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/apply" element={<RoleSelectionPage />} />
       <Route path="/apply/publisher" element={<PublisherApplication />} />
+      <Route path="/apply/retailer" element={<RetailerApplication />} />
       <Route path="/apply/submitted" element={<ApplicationSubmittedPage />} />
       <Route path="/pending" element={<ApplicationPendingPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
