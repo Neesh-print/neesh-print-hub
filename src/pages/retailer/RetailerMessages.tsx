@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   ArrowLeft, 
   Send, 
@@ -8,7 +8,7 @@ import {
   Package,
   Search
 } from "lucide-react";
-import { PublisherLayout } from "@/components/publisher/PublisherLayout";
+import { RetailerLayout } from "@/components/retailer/RetailerLayout";
 import { EmptyState } from "@/components/neesh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,13 +234,6 @@ const ConversationView = ({
         </Button>
       </div>
       
-      {/* Order context banner - optional */}
-      {/* <div className="px-4 py-2 bg-muted/50 border-b border-border">
-        <p className="text-sm text-muted-foreground">
-          Recent order: #ORD-123 · 3 items · $156 · Jan 15
-        </p>
-      </div> */}
-      
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {loading ? (
@@ -254,7 +247,7 @@ const ConversationView = ({
             <p className="text-sm text-muted-foreground">Start the conversation!</p>
           </div>
         ) : (
-          groupedMessages.map((group, groupIndex) => (
+          groupedMessages.map((group) => (
             <div key={group.date}>
               <DateSeparator date={group.date} />
               <div className="space-y-3">
@@ -293,19 +286,13 @@ const NewMessageDrawer = ({
 }) => {
   const [search, setSearch] = useState('');
   
-  // Mock eligible contacts (retailers/publishers they've transacted with)
-  const eligibleContacts = userRole === 'publisher' 
-    ? [
-        { id: 'ret-1', name: 'McNally Jackson', location: 'New York, NY', lastOrder: 'Jan 15, 2026' },
-        { id: 'ret-2', name: 'Spoonbill & Sugartown', location: 'Brooklyn, NY', lastOrder: 'Jan 12, 2026' },
-        { id: 'ret-3', name: 'Commonplace Books', location: 'Denver, CO', lastOrder: 'Jan 10, 2026' },
-        { id: 'ret-4', name: 'Book Culture', location: 'New York, NY', lastOrder: 'Jan 8, 2026' },
-      ]
-    : [
-        { id: 'pub-1', name: 'Wax Poetics', location: 'Brooklyn, NY', lastOrder: 'Jan 15, 2026' },
-        { id: 'pub-2', name: 'Kinfolk', location: 'Copenhagen, Denmark', lastOrder: 'Jan 12, 2026' },
-        { id: 'pub-3', name: 'Drift', location: 'Los Angeles, CA', lastOrder: 'Jan 5, 2026' },
-      ];
+  // Mock eligible contacts (publishers they've ordered from)
+  const eligibleContacts = [
+    { id: 'pub-1', name: 'Wax Poetics', location: 'Brooklyn, NY', lastOrder: 'Jan 15, 2026' },
+    { id: 'pub-2', name: 'Kinfolk', location: 'Copenhagen, Denmark', lastOrder: 'Jan 12, 2026' },
+    { id: 'pub-3', name: 'Drift', location: 'Los Angeles, CA', lastOrder: 'Jan 5, 2026' },
+    { id: 'pub-4', name: 'Apartamento', location: 'Barcelona, Spain', lastOrder: 'Dec 20, 2025' },
+  ];
   
   const filteredContacts = eligibleContacts.filter(contact =>
     contact.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -324,7 +311,7 @@ const NewMessageDrawer = ({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${userRole === 'publisher' ? 'retailers' : 'publishers'}...`}
+              placeholder="Search publishers..."
               className="pl-10"
             />
           </div>
@@ -362,11 +349,11 @@ const NewMessageDrawer = ({
 };
 
 // Main component
-export const PublisherMessages = () => {
+export const RetailerMessages = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { conversations, loading, totalUnread } = useConversations('publisher');
+  const { conversations, loading } = useConversations('retailer');
   
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     searchParams.get('conversation')
@@ -378,7 +365,7 @@ export const PublisherMessages = () => {
   
   // Filter conversations
   const filteredConversations = conversations.filter(conv => {
-    const name = conv.retailer?.name?.toLowerCase() || '';
+    const name = conv.publisher?.name?.toLowerCase() || '';
     return name.includes(searchQuery.toLowerCase());
   });
   
@@ -393,8 +380,8 @@ export const PublisherMessages = () => {
   };
   
   const handleViewOrders = () => {
-    // Navigate to orders filtered by this retailer
-    navigate('/publisher/orders');
+    // Navigate to orders filtered by this publisher
+    navigate('/retailer/orders');
   };
   
   const handleNewMessage = (contactId: string) => {
@@ -410,7 +397,7 @@ export const PublisherMessages = () => {
   const showList = !isMobile || !selectedConversationId;
   
   return (
-    <PublisherLayout>
+    <RetailerLayout>
       <div className="h-[calc(100vh-56px)] md:h-screen flex">
         {/* Conversation List */}
         {showList && (
@@ -423,7 +410,7 @@ export const PublisherMessages = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h1 className="text-xl font-semibold text-foreground">Messages</h1>
-                  <p className="text-sm text-muted-foreground">Conversations with your retailers</p>
+                  <p className="text-sm text-muted-foreground">Conversations with publishers</p>
                 </div>
                 <Button 
                   variant="outline" 
@@ -455,7 +442,7 @@ export const PublisherMessages = () => {
                   <EmptyState
                     icon={<MessageSquare className="w-12 h-12" />}
                     title="No messages yet"
-                    description="When retailers order from you, you can message them here to build your relationship."
+                    description="After placing an order, you can message publishers directly to ask questions or provide feedback."
                   />
                 </div>
               ) : (
@@ -465,7 +452,7 @@ export const PublisherMessages = () => {
                     conversation={conversation}
                     isActive={conversation.id === selectedConversationId}
                     onClick={() => handleSelectConversation(conversation.id)}
-                    userRole="publisher"
+                    userRole="retailer"
                   />
                 ))
               )}
@@ -477,7 +464,7 @@ export const PublisherMessages = () => {
         {showConversation && selectedConversation ? (
           <ConversationView
             conversation={selectedConversation}
-            userRole="publisher"
+            userRole="retailer"
             onBack={handleBack}
             onViewOrders={handleViewOrders}
           />
@@ -495,11 +482,11 @@ export const PublisherMessages = () => {
       <NewMessageDrawer
         isOpen={isNewMessageOpen}
         onClose={() => setIsNewMessageOpen(false)}
-        userRole="publisher"
+        userRole="retailer"
         onSelectContact={handleNewMessage}
       />
-    </PublisherLayout>
+    </RetailerLayout>
   );
 };
 
-export default PublisherMessages;
+export default RetailerMessages;
