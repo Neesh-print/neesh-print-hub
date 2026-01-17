@@ -219,15 +219,16 @@ export const HomePage = () => {
               </div>
             </div>
 
-            {/* Image Placeholder */}
+            {/* YouTube Video */}
             <div>
               <div className="aspect-[4/3] rounded-lg overflow-hidden bg-muted">
-                <div className="w-full h-full bg-gradient-to-br from-background to-muted flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <Store className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm">Shop Interior Image</p>
-                  </div>
-                </div>
+                <iframe
+                  src="https://www.youtube.com/embed/393cjk5hc5Q?autoplay=0&rel=0"
+                  title="Neesh - The Marketplace for Independent Magazines"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
               </div>
             </div>
           </div>
