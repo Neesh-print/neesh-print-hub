@@ -3,6 +3,8 @@ import { FileText, Store, Search, Send, LayoutDashboard, CheckCircle } from 'luc
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 import heroFlatlay from '@/assets/hero-magazine-flatlay.jpg';
+import ctaFlowers from '@/assets/cta-flowers.jpg';
+import ctaCouch from '@/assets/cta-couch.jpg';
 
 export const HomePage = () => {
   return (
@@ -237,16 +239,34 @@ export const HomePage = () => {
 
       {/* Final CTA Section */}
       <section className="py-20 md:py-32 relative overflow-hidden">
-        {/* Decorative Magazine Images */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-64 h-80 bg-gradient-to-r from-accent/10 to-accent/5 rounded-lg rotate-12 hidden lg:block" />
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-64 h-80 bg-gradient-to-l from-accent/10 to-accent/5 rounded-lg -rotate-12 hidden lg:block" />
+        {/* Left Image - Couch */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/4 w-[280px] md:w-[320px] lg:w-[380px] hidden md:block">
+          <div className="aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
+            <img
+              src={ctaCouch}
+              alt="Person reading magazines on a couch"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
+
+        {/* Right Image - Flowers */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/4 w-[280px] md:w-[320px] lg:w-[380px] hidden md:block">
+          <div className="aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
+            <img
+              src={ctaFlowers}
+              alt="Flowers in a vase on top of stacked magazines"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
 
         <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="text-center max-w-2xl mx-auto">
-            <h2 className="text-display-md md:text-display-lg font-display font-bold mb-4">
+            <h2 className="text-display-md md:text-display-lg font-display font-bold mb-2">
               Find Your Neesh.
             </h2>
-            <p className="text-body-lg md:text-xl text-muted-foreground mb-10">
+            <p className="text-display-sm md:text-display-md font-display font-bold mb-10">
               Keep Indie Print Moving Forward.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
