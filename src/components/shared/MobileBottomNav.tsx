@@ -6,6 +6,7 @@ import {
   User, 
   Search, 
   ShoppingCart, 
+  Heart,
   Truck, 
   Menu 
 } from "lucide-react";
@@ -20,12 +21,14 @@ interface NavTab {
 interface MobileBottomNavProps {
   userRole: 'publisher' | 'retailer' | 'admin';
   cartItemCount?: number;
+  wishlistCount?: number;
   onMoreClick?: () => void;
 }
 
 export const MobileBottomNav = ({ 
   userRole, 
   cartItemCount = 0,
+  wishlistCount = 0,
   onMoreClick 
 }: MobileBottomNavProps) => {
   const location = useLocation();
@@ -40,9 +43,9 @@ export const MobileBottomNav = ({
 
   const retailerTabs: NavTab[] = [
     { label: "Browse", icon: <Search className="w-5 h-5" />, path: "/retailer" },
+    { label: "Saved", icon: <Heart className="w-5 h-5" />, path: "/retailer/wishlist", badge: wishlistCount },
     { label: "Orders", icon: <Package className="w-5 h-5" />, path: "/retailer/orders" },
     { label: "Cart", icon: <ShoppingCart className="w-5 h-5" />, path: "/retailer/cart", badge: cartItemCount },
-    { label: "Profile", icon: <User className="w-5 h-5" />, path: "/retailer/profile" },
   ];
 
   const adminTabs: NavTab[] = [

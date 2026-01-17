@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ShoppingCart } from "lucide-react";
 import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
 import { useCart } from "./CartContext";
+import { useWishlistContext } from "./WishlistContext";
 
 interface RetailerLayoutProps {
   children: ReactNode;
@@ -11,6 +12,7 @@ interface RetailerLayoutProps {
 export const RetailerLayout = ({ children }: RetailerLayoutProps) => {
   const navigate = useNavigate();
   const { cartItemCount } = useCart();
+  const { wishlistCount } = useWishlistContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -51,7 +53,11 @@ export const RetailerLayout = ({ children }: RetailerLayoutProps) => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav userRole="retailer" cartItemCount={cartItemCount} />
+      <MobileBottomNav 
+        userRole="retailer" 
+        cartItemCount={cartItemCount} 
+        wishlistCount={wishlistCount}
+      />
 
       {/* Slide-out menu (kept for mobile hamburger fallback) */}
       <NavigationMenu

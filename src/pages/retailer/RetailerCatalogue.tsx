@@ -1,26 +1,28 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Bookmark, BookOpen, AlertCircle } from "lucide-react";
-import { RetailerLayout } from "@/components/retailer";
+import { RetailerLayout, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
+import { toast } from "sonner";
 
 export const RetailerCatalogue = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  
+  const { isInWishlist, toggleWishlist } = useWishlistContext();
 
   const { magazines, isLoading, error, refetch } = useMagazines({ 
     status: 'active',
     searchQuery: searchQuery || undefined,
   });
 
-  const toggleBookmark = (id: string) => {
-    setBookmarkedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const handleToggleBookmark = (id: string) => {
+    const wasInWishlist = isInWishlist(id);
+    toggleWishlist(id);
+    toast.success(wasInWishlist ? "Removed from wishlist" : "Saved to wishlist");
   };
 
   // Get featured magazines (first 6 for the carousel)
@@ -100,17 +102,17 @@ export const RetailerCatalogue = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleBookmark(mag.id);
+                      handleToggleBookmark(mag.id);
                     }}
                     className={`
                       absolute top-2 right-2 p-2 rounded-full backdrop-blur-sm transition-all
-                      ${bookmarkedIds.includes(mag.id)
+                      ${isInWishlist(mag.id)
                         ? 'bg-accent text-accent-foreground'
                         : 'bg-background/80 text-foreground hover:bg-background'
                       }
                     `}
                   >
-                    <Bookmark className={`w-4 h-4 ${bookmarkedIds.includes(mag.id) ? 'fill-current' : ''}`} />
+                    <Bookmark className={`w-4 h-4 ${isInWishlist(mag.id) ? 'fill-current' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -183,8 +185,8 @@ export const RetailerCatalogue = () => {
               region={mag.category || undefined}
               price={mag.wholesale_price}
               onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
-              onBookmark={() => toggleBookmark(mag.id)}
-              isBookmarked={bookmarkedIds.includes(mag.id)}
+              onBookmark={() => handleToggleBookmark(mag.id)}
+              isBookmarked={isInWishlist(mag.id)}
             />
           ))}
         </div>

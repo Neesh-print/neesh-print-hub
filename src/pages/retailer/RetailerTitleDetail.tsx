@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Bookmark, Copy, MessageCircle, AlertCircle, BookOpen } from "lucide-react";
-import { RetailerLayout, QuantitySelector, useCart } from "@/components/retailer";
+import { ChevronLeft, ChevronRight, Heart, Copy, MessageCircle, AlertCircle, BookOpen } from "lucide-react";
+import { RetailerLayout, QuantitySelector, useCart, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
 
@@ -12,8 +12,18 @@ export const RetailerTitleDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlistContext();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
+
+  const isSaved = id ? isInWishlist(id) : false;
+
+  const handleToggleSave = () => {
+    if (!id) return;
+    const wasSaved = isInWishlist(id);
+    toggleWishlist(id);
+    toast.success(wasSaved ? "Removed from wishlist" : "Saved to wishlist");
+  };
 
   const { magazine, isLoading, error, refetch } = useMagazine(id || '');
   const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
@@ -60,15 +70,12 @@ export const RetailerTitleDetail = () => {
       price: wspPrice,
       quantity,
     });
-    toast({
-      title: "Added to cart",
-      description: `${quantity}x ${magazine.title} added to your cart`,
-    });
+    toast.success(`${quantity}x ${magazine.title} added to your cart`);
   };
 
   const handleCopyInfo = () => {
     navigator.clipboard.writeText(`${magazine.title} - WSP: $${wspPrice.toFixed(2)}`);
-    toast({ title: "Copied to clipboard" });
+    toast.success("Copied to clipboard");
   };
 
   // Filter out current magazine from similar titles
@@ -135,8 +142,11 @@ export const RetailerTitleDetail = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-2 mt-4">
-              <ButtonSecondary icon={<Bookmark className="w-4 h-4" />}>
-                Bookmark
+              <ButtonSecondary 
+                icon={<Heart className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />}
+                onClick={handleToggleSave}
+              >
+                {isSaved ? 'Saved' : 'Save'}
               </ButtonSecondary>
               <ButtonSecondary icon={<Copy className="w-4 h-4" />} onClick={handleCopyInfo}>
                 Copy info
