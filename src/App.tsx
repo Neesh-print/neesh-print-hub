@@ -79,8 +79,9 @@ import { AdminSettings } from "./pages/admin/AdminSettings";
 // Marketing pages
 import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
 
-// Other pages
+// Error pages
 import NotFound from "./pages/NotFound";
+import { ErrorPage, OfflinePage, UnauthorizedPage } from "./pages/errors";
 
 const queryClient = new QueryClient();
 
@@ -522,7 +523,12 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Catch-all route */}
+      {/* Error pages */}
+      <Route path="/error" element={<ErrorPage />} />
+      <Route path="/offline" element={<OfflinePage />} />
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+      {/* 404 catch-all - must be last */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
