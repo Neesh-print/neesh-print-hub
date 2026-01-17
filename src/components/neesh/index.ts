@@ -56,3 +56,7 @@ export type { ButtonSecondaryProps } from './ButtonSecondary';
 // Overlays
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
+
+// Notifications
+export { NotificationBell } from './NotificationBell';
+export type { NotificationBellProps } from './NotificationBell';

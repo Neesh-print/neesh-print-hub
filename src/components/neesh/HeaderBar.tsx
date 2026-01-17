@@ -1,4 +1,6 @@
 import { Menu, ShoppingCart } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
+import type { OrderNotification } from "@/hooks/useOrderNotifications";
 
 export interface HeaderBarProps {
   userRole: 'publisher' | 'retailer' | 'admin';
@@ -7,6 +9,12 @@ export interface HeaderBarProps {
   onMenuClick: () => void;
   onCartClick?: () => void;
   onLogoClick: () => void;
+  // Notification props for publishers
+  notifications?: OrderNotification[];
+  unreadCount?: number;
+  onMarkAsRead?: (notificationId: string) => void;
+  onMarkAllAsRead?: () => void;
+  onNotificationClick?: (orderId: string) => void;
 }
 
 export const HeaderBar = ({
@@ -16,8 +24,14 @@ export const HeaderBar = ({
   onMenuClick,
   onCartClick,
   onLogoClick,
+  notifications = [],
+  unreadCount = 0,
+  onMarkAsRead,
+  onMarkAllAsRead,
+  onNotificationClick,
 }: HeaderBarProps) => {
   const shouldShowCart = showCart || userRole === 'retailer';
+  const shouldShowNotifications = userRole === 'publisher';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-background border-b border-border">
@@ -32,6 +46,17 @@ export const HeaderBar = ({
 
         {/* Right side actions */}
         <div className="flex items-center gap-2">
+          {/* Notifications (publishers only) */}
+          {shouldShowNotifications && onMarkAsRead && onMarkAllAsRead && (
+            <NotificationBell
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={onMarkAsRead}
+              onMarkAllAsRead={onMarkAllAsRead}
+              onNotificationClick={onNotificationClick}
+            />
+          )}
+
           {/* Cart (retailers only) */}
           {shouldShowCart && onCartClick && (
             <button
