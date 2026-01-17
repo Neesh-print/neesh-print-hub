@@ -38,6 +38,7 @@ import {
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
+import { PublisherHelpCenter, RetailerHelpCenter } from "./pages/shared/HelpCenter";
 
 // Retailer pages
 import {
@@ -250,6 +251,14 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/publisher/help"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherHelpCenter />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Retailer routes - wrapped in CartProvider and WishlistProvider */}
       <Route
@@ -369,6 +378,14 @@ const AppRoutes = () => {
                 <RetailerSettings />
               </CartProvider>
             </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/help"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <RetailerHelpCenter />
           </ProtectedRoute>
         }
       />

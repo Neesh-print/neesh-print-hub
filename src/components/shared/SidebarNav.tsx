@@ -17,7 +17,8 @@ import {
   Users,
   FileText,
   BarChart3,
-  Truck
+  Truck,
+  HelpCircle
 } from "lucide-react";
 import { Logo } from "@/components/neesh/Logo";
 
@@ -48,6 +49,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   const publisherSecondaryItems: NavItem[] = [
     { label: "Profile", icon: <User className="w-5 h-5" />, path: "/publisher/profile" },
     { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/publisher/settings" },
+    { label: "Help", icon: <HelpCircle className="w-5 h-5" />, path: "/publisher/help" },
   ];
 
   const retailerNavItems: NavItem[] = [
@@ -60,6 +62,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   const retailerSecondaryItems: NavItem[] = [
     { label: "Profile", icon: <User className="w-5 h-5" />, path: "/retailer/profile" },
     { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/retailer/settings" },
+    { label: "Help", icon: <HelpCircle className="w-5 h-5" />, path: "/retailer/help" },
   ];
 
   const adminNavItems: NavItem[] = [
