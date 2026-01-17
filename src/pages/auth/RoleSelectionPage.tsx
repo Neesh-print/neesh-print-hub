@@ -2,9 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import { Copy, Store, ChevronRight } from 'lucide-react';
 import { AuthLayout } from '@/components/auth';
 
-// TODO: Move to environment variables
-const RETAILER_TYPEFORM_URL = 'https://neesh.typeform.com/retailer';
-
 const DashedDivider = () => (
   <div className="flex items-center gap-4 py-2">
     <div className="flex-1 border-t-2 border-dashed border-muted" />
@@ -21,7 +18,7 @@ const RoleSelectionPage = () => {
   };
 
   const handleRetailerApply = () => {
-    window.location.href = RETAILER_TYPEFORM_URL;
+    navigate('/apply/retailer');
   };
 
   return (
