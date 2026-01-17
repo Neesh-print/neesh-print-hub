@@ -4,3 +4,4 @@ export { ErrorBoundary } from './ErrorBoundary';
 export { MobileBottomNav } from './MobileBottomNav';
 export { SidebarNav } from './SidebarNav';
 export { NotificationCenter } from './NotificationCenter';
+export { OnboardingChecklist } from './OnboardingChecklist';
