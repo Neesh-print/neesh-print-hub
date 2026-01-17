@@ -223,11 +223,6 @@ export const ExploreMagazinesPage = () => {
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="text-center text-body text-muted-foreground mb-8">
-            <span>15+ titles from independent publishers across 6 countries</span>
-          </div>
-
           {/* Filter Bar */}
           <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
             <div className="flex gap-2 min-w-max md:flex-wrap md:justify-center">
