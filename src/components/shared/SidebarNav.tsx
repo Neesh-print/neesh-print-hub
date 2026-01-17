@@ -19,6 +19,7 @@ import {
   BarChart3,
   Truck
 } from "lucide-react";
+import { Logo } from "@/components/neesh/Logo";
 
 interface SidebarNavProps {
   userRole: 'publisher' | 'retailer' | 'admin';
@@ -105,9 +106,9 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
       <div className="h-16 flex items-center px-6 border-b border-border">
         <button
           onClick={() => navigate(`/${userRole}`)}
-          className="font-display font-bold text-xl tracking-tight text-foreground hover:opacity-80 transition-opacity"
+          className="hover:opacity-80 transition-opacity"
         >
-          NEESH
+          <Logo size="lg" />
         </button>
       </div>
 

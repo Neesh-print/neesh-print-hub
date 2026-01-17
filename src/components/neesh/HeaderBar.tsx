@@ -1,5 +1,6 @@
 import { Menu, ShoppingCart } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
+import { Logo } from "./Logo";
 import type { OrderNotification } from "@/hooks/useOrderNotifications";
 
 export interface HeaderBarProps {
@@ -39,9 +40,9 @@ export const HeaderBar = ({
         {/* Logo */}
         <button
           onClick={onLogoClick}
-          className="font-display font-bold text-xl tracking-tight text-foreground hover:opacity-80 transition-opacity"
+          className="hover:opacity-80 transition-opacity"
         >
-          NEESH
+          <Logo size="md" />
         </button>
 
         {/* Right side actions */}

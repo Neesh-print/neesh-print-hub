@@ -4,6 +4,7 @@ import { Bell } from "lucide-react";
 import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
 import { useOrderNotifications } from "@/hooks/useOrderNotifications";
 import { NotificationBell } from "@/components/neesh/NotificationBell";
+import { Logo } from "@/components/neesh/Logo";
 
 interface PublisherLayoutProps {
   children: ReactNode;
@@ -34,9 +35,9 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
         <div className="h-full px-4 flex items-center justify-between">
           <button
             onClick={() => navigate("/publisher")}
-            className="font-display font-bold text-lg tracking-tight text-foreground"
+            className="hover:opacity-80 transition-opacity"
           >
-            NEESH
+            <Logo size="md" />
           </button>
           
           <NotificationBell

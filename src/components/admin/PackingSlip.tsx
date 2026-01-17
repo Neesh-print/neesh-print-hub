@@ -1,3 +1,5 @@
+import neeshLogo from '@/assets/neesh-logo.png';
+
 export interface PackingSlipItem {
   title: string;
   publisher: string;
@@ -32,7 +34,7 @@ export const PackingSlip = ({ order }: PackingSlipProps) => {
     <div className="packing-slip bg-white p-6 max-w-[6in] mx-auto font-sans text-black">
       {/* Header */}
       <div className="text-center mb-4">
-        <h1 className="text-2xl font-bold tracking-tight">NEESH</h1>
+        <img src={neeshLogo} alt="Neesh" className="h-6 mx-auto" />
         <p className="text-sm text-gray-600 mt-1">Packing Slip</p>
         <hr className="border-t border-gray-300 mt-3" />
       </div>

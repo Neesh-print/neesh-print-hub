@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { Logo } from '@/components/neesh/Logo';
 export interface AuthLayoutProps {
   children: ReactNode;
   showBackArrow?: boolean;
@@ -30,9 +30,9 @@ export const AuthLayout = ({
         <div className="h-full px-6 md:px-8 flex items-center">
           <button
             onClick={() => navigate('/')}
-            className="font-display font-bold text-xl tracking-tight text-foreground hover:opacity-80 transition-opacity"
+            className="hover:opacity-80 transition-opacity"
           >
-            NEESH<span className="text-foreground">"</span>
+            <Logo size="lg" />
           </button>
         </div>
       </header>

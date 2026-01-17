@@ -4,7 +4,7 @@ import { useForm, Controller } from "react-hook-form";
 import { ChevronLeft, CheckCircle, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone } from "@/components/neesh";
+import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo } from "@/components/neesh";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
@@ -850,9 +850,9 @@ export const PublisherApplication = () => {
           {/* Logo */}
           <a 
             href="/" 
-            className="font-display text-xl font-bold tracking-tight text-foreground"
+            className="hover:opacity-80 transition-opacity"
           >
-            NEESH<span className="text-foreground">"</span>
+            <Logo size="lg" />
           </a>
           
           {/* Progress indicator */}

@@ -4,6 +4,7 @@ import { ShoppingCart } from "lucide-react";
 import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
 import { useCart } from "./CartContext";
 import { useWishlistContext } from "./WishlistContext";
+import { Logo } from "@/components/neesh/Logo";
 
 interface RetailerLayoutProps {
   children: ReactNode;
@@ -25,9 +26,9 @@ export const RetailerLayout = ({ children }: RetailerLayoutProps) => {
         <div className="h-full px-4 flex items-center justify-between">
           <button
             onClick={() => navigate("/retailer")}
-            className="font-display font-bold text-lg tracking-tight text-foreground"
+            className="hover:opacity-80 transition-opacity"
           >
-            NEESH
+            <Logo size="md" />
           </button>
           
           <button
