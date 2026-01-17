@@ -5,6 +5,7 @@ import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 import heroFlatlay from '@/assets/hero-magazine-flatlay.jpg';
 import ctaFlowers from '@/assets/cta-flowers.jpg';
 import ctaCouch from '@/assets/cta-couch.jpg';
+import sectionBgMagazines from '@/assets/section-bg-magazines.jpg';
 
 export const HomePage = () => {
   return (
@@ -45,22 +46,30 @@ export const HomePage = () => {
       </section>
 
       {/* Dual Value Prop Section */}
-      <section className="bg-accent/10 py-16 md:py-24">
-        <div className="container mx-auto px-4 md:px-6">
+      <section className="py-16 md:py-24 relative overflow-hidden">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0">
+          <img
+            src={sectionBgMagazines}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-white/90" />
+        </div>
+
+        <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="grid md:grid-cols-2 gap-12 lg:gap-16">
             {/* For Publishers */}
-            <div>
+            <div className="md:border-r md:border-dashed md:border-muted-foreground/30 md:pr-12 lg:pr-16">
+              <div className="w-12 h-12 mb-6">
+                <FileText className="w-full h-full text-foreground" strokeWidth={1} />
+              </div>
               <span className="inline-block text-caption uppercase tracking-widest text-muted-foreground mb-4">
                 For Publishers
               </span>
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-6 h-6 text-accent" />
-                </div>
-                <h2 className="text-display-sm md:text-display-md font-display font-bold">
-                  Get stocked. Get paid. Stay independent.
-                </h2>
-              </div>
+              <h2 className="text-display-sm md:text-display-md font-display font-bold mb-6">
+                Get stocked. Get paid. Stay independent.
+              </h2>
               <div className="text-body-lg text-muted-foreground space-y-4 mb-6">
                 <p>
                   The hardest shelves to reach are often the most valuable. Neesh opens access to retailers that traditional distributors overlook and makes every transaction clean and direct.
@@ -71,25 +80,23 @@ export const HomePage = () => {
               </div>
               <Link
                 to="/publishers"
-                className="inline-flex items-center text-body font-medium text-foreground hover:text-accent transition-colors"
+                className="inline-flex items-center text-body font-medium text-foreground underline underline-offset-4 hover:text-accent transition-colors"
               >
-                For Publishers →
+                For Publishers
               </Link>
             </div>
 
             {/* For Retailers */}
-            <div>
+            <div className="md:pl-12 lg:pl-16">
+              <div className="w-12 h-12 mb-6">
+                <Store className="w-full h-full text-foreground" strokeWidth={1} />
+              </div>
               <span className="inline-block text-caption uppercase tracking-widest text-muted-foreground mb-4">
                 For Retailers
               </span>
-              <div className="flex items-start gap-4 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
-                  <Store className="w-6 h-6 text-accent" />
-                </div>
-                <h2 className="text-display-sm md:text-display-md font-display font-bold">
-                  Stock print that makes your space unforgettable.
-                </h2>
-              </div>
+              <h2 className="text-display-sm md:text-display-md font-display font-bold mb-6">
+                Stock print that makes your space unforgettable.
+              </h2>
               <div className="text-body-lg text-muted-foreground space-y-4 mb-6">
                 <p>
                   Magazines give a shop character. They spark conversations, set the vibe, and make customers linger. But clunky portals and risky bets have made them a nightmare to stock. Neesh fixes that.
@@ -100,9 +107,9 @@ export const HomePage = () => {
               </div>
               <Link
                 to="/retailers"
-                className="inline-flex items-center text-body font-medium text-foreground hover:text-accent transition-colors"
+                className="inline-flex items-center text-body font-medium text-foreground underline underline-offset-4 hover:text-accent transition-colors"
               >
-                For Retailers →
+                For Retailers
               </Link>
             </div>
           </div>
