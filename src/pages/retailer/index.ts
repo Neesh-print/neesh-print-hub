@@ -5,6 +5,7 @@ export { RetailerCheckout } from './RetailerCheckout';
 export { RetailerOrderConfirmation } from './RetailerOrderConfirmation';
 export { RetailerOrdersList } from './RetailerOrdersList';
 export { RetailerOrderDetail } from './RetailerOrderDetail';
+export { RetailerOrderInvoice } from './RetailerOrderInvoice';
 export { RetailerProfile } from './RetailerProfile';
 export { RetailerSettings } from './RetailerSettings';
 export { RetailerWishlist } from './RetailerWishlist';
