@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CartProvider } from "@/components/retailer/CartContext";
+import { WishlistProvider } from "@/components/retailer/WishlistContext";
 import { ErrorBoundary } from "@/components/shared";
 
 // Auth pages
@@ -43,6 +44,7 @@ import {
   RetailerOrdersList,
   RetailerOrderDetail,
   RetailerProfile,
+  RetailerWishlist,
 } from "./pages/retailer";
 import { RetailerSettings } from "./pages/retailer/RetailerSettings";
 
@@ -214,14 +216,16 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Retailer routes - wrapped in CartProvider */}
+      {/* Retailer routes - wrapped in CartProvider and WishlistProvider */}
       <Route
         path="/retailer"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerCatalogue />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerCatalogue />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -229,9 +233,23 @@ const AppRoutes = () => {
         path="/retailer/catalogue/:id"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerTitleDetail />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerTitleDetail />
+              </CartProvider>
+            </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/wishlist"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerWishlist />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -239,9 +257,11 @@ const AppRoutes = () => {
         path="/retailer/cart"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerCart />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerCart />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -249,9 +269,11 @@ const AppRoutes = () => {
         path="/retailer/checkout"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerCheckout />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerCheckout />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -259,9 +281,11 @@ const AppRoutes = () => {
         path="/retailer/order-confirmation/:id"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerOrderConfirmation />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerOrderConfirmation />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -269,9 +293,11 @@ const AppRoutes = () => {
         path="/retailer/orders"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerOrdersList />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerOrdersList />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -279,9 +305,11 @@ const AppRoutes = () => {
         path="/retailer/orders/:id"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerOrderDetail />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerOrderDetail />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -289,9 +317,11 @@ const AppRoutes = () => {
         path="/retailer/profile"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerProfile />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerProfile />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />
@@ -299,9 +329,11 @@ const AppRoutes = () => {
         path="/retailer/settings"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <CartProvider>
-              <RetailerSettings />
-            </CartProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerSettings />
+              </CartProvider>
+            </WishlistProvider>
           </ProtectedRoute>
         }
       />

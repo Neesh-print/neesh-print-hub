@@ -11,6 +11,7 @@ import {
   LogOut,
   Search,
   ShoppingCart,
+  Heart,
   ShoppingBag,
   Store,
   Users,
@@ -49,6 +50,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
 
   const retailerNavItems: NavItem[] = [
     { label: "Browse Catalogue", icon: <Search className="w-5 h-5" />, path: "/retailer" },
+    { label: "Saved Titles", icon: <Heart className="w-5 h-5" />, path: "/retailer/wishlist" },
     { label: "My Orders", icon: <Package className="w-5 h-5" />, path: "/retailer/orders" },
     { label: "Cart", icon: <ShoppingCart className="w-5 h-5" />, path: "/retailer/cart" },
   ];
