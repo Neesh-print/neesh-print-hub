@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Store, Search, Send, LayoutDashboard, CheckCircle } from 'lucide-react';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
@@ -8,6 +8,8 @@ import ctaCouch from '@/assets/cta-couch.jpg';
 import sectionBgMagazines from '@/assets/section-bg-magazines.jpg';
 
 export const HomePage = () => {
+  const navigate = useNavigate();
+  
   return (
     <MarketingLayout>
       {/* Hero Section */}
@@ -22,11 +24,9 @@ export const HomePage = () => {
               <p className="text-body-lg md:text-xl text-muted-foreground mb-8 max-w-lg">
                 Publishers get discovered and paid faster. Retailers stock rare titles with zero risk.
               </p>
-              <Link to="/explore">
-                <ButtonPrimary variant="black" className="text-base px-8 py-3">
-                  Explore Magazines
-                </ButtonPrimary>
-              </Link>
+              <ButtonPrimary variant="black" className="text-base px-8 py-3" onClick={() => navigate('/explore')}>
+                Explore Magazines
+              </ButtonPrimary>
             </div>
 
             {/* Hero Image */}
@@ -273,16 +273,12 @@ export const HomePage = () => {
             Keep Indie Print Moving Forward.
           </h2>
           <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-8 lg:gap-32">
-            <Link to="/publishers">
-              <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
-                For Publishers
-              </ButtonPrimary>
-            </Link>
-            <Link to="/retailers">
-              <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]">
-                For Retailers
-              </ButtonPrimary>
-            </Link>
+            <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]" onClick={() => navigate('/publishers')}>
+              For Publishers
+            </ButtonPrimary>
+            <ButtonPrimary variant="black" className="text-base px-8 py-3 min-w-[160px]" onClick={() => navigate('/retailers')}>
+              For Retailers
+            </ButtonPrimary>
           </div>
         </div>
       </section>
