@@ -43,7 +43,53 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting test user creation...')
+    // ============================================================
+    // SECURITY: Require admin authentication
+    // ============================================================
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify the user is an admin
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    )
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if user is admin
+    const { data: userData, error: userError } = await supabaseClient
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (userError || !userData || userData.role !== 'admin') {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    // ============================================================
+
+    console.log('Starting test user creation (authorized by admin)...')
 
     // Create admin client using service role key
     const supabaseAdmin = createClient(
@@ -64,7 +110,7 @@ Deno.serve(async (req) => {
 
       try {
         // Create auth user using admin API
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        const { data: authData, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
           email: testUser.email,
           password: testUser.password,
           email_confirm: true,
@@ -74,15 +120,15 @@ Deno.serve(async (req) => {
           },
         })
 
-        if (authError) {
+        if (createAuthError) {
           // Check if user already exists
-          if (authError.message?.includes('already been registered') || 
-              authError.message?.includes('already exists')) {
+          if (createAuthError.message?.includes('already been registered') || 
+              createAuthError.message?.includes('already exists')) {
             console.log(`User ${testUser.email} already exists, skipping...`)
             results.push({ email: testUser.email, status: 'already_exists' })
             continue
           }
-          throw authError
+          throw createAuthError
         }
 
         if (!authData.user) {
@@ -93,7 +139,7 @@ Deno.serve(async (req) => {
         console.log(`Auth user created with ID: ${userId}`)
 
         // Create entry in public.users table
-        const { error: userError } = await supabaseAdmin
+        const { error: userInsertError } = await supabaseAdmin
           .from('users')
           .insert({
             id: userId,
@@ -104,8 +150,8 @@ Deno.serve(async (req) => {
             email_verified: true,
           })
 
-        if (userError) {
-          console.error(`Error creating user record: ${userError.message}`)
+        if (userInsertError) {
+          console.error(`Error creating user record: ${userInsertError.message}`)
         }
 
         // Create profile
@@ -153,28 +199,24 @@ Deno.serve(async (req) => {
         results.push({ email: testUser.email, status: 'created' })
         console.log(`Successfully created user: ${testUser.email}`)
 
-      } catch (userError) {
-        console.error(`Failed to create user ${testUser.email}:`, userError)
+      } catch (userCreateError) {
+        console.error(`Failed to create user ${testUser.email}:`, userCreateError)
         results.push({ 
           email: testUser.email, 
           status: 'failed', 
-          error: userError instanceof Error ? userError.message : 'Unknown error' 
+          error: userCreateError instanceof Error ? userCreateError.message : 'Unknown error' 
         })
       }
     }
 
     console.log('Test user creation completed')
 
+    // NOTE: Credentials are NOT returned for security reasons
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Test users processed',
         results,
-        credentials: testUsers.map(u => ({
-          email: u.email,
-          password: u.password,
-          role: u.role,
-        })),
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
