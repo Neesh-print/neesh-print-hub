@@ -2,3 +2,6 @@ project_id = "smfzrubkyxejzkblrrjr"
 
 [functions.create-test-users]
 verify_jwt = false
+
+[functions.validate-upload]
+verify_jwt = false

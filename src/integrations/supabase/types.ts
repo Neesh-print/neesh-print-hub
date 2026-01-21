@@ -809,7 +809,6 @@ export type Database = {
           issue_number: string | null
           last_name: string | null
           magazine_title: string
-          password: string | null
           print_run: number | null
           publication_type: string | null
           quotes_feedback: string | null
@@ -853,7 +852,6 @@ export type Database = {
           issue_number?: string | null
           last_name?: string | null
           magazine_title: string
-          password?: string | null
           print_run?: number | null
           publication_type?: string | null
           quotes_feedback?: string | null
@@ -897,7 +895,6 @@ export type Database = {
           issue_number?: string | null
           last_name?: string | null
           magazine_title?: string
-          password?: string | null
           print_run?: number | null
           publication_type?: string | null
           quotes_feedback?: string | null

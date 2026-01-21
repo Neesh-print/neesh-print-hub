@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RetailerLayout, useCart } from "@/components/retailer";
 import { BackNavigation, FormInput, FormSelect, ButtonPrimary } from "@/components/neesh";
 import { toast } from "@/hooks/use-toast";
+import { CreditCard, Lock, AlertTriangle } from "lucide-react";
 
 const countries = [
   { value: "us", label: "United States" },
@@ -43,13 +44,6 @@ export const RetailerCheckout = () => {
     country: "us",
   });
 
-  const [payment, setPayment] = useState({
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-    name: "",
-  });
-
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -65,7 +59,8 @@ export const RetailerCheckout = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
+    // This is a placeholder - real payment would use Stripe Elements
+    // Simulate API call for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     clearCart();
@@ -201,42 +196,41 @@ export const RetailerCheckout = () => {
               )}
             </section>
 
-            {/* Payment */}
+            {/* Payment - PCI-Compliant Placeholder */}
             <section className="card-neesh">
               <h2 className="font-display font-semibold text-lg text-foreground mb-4">
                 Payment
               </h2>
-              <div className="space-y-4">
-                <FormInput
-                  label="Card number"
-                  value={payment.cardNumber}
-                  onChange={(value) => setPayment({ ...payment, cardNumber: value })}
-                  placeholder="1234 5678 9012 3456"
-                  required
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput
-                    label="Expiry date"
-                    value={payment.expiry}
-                    onChange={(value) => setPayment({ ...payment, expiry: value })}
-                    placeholder="MM/YY"
-                    required
-                  />
-                  <FormInput
-                    label="CVV"
-                    value={payment.cvv}
-                    onChange={(value) => setPayment({ ...payment, cvv: value })}
-                    placeholder="123"
-                    required
-                  />
+              
+              {/* Secure Payment Notice */}
+              <div className="bg-secondary/50 border border-border rounded-lg p-6 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
+                    <CreditCard className="w-8 h-8 text-accent" />
+                  </div>
                 </div>
-                <FormInput
-                  label="Name on card"
-                  value={payment.name}
-                  onChange={(value) => setPayment({ ...payment, name: value })}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">🔒 Secured by Stripe</p>
+                
+                <h3 className="font-display font-semibold text-foreground mb-2">
+                  Secure Payment Processing
+                </h3>
+                
+                <p className="text-sm text-muted-foreground mb-4">
+                  Payment will be processed securely through Stripe. 
+                  Your card details are never stored on our servers.
+                </p>
+                
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Lock className="w-3 h-3" />
+                  <span>256-bit SSL encryption</span>
+                </div>
+
+                {/* Demo Mode Notice */}
+                <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                  <div className="flex items-center gap-2 text-warning text-xs">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>Demo Mode: Real Stripe integration coming soon. Orders will be simulated.</span>
+                  </div>
+                </div>
               </div>
             </section>
 

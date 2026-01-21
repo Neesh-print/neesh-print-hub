@@ -9,6 +9,8 @@ export interface UseFileUploadOptions {
   allowedTypes?: string[];
   onUploadComplete?: (url: string) => void;
   onError?: (error: string) => void;
+  // Set to true to use server-side validation (recommended for production)
+  useServerValidation?: boolean;
 }
 
 export interface UseFileUploadReturn {
@@ -25,9 +27,56 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
-  const upload = useCallback(async (file: File): Promise<string | null> => {
+  const uploadWithServerValidation = useCallback(async (file: File): Promise<string | null> => {
+    if (!user || !session) {
+      const errorMsg = "You must be logged in to upload files";
+      setError(errorMsg);
+      options.onError?.(errorMsg);
+      return null;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setProgress(10);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bucket', options.bucket);
+      formData.append('folder', options.folder || 'uploads');
+
+      setProgress(30);
+
+      const { data, error: invokeError } = await supabase.functions.invoke('validate-upload', {
+        body: formData,
+      });
+
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Upload failed');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      setProgress(100);
+      const url = data.url;
+      options.onUploadComplete?.(url);
+      return url;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setError(message);
+      options.onError?.(message);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  }, [user, session, options]);
+
+  const uploadDirect = useCallback(async (file: File): Promise<string | null> => {
     if (!user) {
       const errorMsg = "You must be logged in to upload files";
       setError(errorMsg);
@@ -35,7 +84,7 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
       return null;
     }
 
-    // Validate file size
+    // Client-side validation (fallback, not secure for production)
     const maxSize = (options.maxSizeMB || 5) * 1024 * 1024;
     if (file.size > maxSize) {
       const errorMsg = `File too large. Maximum size is ${options.maxSizeMB || 5}MB`;
@@ -44,7 +93,6 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
       return null;
     }
 
-    // Validate file type
     const allowedTypes = options.allowedTypes || ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       const errorMsg = 'Invalid file type. Please upload a JPG, PNG, WebP, or GIF image.';
@@ -55,7 +103,7 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
 
     setIsUploading(true);
     setError(null);
-    setProgress(10); // Initial progress
+    setProgress(10);
 
     try {
       const timestamp = Date.now();
@@ -99,6 +147,14 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
       setIsUploading(false);
     }
   }, [user, options]);
+
+  const upload = useCallback(async (file: File): Promise<string | null> => {
+    // Use server validation by default for security
+    if (options.useServerValidation !== false) {
+      return uploadWithServerValidation(file);
+    }
+    return uploadDirect(file);
+  }, [options.useServerValidation, uploadWithServerValidation, uploadDirect]);
 
   const uploadMultiple = useCallback(async (files: File[]): Promise<string[]> => {
     const urls: string[] = [];
