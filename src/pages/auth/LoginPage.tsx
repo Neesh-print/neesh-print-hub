@@ -18,10 +18,10 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in - go to /home for role-based routing
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/');
+      navigate('/home');
     }
   }, [user, authLoading, navigate]);
 
