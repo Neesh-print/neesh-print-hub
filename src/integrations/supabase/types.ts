@@ -920,12 +920,21 @@ export type Database = {
       }
       publishers: {
         Row: {
+          application_data: Json | null
+          application_status:
+            | Database["public"]["Enums"]["publisher_application_status"]
+            | null
           average_rating: number | null
           company_name: string | null
           created_at: string | null
+          current_onboarding_step: number | null
           description: string | null
           id: string
           instagram_handle: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          submitted_at: string | null
           total_magazines: number | null
           total_sales: number | null
           updated_at: string | null
@@ -935,12 +944,21 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
+          application_data?: Json | null
+          application_status?:
+            | Database["public"]["Enums"]["publisher_application_status"]
+            | null
           average_rating?: number | null
           company_name?: string | null
           created_at?: string | null
+          current_onboarding_step?: number | null
           description?: string | null
           id?: string
           instagram_handle?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null
           updated_at?: string | null
@@ -950,12 +968,21 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
+          application_data?: Json | null
+          application_status?:
+            | Database["public"]["Enums"]["publisher_application_status"]
+            | null
           average_rating?: number | null
           company_name?: string | null
           created_at?: string | null
+          current_onboarding_step?: number | null
           description?: string | null
           id?: string
           instagram_handle?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null
           updated_at?: string | null
@@ -1285,6 +1312,14 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_publisher_status: {
+        Args: { p_user_id: string }
+        Returns: {
+          application_status: Database["public"]["Enums"]["publisher_application_status"]
+          current_step: number
+          publisher_id: string
+        }[]
+      }
       http: {
         Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
@@ -1410,6 +1445,7 @@ export type Database = {
         Args: { curlopt: string; value: string }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
       text_to_bytea: { Args: { data: string }; Returns: string }
       urlencode:
         | { Args: { data: Json }; Returns: string }
@@ -1446,6 +1482,11 @@ export type Database = {
         | "flyers"
         | "other"
       product_status: "draft" | "published" | "archived"
+      publisher_application_status:
+        | "draft"
+        | "submitted"
+        | "approved"
+        | "rejected"
       user_role: "publisher" | "retailer" | "admin"
     }
     CompositeTypes: {
@@ -1611,6 +1652,12 @@ export const Constants = {
         "other",
       ],
       product_status: ["draft", "published", "archived"],
+      publisher_application_status: [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+      ],
       user_role: ["publisher", "retailer", "admin"],
     },
   },
