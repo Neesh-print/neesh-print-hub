@@ -73,7 +73,7 @@ const defaultFormValues: FormData = {
 
 export const PublisherApplication = () => {
   const navigate = useNavigate();
-  const { user, session } = useAuth();
+  const { user, session, isLoading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
@@ -108,6 +108,9 @@ export const PublisherApplication = () => {
   // Check for existing draft applications to resume
   useEffect(() => {
     const checkForResume = async () => {
+      // Wait for auth to initialize
+      if (authLoading) return;
+
       // Don't auto-load if we already have a publisher ID
       if (publisherId) {
         setIsLoadingResume(false);
@@ -146,7 +149,7 @@ export const PublisherApplication = () => {
     };
 
     checkForResume();
-  }, [user, navigate, publisherId]);
+  }, [user, navigate, publisherId, authLoading]);
 
   // Save progress to Supabase (saves to publisher_applications table)
   const saveProgress = useCallback(async (additionalData?: Partial<FormData>) => {
