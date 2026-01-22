@@ -1,5 +1,8 @@
 import { Bookmark } from "lucide-react";
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { calculateRetailerPrice } from "@/utils/pricing";
+
 export interface MagazineCardProps {
   coverImage: string;
   title: string;
@@ -25,7 +28,7 @@ export const MagazineCard = ({
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-  }).format(price);
+  }).format(calculateRetailerPrice(price));
 
   return (
     <article className="group cursor-pointer" onClick={onClick}>
@@ -70,9 +73,19 @@ export const MagazineCard = ({
           {region && <span className="ml-1">· {region}</span>}
         </p>
         
-        <p className="font-display font-medium text-body text-accent">
-          {formattedPrice} <span className="text-caption text-muted-foreground font-normal">WSP</span>
-        </p>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="font-display font-medium text-body text-accent w-fit cursor-help">
+                {formattedPrice} <span className="text-caption text-muted-foreground font-normal">WSP</span>
+              </p>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Includes platform fee</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </article>
   );

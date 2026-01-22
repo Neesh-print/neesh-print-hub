@@ -1,11 +1,47 @@
 import { useNavigate } from "react-router-dom";
-import { X, ShoppingBag } from "lucide-react";
+import { useState } from "react";
+import { X, ShoppingBag, Loader2 } from "lucide-react";
 import { RetailerLayout, QuantitySelector, useCart } from "@/components/retailer";
 import { BackNavigation, ButtonPrimary, ButtonSecondary, EmptyState } from "@/components/neesh";
+import { calculateRetailerPrice } from "@/utils/pricing";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const RetailerCart = () => {
   const navigate = useNavigate();
-  const { cartItems, removeFromCart, updateQuantity, cartTotal, cartItemCount } = useCart();
+  const { toast } = useToast();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { cartItems, removeFromCart, updateQuantity, cartItemCount } = useCart();
+
+  const retailerTotal = cartItems.reduce((acc, item) => {
+    return acc + (calculateRetailerPrice(item.price) * item.quantity);
+  }, 0);
+
+  const handleCheckout = async () => {
+    try {
+      setIsCheckingOut(true);
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { cartItems }
+      });
+
+      if (error) throw error;
+
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      toast({
+        title: "Checkout failed",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -87,7 +123,7 @@ export const RetailerCart = () => {
                         min={1}
                       />
                       <p className="font-display font-semibold text-foreground">
-                        {formatPrice(item.price * item.quantity)}
+                        {formatPrice(calculateRetailerPrice(item.price) * item.quantity)}
                       </p>
                     </div>
                   </div>
@@ -109,7 +145,7 @@ export const RetailerCart = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal ({cartItemCount} items)</span>
-                  <span>{formatPrice(cartTotal)}</span>
+                  <span>{formatPrice(retailerTotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
@@ -120,12 +156,13 @@ export const RetailerCart = () => {
               <div className="border-t border-border pt-4 mb-6">
                 <div className="flex justify-between font-display font-semibold text-lg text-foreground">
                   <span>Total</span>
-                  <span>{formatPrice(cartTotal)}</span>
+                  <span>{formatPrice(retailerTotal)}</span>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <ButtonPrimary fullWidth onClick={() => navigate("/retailer/checkout")}>
+                <ButtonPrimary fullWidth onClick={handleCheckout} disabled={isCheckingOut}>
+                  {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Proceed to Checkout
                 </ButtonPrimary>
                 <ButtonSecondary fullWidth onClick={() => navigate("/retailer")}>
