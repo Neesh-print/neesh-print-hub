@@ -317,3 +317,24 @@ BEGIN
 END;
 $$;
 
+
+-- Secure RPC to fetch application for resume (using token)
+CREATE OR REPLACE FUNCTION public.get_publisher_application(
+  p_token UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  SELECT to_jsonb(pa.*) INTO v_result
+  FROM public.publisher_applications pa
+  WHERE pa.access_token = p_token;
+  
+  RETURN v_result;
+END;
+$$;
+

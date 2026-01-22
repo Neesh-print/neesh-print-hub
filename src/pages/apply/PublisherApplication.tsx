@@ -121,13 +121,66 @@ export const PublisherApplication = () => {
       // Wait for auth to initialize
       if (authLoading) return;
 
-      // If we have an ID (and token if anon), we are already set
-      if (publisherId) {
-        setIsLoadingResume(false);
-        return;
+      // 1. Try to resume from Access Token (Anonymous)
+      if (accessToken && publisherId) {
+        try {
+          const { data, error } = await supabase.rpc('get_publisher_application', {
+            p_token: accessToken
+          });
+
+          if (data && !error) {
+             const dbData = data as any;
+             // Map DB snake_case to form camelCase
+             const formData: Partial<FormData> = {
+                firstName: dbData.first_name || '',
+                lastName: dbData.last_name || '',
+                email: dbData.email || '',
+                businessName: dbData.business_name || '',
+                magazineTitle: dbData.magazine_title || '',
+                coverImageUrl: dbData.cover_image_url || '',
+                description: dbData.description || '',
+                websiteUrl: dbData.social_website_link || '',
+                instagramHandle: dbData.instagram_handle || '',
+                shippingCountry: dbData.shipping_country || '',
+                shippingCity: dbData.shipping_city || '',
+                issueFrequency: dbData.issue_frequency || '',
+                publicationType: dbData.publication_type || '',
+                regionsCurrentlySold: dbData.distribution_channels || [],
+                fulfillmentMethod: dbData.fulfillment_method || '',
+                cloudLink: dbData.quotes_feedback || '',
+                // Merge any additional info that matches form structure
+                ...dbData.additional_info
+             };
+             
+             // Restore form state
+             reset(formData as FormData);
+             
+             // Determine step based on data completeness
+             let restoreStep = 2; // Default to after Step 1 if record exists
+             if (dbData.business_name) restoreStep = 3;
+             if (dbData.magazine_title) restoreStep = 4;
+             if (dbData.cover_image_url) restoreStep = 5;
+             if (dbData.description) restoreStep = 6;
+             if (dbData.shipping_country) restoreStep = 8; // Social links step 7 is optional?
+             
+             setCurrentStep(restoreStep);
+             setIsLoadingResume(false);
+             return;
+          } else {
+             console.warn("Invalid access token or ID, clearing session");
+             // Token invalid, clear storage to prevent stuck state
+             localStorage.removeItem('publisherAppId');
+             localStorage.removeItem('publisherAccessToken');
+             setPublisherId(null);
+             setAccessToken(null);
+          }
+        } catch (err) {
+           console.error("Resume error:", err);
+           // Fall through to other checks or finish
+        }
       }
 
-      // For logged-in users, check their publisher status first
+      // 2. For logged-in users, check their publisher status
       if (user) {
         try {
           const { data: publisher, error } = await supabase
@@ -149,37 +202,12 @@ export const PublisherApplication = () => {
               navigate("/rejected");
               return;
             }
-             // If draft, we might want to populate publisherId from here if not set?
-             // But existing logic doesn't seem to do that. It assumes standard flow or maybe 'publishers' table is different from 'publisher_applications'?
-             // Actually 'publishers' table IS the main table, 'publisher_applications' is the wizard table?
-             // Wait, the migration says:
-             // "Add new columns to publishers table"
-             // BUT RLS policy is on "publisher_applications".
-             // Let's check: "publisher_applications" is used in `saveProgress`.
-             // And `checkForResume` checks "publishers".
-             // This implies a disconnect.
-             // `publisher_applications` might be a new table for the new flow?
-             // Checking migration `20260121020000`:
-             // `ALTER TABLE public.publisher_applications ...`
-             // `ALTER TABLE public.publishers ...`
-             // Both exist.
-             // If I am authenticated, I likely have a row in `publishers`?
-             // Or does `publisher_applications` promote to `publishers`?
-             // The migration comments: "Create application status enum... Add new columns to publishers table... Update existing...".
-             // AND "Add RLS policy for publisher_applications".
-             // It seems `publisher_applications` is the wizard table, and `publishers` is the final table?
-             // Line 240 of migration: "Create a temporary publisher application record..."
-             // So RESUME should check `publisher_applications` for drafts?
-             // The existing `checkForResume` checks `publishers`.
-             // If I am a draft user, do I have a `publishers` row?
-             // If I am authenticated, `handleSaveBasicInfo` inserts into `publisher_applications` WITH `user_id`.
-             // So I should check `publisher_applications` for my draft!
-
-             // I will update the Resume logic to ALSO check `publisher_applications` if `publishers` check yields nothing or draft.
-             // But let's stick to fixing the immediate anonymous flow.
-             // If I am logged in, the original code checks `publishers`.
-             // Maybe I should keep it for now to avoid side effects.
           }
+           // If user has a draft in 'publishers', maybe we should fetch it?
+           // Current architecture seems to split 'publisher_applications' (wizard) and 'publishers' (final).
+           // If logged in, we rely on 'publishers' table status.
+           // If we want to support resume for logged in users from 'publisher_applications', we'd need logic here.
+           // For now, assuming logged in users might not use this specific anonymity flow or have different resume logic.
         } catch (err) {
           console.error("Error checking publisher status:", err);
         }
@@ -189,7 +217,7 @@ export const PublisherApplication = () => {
     };
 
     checkForResume();
-  }, [user, navigate, publisherId, authLoading]);
+  }, [user, navigate, publisherId, accessToken, authLoading, reset]);
 
   // Save progress to Supabase (saves to publisher_applications table)
   const saveProgress = useCallback(async (additionalData?: Partial<FormData>) => {
