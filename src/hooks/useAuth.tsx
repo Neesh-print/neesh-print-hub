@@ -26,6 +26,7 @@ interface AuthContextType {
   profile: Profile | null;
   userRole: UserRole | null;
   isLoading: boolean;
+  isRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, role: UserRole) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -42,8 +43,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRoleLoading, setIsRoleLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
+    setIsRoleLoading(true);
+    
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
@@ -63,7 +67,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (userData) {
       setUserRole(userData.role as UserRole);
+    } else {
+      setUserRole(null);
     }
+    
+    setIsRoleLoading(false);
   };
 
   useEffect(() => {
@@ -81,6 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setProfile(null);
           setUserRole(null);
+          setIsRoleLoading(false);
         }
         
         setIsLoading(false);
@@ -94,6 +103,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (session?.user) {
         fetchProfile(session.user.id);
+      } else {
+        setIsRoleLoading(false);
       }
       
       setIsLoading(false);
@@ -210,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       profile,
       userRole,
       isLoading,
+      isRoleLoading,
       signIn,
       signUp,
       signInWithGoogle,
