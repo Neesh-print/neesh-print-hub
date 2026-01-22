@@ -11,6 +11,8 @@ export interface UseFileUploadOptions {
   onError?: (error: string) => void;
   // Set to true to use server-side validation (recommended for production)
   useServerValidation?: boolean;
+  // Allow anonymous uploads (handled by edge function)
+  allowAnonymous?: boolean;
 }
 
 export interface UseFileUploadReturn {
@@ -30,7 +32,7 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
   const { user, session } = useAuth();
 
   const uploadWithServerValidation = useCallback(async (file: File): Promise<string | null> => {
-    if (!user || !session) {
+    if ((!user || !session) && !options.allowAnonymous) {
       const errorMsg = "You must be logged in to upload files";
       setError(errorMsg);
       options.onError?.(errorMsg);
@@ -46,6 +48,9 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
       formData.append('file', file);
       formData.append('bucket', options.bucket);
       formData.append('folder', options.folder || 'uploads');
+      if (options.allowAnonymous) {
+        formData.append('isAnonymous', 'true');
+      }
 
       setProgress(30);
 

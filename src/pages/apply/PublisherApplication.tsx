@@ -92,6 +92,7 @@ export const PublisherApplication = () => {
     folder: "applications",
     maxSizeMB: 10,
     allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+    allowAnonymous: true,
     onUploadComplete: (url) => {
       setValue("coverImageUrl", url);
       toast.success("Cover image uploaded!");
@@ -515,6 +516,7 @@ export const PublisherApplication = () => {
                   onChange={field.onChange}
                   error={errors.businessName?.message}
                   required
+                  autoComplete="organization"
                 />
               )}
             />
@@ -547,6 +549,7 @@ export const PublisherApplication = () => {
                   onChange={field.onChange}
                   error={errors.magazineTitle?.message}
                   required
+                  autoComplete="off"
                 />
               )}
             />
