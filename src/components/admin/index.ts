@@ -6,3 +6,4 @@ export { FulfillmentOrderCard } from './FulfillmentOrderCard';
 export { AddTrackingModal } from './AddTrackingModal';
 export { PackingSlip, packingSlipPrintStyles } from './PackingSlip';
 export { ApplicationDetailSlideOver, type ApplicationData, type ApplicationNote } from './ApplicationDetailSlideOver';
+export { EmailPreviewModal, type EmailPreviewData } from './EmailPreviewModal';

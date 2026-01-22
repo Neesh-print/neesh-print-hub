@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { generateApprovalEmail, generateRejectionEmail, EMAIL_SUBJECTS } from "@/lib/emailTemplates";
 
 export interface Application {
   id: string;
@@ -18,12 +19,22 @@ export interface UseApplicationsOptions {
   status?: 'pending' | 'approved' | 'rejected' | 'all';
 }
 
+export interface EmailPreviewData {
+  to: string;
+  subject: string;
+  html: string;
+  recipientName: string;
+  businessName: string;
+}
+
 export interface UseApplicationsReturn {
   applications: Application[];
   isLoading: boolean;
   error: string | null;
   approveApplication: (id: string, type: 'publisher' | 'retailer') => Promise<boolean>;
   rejectApplication: (id: string, type: 'publisher' | 'retailer', reason: string) => Promise<boolean>;
+  getApprovalEmailPreview: (id: string, type: 'publisher' | 'retailer') => Promise<EmailPreviewData | null>;
+  getRejectionEmailPreview: (id: string, type: 'publisher' | 'retailer', reason: string) => Promise<EmailPreviewData | null>;
   refetch: () => void;
 }
 
@@ -116,19 +127,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
     const table = type === 'publisher' ? 'publisher_applications' : 'retailer_applications';
 
     try {
-      // Update application status
-      const { error: updateError } = await supabase
-        .from(table)
-        .update({
-          status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id,
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
-
-      // Get application data
+      // Get application data first
       const { data: applicationData, error: fetchError } = await supabase
         .from(table)
         .select('*')
@@ -139,26 +138,136 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
 
       // Use any type for flexible access to application fields
       const application = applicationData as any;
+      const email = application.email || application.buyer_email;
 
-      // Create publisher or retailer record based on application
-      if (type === 'publisher' && application) {
-        const { error: insertError } = await supabase
-          .from('publishers')
+      if (!email) {
+        throw new Error('No email found in application');
+      }
+
+      // Step 1: Create auth user if they don't have one already
+      let userId = application.user_id;
+
+      if (!userId) {
+        // Generate a random password (they'll use magic link to sign in)
+        const randomPassword = crypto.randomUUID();
+
+        // Create auth user
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: email,
+          password: randomPassword,
+          email_confirm: true, // Auto-confirm so they can sign in with magic link
+          user_metadata: {
+            role: type,
+            first_name: application.first_name || application.buyer_name?.split(' ')[0],
+            last_name: application.last_name || application.buyer_name?.split(' ')[1],
+          },
+        });
+
+        if (authError) {
+          console.error('Error creating auth user:', authError);
+          throw new Error(`Failed to create account: ${authError.message}`);
+        }
+
+        if (!authData.user) {
+          throw new Error('Failed to create user account');
+        }
+
+        userId = authData.user.id;
+
+        // Step 2: Create user record in users table
+        const { error: userError } = await supabase
+          .from('users')
           .insert({
-            user_id: application.user_id,
+            id: userId,
+            email: email,
+            username: email.split('@')[0],
+            role: type,
+            password_hash: 'managed_by_supabase_auth',
+          });
+
+        if (userError && userError.code !== '23505') {
+          console.error('Error creating user record:', userError);
+        }
+
+        // Step 3: Create profile record
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: userId,
+            full_name: application.first_name && application.last_name
+              ? `${application.first_name} ${application.last_name}`
+              : application.buyer_name || email.split('@')[0],
+          });
+
+        if (profileError && profileError.code !== '23505') {
+          console.error('Error creating profile:', profileError);
+        }
+
+        // Step 4: Send magic link for sign in
+        try {
+          const { error: magicLinkError } = await supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+              shouldCreateUser: false, // User already exists
+              emailRedirectTo: `${window.location.origin}/${type}`,
+            },
+          });
+
+          if (magicLinkError) {
+            console.error('Error sending magic link:', magicLinkError);
+            // Don't fail the approval if email sending fails
+          }
+        } catch (emailError) {
+          console.error('Error sending welcome email:', emailError);
+          // Continue with approval even if email fails
+        }
+      }
+
+      // Step 5: Create/update role-specific record
+      if (type === 'publisher') {
+        // Update existing publisher record or create new one
+        const { error: updatePublisherError } = await supabase
+          .from('publishers')
+          .update({
+            application_status: 'approved',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.id,
             company_name: application.business_name || application.magazine_title,
             description: application.description,
             website_url: application.social_website_link,
-          });
+            instagram_handle: application.instagram_handle?.replace('@', ''),
+          })
+          .eq('user_id', userId);
 
-        if (insertError && insertError.code !== '23505') { // Ignore duplicate key errors
-          console.error('Error creating publisher:', insertError);
+        if (updatePublisherError) {
+          // If publisher record doesn't exist, create it
+          if (updatePublisherError.code === 'PGRST116') {
+            const { error: insertError } = await supabase
+              .from('publishers')
+              .insert({
+                user_id: userId,
+                company_name: application.business_name || application.magazine_title,
+                description: application.description,
+                website_url: application.social_website_link,
+                instagram_handle: application.instagram_handle?.replace('@', ''),
+                application_status: 'approved',
+                reviewed_at: new Date().toISOString(),
+                reviewed_by: user?.id,
+              });
+
+            if (insertError && insertError.code !== '23505') {
+              console.error('Error creating publisher:', insertError);
+            }
+          } else {
+            console.error('Error updating publisher status:', updatePublisherError);
+          }
         }
-      } else if (type === 'retailer' && application) {
-        const { error: insertError } = await supabase
+      } else if (type === 'retailer') {
+        // For retailers: Create or update retailer record
+        const { error: upsertError } = await supabase
           .from('retailers')
-          .insert({
-            user_id: application.user_id || application.id, // Fallback to app id if no user_id
+          .upsert({
+            user_id: userId,
             shop_name: application.shop_name,
             shop_url: application.shop_url,
             address: application.shop_address,
@@ -168,12 +277,27 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
             country: application.country,
             phone: application.phone,
             instagram_handle: application.instagram_handle,
+          }, {
+            onConflict: 'user_id',
           });
 
-        if (insertError && insertError.code !== '23505') {
-          console.error('Error creating retailer:', insertError);
+        if (upsertError) {
+          console.error('Error creating/updating retailer:', upsertError);
         }
       }
+
+      // Step 6: Update application status in the applications table
+      const { error: updateError } = await supabase
+        .from(table)
+        .update({
+          status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id,
+          user_id: userId, // Link the application to the created user
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
 
       await fetchApplications();
       return true;
@@ -189,6 +313,35 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
     const reasonField = type === 'publisher' ? 'reviewer_notes' : 'denial_reason';
 
     try {
+      // Get application data first to get user_id
+      const { data: applicationData, error: fetchError } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const application = applicationData as any;
+
+      // For publishers with existing user_id: Update the publishers table application_status to 'rejected'
+      if (type === 'publisher' && application.user_id) {
+        const { error: updatePublisherError } = await supabase
+          .from('publishers')
+          .update({
+            application_status: 'rejected',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user?.id,
+            rejection_reason: reason,
+          })
+          .eq('user_id', application.user_id);
+
+        if (updatePublisherError) {
+          console.error('Error updating publisher rejection status:', updatePublisherError);
+        }
+      }
+
+      // Update application status in the applications table
       const { error: updateError } = await supabase
         .from(table)
         .update({
@@ -201,6 +354,19 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
 
       if (updateError) throw updateError;
 
+      // Optionally send rejection email
+      const email = application.email || application.buyer_email;
+      if (email) {
+        try {
+          // TODO: Implement rejection email notification
+          // This could be done via a Supabase Edge Function or external email service
+          console.log(`Should send rejection email to ${email} with reason: ${reason}`);
+        } catch (emailError) {
+          console.error('Error sending rejection email:', emailError);
+          // Don't fail the rejection if email fails
+        }
+      }
+
       await fetchApplications();
       return true;
 
@@ -210,9 +376,99 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
     }
   };
 
+  const getApprovalEmailPreview = async (id: string, type: 'publisher' | 'retailer'): Promise<EmailPreviewData | null> => {
+    const table = type === 'publisher' ? 'publisher_applications' : 'retailer_applications';
+
+    try {
+      const { data: applicationData, error: fetchError } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const application = applicationData as any;
+      const email = application.email || application.buyer_email;
+      const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there';
+      const businessName = type === 'publisher'
+        ? (application.business_name || application.magazine_title || 'Your Business')
+        : (application.shop_name || 'Your Shop');
+
+      // Generate a placeholder magic link URL (actual link will be generated when sending)
+      const magicLinkUrl = `${window.location.origin}/${type}`;
+
+      const html = generateApprovalEmail({
+        firstName,
+        businessName,
+        role: type,
+        magicLinkUrl,
+      });
+
+      return {
+        to: email,
+        subject: EMAIL_SUBJECTS.approval(businessName),
+        html,
+        recipientName: firstName,
+        businessName,
+      };
+    } catch (err) {
+      console.error('Error generating approval email preview:', err);
+      return null;
+    }
+  };
+
+  const getRejectionEmailPreview = async (id: string, type: 'publisher' | 'retailer', reason: string): Promise<EmailPreviewData | null> => {
+    const table = type === 'publisher' ? 'publisher_applications' : 'retailer_applications';
+
+    try {
+      const { data: applicationData, error: fetchError } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const application = applicationData as any;
+      const email = application.email || application.buyer_email;
+      const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there';
+      const businessName = type === 'publisher'
+        ? (application.business_name || application.magazine_title || 'Your Business')
+        : (application.shop_name || 'Your Shop');
+
+      const html = generateRejectionEmail({
+        firstName,
+        businessName,
+        role: type,
+        reason,
+      });
+
+      return {
+        to: email,
+        subject: EMAIL_SUBJECTS.rejection(businessName),
+        html,
+        recipientName: firstName,
+        businessName,
+      };
+    } catch (err) {
+      console.error('Error generating rejection email preview:', err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
 
-  return { applications, isLoading, error, approveApplication, rejectApplication, refetch: fetchApplications };
+  return {
+    applications,
+    isLoading,
+    error,
+    approveApplication,
+    rejectApplication,
+    getApprovalEmailPreview,
+    getRejectionEmailPreview,
+    refetch: fetchApplications
+  };
 };

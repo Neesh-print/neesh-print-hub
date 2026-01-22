@@ -1,117 +1,90 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
-import { ChevronLeft, CheckCircle, ChevronRight } from "lucide-react";
+import { ChevronLeft, CheckCircle, ChevronRight, Loader2, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo } from "@/components/neesh";
+import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo, ApplicationProgress, AutoSaveIndicator } from "@/components/neesh";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import {
+  COUNTRIES,
+  PUBLICATION_FREQUENCIES,
+  DISTRIBUTION_REGIONS,
+  FULFILLMENT_OPTIONS,
+  PUBLISHER_APPLICATION_STEPS,
+} from "@/lib/constants";
 
-const STORAGE_KEY = "neesh_publisher_application";
-const TOTAL_STEPS = 13;
-
-const COUNTRIES = [
-  { value: "US", label: "United States" },
-  { value: "GB", label: "United Kingdom" },
-  { value: "CA", label: "Canada" },
-  { value: "DE", label: "Germany" },
-  { value: "FR", label: "France" },
-  { value: "AU", label: "Australia" },
-  { value: "NL", label: "Netherlands" },
-  { value: "Other", label: "Other" },
-];
-
-const FREQUENCIES = [
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "biannual", label: "Biannual" },
-  { value: "annual", label: "Annual" },
-  { value: "irregular", label: "Irregular" },
-];
-
-const REGIONS = [
-  { id: "north_america", label: "North America" },
-  { id: "eu", label: "EU" },
-  { id: "uk", label: "UK Only" },
-  { id: "asia_pacific", label: "Asia Pacific" },
-  { id: "africa", label: "Africa" },
-  { id: "south_america", label: "South America" },
-  { id: "na", label: "N/A" },
-];
-
-const FULFILLMENT_OPTIONS = [
-  { 
-    value: "neesh", 
-    label: "Neesh Fulfillment", 
-    description: "Send us inventory, we handle shipping" 
-  },
-  { 
-    value: "self", 
-    label: "Self Fulfillment", 
-    description: "You ship directly to retailers" 
-  },
-  { 
-    value: "third_party", 
-    label: "Third Party Fulfillment", 
-    description: "You use a distributor or 3PL" 
-  },
-  { 
-    value: "not_sure", 
-    label: "Not sure yet", 
-    description: "We'll figure it out together" 
-  },
-];
+const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
 
 interface FormData {
+  // Step 1: Contact Info (no password - account created on approval)
   firstName: string;
   lastName: string;
   email: string;
+  // Step 2: Business Name
   businessName: string;
+  // Step 3: Magazine Title
   magazineTitle: string;
+  // Step 4: Cover Image
   coverImageUrl: string;
+  // Step 5: Description
   description: string;
+  // Step 6: Online Presence
   websiteUrl: string;
   instagramHandle: string;
+  // Step 7: Shipping Location
   shippingCountry: string;
   shippingCity: string;
+  // Step 8: Publication Details
   issueFrequency: string;
   publicationType: string;
   regionsCurrentlySold: string[];
+  // Step 9: Fulfillment
   fulfillmentMethod: string;
+  // Step 10: Additional Info
   cloudLink: string;
+  // Step 11: Confirmation
   confirmRights: boolean;
   optInUpdates: boolean;
 }
 
+const defaultFormValues: FormData = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  businessName: "",
+  magazineTitle: "",
+  coverImageUrl: "",
+  description: "",
+  websiteUrl: "",
+  instagramHandle: "",
+  shippingCountry: "",
+  shippingCity: "",
+  issueFrequency: "",
+  publicationType: "",
+  regionsCurrentlySold: [],
+  fulfillmentMethod: "",
+  cloudLink: "",
+  confirmRights: false,
+  optInUpdates: true,
+};
+
 export const PublisherApplication = () => {
   const navigate = useNavigate();
+  const { user, session } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  const { control, watch, setValue, trigger, formState: { errors }, getValues } = useForm<FormData>({
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      businessName: "",
-      magazineTitle: "",
-      coverImageUrl: "",
-      description: "",
-      websiteUrl: "",
-      instagramHandle: "",
-      shippingCountry: "",
-      shippingCity: "",
-      issueFrequency: "",
-      publicationType: "",
-      regionsCurrentlySold: [],
-      fulfillmentMethod: "",
-      cloudLink: "",
-      confirmRights: false,
-      optInUpdates: true,
-    },
+  const [publisherId, setPublisherId] = useState<string | null>(null);
+  const [isLoadingResume, setIsLoadingResume] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  const { control, watch, setValue, trigger, formState: { errors }, getValues, reset } = useForm<FormData>({
+    defaultValues: defaultFormValues,
   });
 
   const { upload, isUploading, progress, error: uploadError, reset: resetUpload } = useFileUpload({
@@ -122,6 +95,7 @@ export const PublisherApplication = () => {
     onUploadComplete: (url) => {
       setValue("coverImageUrl", url);
       toast.success("Cover image uploaded!");
+      saveProgress({ coverImageUrl: url });
     },
     onError: (error) => {
       toast.error(error);
@@ -130,29 +104,93 @@ export const PublisherApplication = () => {
 
   const formValues = watch();
 
-  // Load from localStorage
+  // Check for existing draft applications to resume
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        Object.keys(parsed).forEach((key) => {
-          setValue(key as keyof FormData, parsed[key]);
-        });
-        // Don't restore step to allow fresh start
-      } catch {
-        // Ignore parse errors
+    const checkForResume = async () => {
+      // Don't auto-load if we already have a publisher ID
+      if (publisherId) {
+        setIsLoadingResume(false);
+        return;
       }
-    }
-  }, [setValue]);
 
-  // Save to localStorage
-  useEffect(() => {
-    if (!isSubmitted) {
-      const values = getValues();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+      // For logged-in users, check their publisher status first
+      if (user) {
+        try {
+          const { data: publisher, error } = await supabase
+            .from("publishers")
+            .select("id, application_status")
+            .eq("user_id", user.id)
+            .single();
+
+          if (!error && publisher) {
+            if (publisher.application_status === "approved") {
+              navigate("/publisher");
+              return;
+            }
+            if (publisher.application_status === "submitted") {
+              navigate("/pending");
+              return;
+            }
+            if (publisher.application_status === "rejected") {
+              navigate("/rejected");
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Error checking publisher status:", err);
+        }
+      }
+
+      setIsLoadingResume(false);
+    };
+
+    checkForResume();
+  }, [user, navigate, publisherId]);
+
+  // Save progress to Supabase (saves to publisher_applications table)
+  const saveProgress = useCallback(async (additionalData?: Partial<FormData>) => {
+    if (!publisherId) return;
+
+    setSaveStatus('saving');
+
+    const currentData = getValues();
+    const mergedData = { ...currentData, ...additionalData };
+
+    try {
+      // Save to publisher_applications table
+      const { error } = await supabase
+        .from("publisher_applications")
+        .update({
+          // Update basic fields
+          first_name: mergedData.firstName,
+          last_name: mergedData.lastName,
+          email: mergedData.email,
+          business_name: mergedData.businessName,
+          magazine_title: mergedData.magazineTitle,
+          cover_image_url: mergedData.coverImageUrl,
+          description: mergedData.description,
+          social_website_link: mergedData.websiteUrl || mergedData.instagramHandle,
+          shipping_country: mergedData.shippingCountry,
+          shipping_city: mergedData.shippingCity,
+          issue_frequency: mergedData.issueFrequency,
+          publication_type: mergedData.publicationType,
+          distribution_channels: mergedData.regionsCurrentlySold,
+          fulfillment_method: mergedData.fulfillmentMethod,
+          quotes_feedback: mergedData.cloudLink,
+          // Store full form data for resume
+          additional_info: mergedData,
+        })
+        .eq("id", publisherId);
+
+      if (error) throw error;
+
+      setSaveStatus('saved');
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error("Error saving progress:", err);
+      setSaveStatus('error');
     }
-  }, [formValues, isSubmitted, getValues]);
+  }, [publisherId, currentStep, getValues]);
 
   const progressPercentage = Math.round((currentStep / TOTAL_STEPS) * 100);
 
@@ -162,23 +200,83 @@ export const PublisherApplication = () => {
     }
   };
 
+  // Step 1: Save basic info (no account creation - happens on approval)
+  const handleSaveBasicInfo = async () => {
+    const isValid = await trigger(["firstName", "lastName", "email"]);
+    if (!isValid) return;
+
+    const values = getValues();
+    setIsCreatingAccount(true);
+
+    try {
+      // Check if this email already has an application
+      const { data: existingApp, error: checkError } = await supabase
+        .from("publisher_applications")
+        .select("id, status, user_id")
+        .eq("email", values.email)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error("Error checking existing application:", checkError);
+      }
+
+      if (existingApp) {
+        if (existingApp.status === 'approved') {
+          toast.error("This email already has an approved application. Please log in instead.");
+          navigate("/login");
+          return;
+        } else if (existingApp.status === 'pending' || existingApp.status === 'submitted') {
+          toast.error("You already have a pending application with this email.");
+          return;
+        }
+      }
+
+      // Create a temporary publisher application record to track progress
+      // User account will be created when admin approves
+      const { data: appData, error: appError } = await supabase
+        .from("publisher_applications")
+        .insert({
+          first_name: values.firstName,
+          last_name: values.lastName,
+          email: values.email,
+          status: 'draft', // Draft status - not submitted yet
+        })
+        .select("id")
+        .single();
+
+      if (appError) {
+        throw appError;
+      }
+
+      setPublisherId(appData.id);
+      toast.success("Let's continue with your application.");
+      setCurrentStep(2);
+
+    } catch (err: any) {
+      console.error("Error saving basic info:", err);
+      toast.error(err.message || "Failed to save information. Please try again.");
+    } finally {
+      setIsCreatingAccount(false);
+    }
+  };
+
   const validateCurrentStep = async (): Promise<boolean> => {
     switch (currentStep) {
-      case 2:
+      case 1:
         return await trigger(["firstName", "lastName", "email"]);
-      case 3:
+      case 2:
         return await trigger("businessName");
-      case 4:
+      case 3:
         return await trigger("magazineTitle");
-      case 5:
+      case 4:
         return !!formValues.coverImageUrl;
-      case 6:
+      case 5:
         return await trigger("description");
-      case 7:
+      case 6:
         return !!(formValues.websiteUrl || formValues.instagramHandle);
-      case 8:
+      case 7:
         return await trigger("shippingCountry");
-      case 12:
+      case 11:
         return formValues.confirmRights;
       default:
         return true;
@@ -186,24 +284,33 @@ export const PublisherApplication = () => {
   };
 
   const handleNext = async () => {
+    // Special handling for step 1 (save basic info)
+    if (currentStep === 1 && !publisherId) {
+      await handleSaveBasicInfo();
+      return;
+    }
+
     const isValid = await validateCurrentStep();
-    
+
     if (!isValid) {
-      if (currentStep === 5 && !formValues.coverImageUrl) {
+      if (currentStep === 4 && !formValues.coverImageUrl) {
         toast.error("Please upload a cover image");
         return;
       }
-      if (currentStep === 7 && !formValues.websiteUrl && !formValues.instagramHandle) {
+      if (currentStep === 6 && !formValues.websiteUrl && !formValues.instagramHandle) {
         toast.error("Please provide either a website or Instagram handle");
         return;
       }
-      if (currentStep === 12 && !formValues.confirmRights) {
+      if (currentStep === 11 && !formValues.confirmRights) {
         toast.error("Please confirm you have distribution rights");
         return;
       }
       return;
     }
-    
+
+    // Save progress before moving to next step
+    await saveProgress();
+
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
     }
@@ -211,12 +318,22 @@ export const PublisherApplication = () => {
 
   const handleBack = () => {
     if (currentStep > 1) {
+      // Don't go back to step 1 if already have publisher ID
+      if (currentStep === 2 && publisherId) {
+        return;
+      }
       setCurrentStep(currentStep - 1);
     }
   };
 
+  const handleSaveAndExit = async () => {
+    await saveProgress();
+    toast.success("Progress saved! You can resume anytime.");
+    navigate("/");
+  };
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && currentStep !== 6 && currentStep !== 12 && currentStep !== 13) {
+    if (e.key === "Enter" && !e.shiftKey && currentStep !== 5 && currentStep !== 11 && currentStep !== 12) {
       e.preventDefault();
       handleNext();
     }
@@ -233,37 +350,45 @@ export const PublisherApplication = () => {
       return;
     }
 
+    if (!publisherId) {
+      toast.error("Session error. Please refresh and try again.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("publisher_applications").insert({
-        first_name: formValues.firstName,
-        last_name: formValues.lastName,
-        email: formValues.email,
-        business_name: formValues.businessName,
-        magazine_title: formValues.magazineTitle,
-        cover_image_url: formValues.coverImageUrl,
-        description: formValues.description,
-        social_website_link: formValues.websiteUrl || formValues.instagramHandle,
-        shipping_country: formValues.shippingCountry,
-        shipping_city: formValues.shippingCity,
-        issue_frequency: formValues.issueFrequency,
-        publication_type: formValues.publicationType,
-        distribution_channels: formValues.regionsCurrentlySold,
-        fulfillment_method: formValues.fulfillmentMethod,
-        quotes_feedback: formValues.cloudLink, // Reusing this field for cloud link
-        status: "pending",
-      });
+      // Update application to submitted status
+      const { error: appError } = await supabase
+        .from("publisher_applications")
+        .update({
+          first_name: formValues.firstName,
+          last_name: formValues.lastName,
+          email: formValues.email,
+          business_name: formValues.businessName,
+          magazine_title: formValues.magazineTitle,
+          cover_image_url: formValues.coverImageUrl,
+          description: formValues.description,
+          social_website_link: formValues.websiteUrl || formValues.instagramHandle,
+          instagram_handle: formValues.instagramHandle?.replace("@", ""),
+          shipping_country: formValues.shippingCountry,
+          shipping_city: formValues.shippingCity,
+          issue_frequency: formValues.issueFrequency,
+          publication_type: formValues.publicationType,
+          distribution_channels: formValues.regionsCurrentlySold,
+          fulfillment_method: formValues.fulfillmentMethod,
+          quotes_feedback: formValues.cloudLink,
+          status: "pending",
+          submitted_at: new Date().toISOString(),
+          additional_info: formValues,
+        })
+        .eq("id", publisherId);
 
-      if (error) throw error;
+      if (appError) throw appError;
 
-      // Clear localStorage on success
-      localStorage.removeItem(STORAGE_KEY);
       setIsSubmitted(true);
-      setCurrentStep(13);
-      
-      // TODO: Trigger notification to admin on new application (handled by DB trigger)
-      
+      setCurrentStep(12);
+
     } catch (err) {
       console.error("Submission error:", err);
       toast.error("Failed to submit application. Please try again.");
@@ -272,66 +397,73 @@ export const PublisherApplication = () => {
     }
   };
 
+  // Loading state while checking for resume
+  if (isLoadingResume) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return (
-          <div className="text-center space-y-6 animate-fade-in">
-            <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              Let's get your magazine on Neesh
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-md mx-auto">
-              This takes about 3 minutes. We review applications within 2-3 business days.
-            </p>
-            <div className="pt-4">
-              <ButtonPrimary onClick={handleNext} className="min-w-[200px]">
-                Get Started <ChevronRight className="w-4 h-4 ml-1" />
-              </ButtonPrimary>
-            </div>
-          </div>
-        );
-
-      case 2:
+        // If already have publisher ID (started application), skip to step 2
+        if (publisherId) {
+          setCurrentStep(2);
+          return null;
+        }
         return (
           <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              First, tell us a bit about you
-            </h1>
+            <div className="text-center mb-8">
+              <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+                Let's get your magazine on Neesh
+              </h1>
+              <p className="text-muted-foreground text-lg max-w-md mx-auto mt-4">
+                Start your application. Takes about 3 minutes. We'll create your account once approved.
+              </p>
+            </div>
             <div className="space-y-4">
-              <Controller
-                name="firstName"
-                control={control}
-                rules={{ required: "First name is required" }}
-                render={({ field }) => (
-                  <FormInput
-                    label="First Name"
-                    placeholder="Your first name"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.firstName?.message}
-                    required
-                  />
-                )}
-              />
-              <Controller
-                name="lastName"
-                control={control}
-                rules={{ required: "Last name is required" }}
-                render={({ field }) => (
-                  <FormInput
-                    label="Last Name"
-                    placeholder="Your last name"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.lastName?.message}
-                    required
-                  />
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <Controller
+                  name="firstName"
+                  control={control}
+                  rules={{ required: "First name is required" }}
+                  render={({ field }) => (
+                    <FormInput
+                      label="First Name"
+                      placeholder="Your first name"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.firstName?.message}
+                      required
+                    />
+                  )}
+                />
+                <Controller
+                  name="lastName"
+                  control={control}
+                  rules={{ required: "Last name is required" }}
+                  render={({ field }) => (
+                    <FormInput
+                      label="Last Name"
+                      placeholder="Your last name"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.lastName?.message}
+                      required
+                    />
+                  )}
+                />
+              </div>
               <Controller
                 name="email"
                 control={control}
-                rules={{ 
+                rules={{
                   required: "Email is required",
                   pattern: {
                     value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -351,13 +483,21 @@ export const PublisherApplication = () => {
                 )}
               />
             </div>
-            <ButtonPrimary onClick={handleNext} fullWidth className="mt-6">
+            <ButtonPrimary
+              onClick={handleNext}
+              fullWidth
+              className="mt-6"
+              loading={isCreatingAccount}
+            >
               Continue
             </ButtonPrimary>
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              Once approved, we'll send you a magic link to access your account.
+            </p>
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -384,7 +524,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -416,7 +556,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 5:
+      case 4:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -429,7 +569,7 @@ export const PublisherApplication = () => {
             </div>
             <FileUploadZone
               title="Upload Cover Image"
-              subtitle="JPG, PNG, WebP or GIF • Max 10MB"
+              subtitle="JPG, PNG, WebP or GIF - Max 10MB"
               accept="image/*"
               onFilesSelected={handleFileSelect}
               isUploading={isUploading}
@@ -441,9 +581,9 @@ export const PublisherApplication = () => {
                 resetUpload();
               }}
             />
-            <ButtonPrimary 
-              onClick={handleNext} 
-              fullWidth 
+            <ButtonPrimary
+              onClick={handleNext}
+              fullWidth
               disabled={!formValues.coverImageUrl}
             >
               Continue
@@ -451,7 +591,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -481,7 +621,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 7:
+      case 6:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -533,8 +673,8 @@ export const PublisherApplication = () => {
                 </p>
               )}
             </div>
-            <ButtonPrimary 
-              onClick={handleNext} 
+            <ButtonPrimary
+              onClick={handleNext}
               fullWidth
               disabled={!formValues.websiteUrl && !formValues.instagramHandle}
             >
@@ -543,7 +683,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 8:
+      case 7:
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -558,7 +698,7 @@ export const PublisherApplication = () => {
                   <FormSelect
                     label="Country"
                     placeholder="Select a country"
-                    options={COUNTRIES}
+                    options={COUNTRIES.map(c => ({ value: c.value, label: c.label }))}
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.shippingCountry?.message}
@@ -585,7 +725,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 9:
+      case 8:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -604,13 +744,13 @@ export const PublisherApplication = () => {
                   <FormSelect
                     label="Publication Frequency"
                     placeholder="How often do you publish?"
-                    options={FREQUENCIES}
+                    options={PUBLICATION_FREQUENCIES.map(f => ({ value: f.value, label: f.label }))}
                     value={field.value}
                     onChange={field.onChange}
                   />
                 )}
               />
-              
+
               <div>
                 <label className="block mb-2 font-display font-medium text-body text-foreground">
                   Publication Type
@@ -646,7 +786,7 @@ export const PublisherApplication = () => {
                   Regions Currently Sold In
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {REGIONS.map((region) => (
+                  {DISTRIBUTION_REGIONS.map((region) => (
                     <label
                       key={region.id}
                       className={`
@@ -680,7 +820,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 10:
+      case 9:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -722,7 +862,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 11:
+      case 10:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -751,18 +891,18 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 12:
+      case 11:
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
               Almost done!
             </h1>
-            
+
             <div className="card-neesh space-y-4">
               <div className="flex gap-4">
                 {formValues.coverImageUrl && (
-                  <img 
-                    src={formValues.coverImageUrl} 
+                  <img
+                    src={formValues.coverImageUrl}
                     alt="Cover preview"
                     className="w-20 h-28 object-cover rounded-lg"
                   />
@@ -798,9 +938,9 @@ export const PublisherApplication = () => {
               </label>
             </div>
 
-            <ButtonPrimary 
-              onClick={handleSubmit} 
-              fullWidth 
+            <ButtonPrimary
+              onClick={handleSubmit}
+              fullWidth
               loading={isSubmitting}
               disabled={!formValues.confirmRights}
             >
@@ -809,14 +949,14 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 13:
+      case 12:
         return (
           <div className="text-center space-y-6 animate-fade-in">
             <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              Application Received!
+              Application Submitted!
             </h1>
             <p className="text-muted-foreground text-lg max-w-md mx-auto">
               Thanks for applying to Neesh. We'll review your application and get back to you at{" "}
@@ -845,37 +985,34 @@ export const PublisherApplication = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
         <div className="flex items-center justify-between px-6 md:px-8 py-4">
-          {/* Logo */}
-          <a 
-            href="/" 
-            className="hover:opacity-80 transition-opacity"
-          >
+          <a href="/" className="hover:opacity-80 transition-opacity">
             <Logo size="lg" />
           </a>
-          
-          {/* Progress indicator */}
-          {currentStep > 1 && currentStep < 13 && (
-            <span className="text-sm text-muted-foreground">
-              {currentStep - 1} of {TOTAL_STEPS - 2}
-            </span>
-          )}
-        </div>
-        
-        {/* Progress bar */}
-        {currentStep > 1 && currentStep < 13 && (
-          <div className="h-1 bg-secondary">
-            <div 
-              className="h-full bg-accent transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
+
+          <div className="flex items-center gap-4">
+            {/* Auto-save indicator */}
+            {publisherId && currentStep > 1 && currentStep < 12 && (
+              <AutoSaveIndicator status={saveStatus} lastSaved={lastSaved} />
+            )}
+
+            {/* Save & Exit button */}
+            {publisherId && currentStep > 1 && currentStep < 12 && (
+              <ButtonSecondary
+                onClick={handleSaveAndExit}
+                className="gap-2 text-caption hidden sm:flex"
+              >
+                <LogOut className="w-4 h-4" />
+                Save & Exit
+              </ButtonSecondary>
+            )}
           </div>
-        )}
+        </div>
       </header>
 
-      {/* Back button - positioned below header */}
-      {currentStep > 1 && currentStep < 13 && (
+      {/* Back button */}
+      {currentStep > 1 && currentStep < 12 && !(currentStep === 2 && publisherId) && (
         <div className="fixed top-20 left-6 md:left-8 z-40">
           <button
             onClick={handleBack}
@@ -888,9 +1025,32 @@ export const PublisherApplication = () => {
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex items-center justify-center px-4 md:px-6 pt-20 pb-8">
-        <div className="w-full max-w-md">
-          {renderStep()}
+      <main className="flex-1 flex items-start justify-center px-4 md:px-6 pt-24 pb-8">
+        <div className="w-full max-w-6xl flex gap-8 items-start">
+          {/* Progress sidebar - Desktop only */}
+          {currentStep > 1 && currentStep < 12 && (
+            <div className="hidden lg:block w-80 sticky top-24">
+              <ApplicationProgress
+                currentStep={currentStep}
+                totalSteps={TOTAL_STEPS - 1}
+              />
+            </div>
+          )}
+
+          {/* Form content */}
+          <div className="flex-1 max-w-md mx-auto lg:mx-0">
+            {/* Progress card - Mobile only */}
+            {currentStep > 1 && currentStep < 12 && (
+              <div className="lg:hidden mb-6">
+                <ApplicationProgress
+                  currentStep={currentStep}
+                  totalSteps={TOTAL_STEPS - 1}
+                />
+              </div>
+            )}
+
+            {renderStep()}
+          </div>
         </div>
       </main>
     </div>

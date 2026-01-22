@@ -83,24 +83,42 @@ import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreM
 import NotFound from "./pages/NotFound";
 import { ErrorPage, OfflinePage, UnauthorizedPage } from "./pages/errors";
 
+// Application status pages
+import { ApplicationRejected } from "./pages/ApplicationRejected";
+
 const queryClient = new QueryClient();
 
 // Home redirect component that redirects based on auth state
 const HomeRedirect = () => {
-  const { user, userRole, isLoading } = useAuth();
-  
+  const { user, userRole, publisherStatus, isLoading } = useAuth();
+
   if (isLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
-  // TODO: Check user.application_status === 'pending' and redirect to /pending
-  // This requires the useAuth hook to expose application status
-  // For now, users with no approved role are redirected to /pending
-  
+
+  // Check publisher application status
+  if (userRole === 'publisher' && publisherStatus) {
+    const { applicationStatus } = publisherStatus;
+
+    if (applicationStatus === 'draft') {
+      return <Navigate to="/apply/publisher" replace />;
+    }
+    if (applicationStatus === 'submitted') {
+      return <Navigate to="/pending" replace />;
+    }
+    if (applicationStatus === 'rejected') {
+      return <Navigate to="/rejected" replace />;
+    }
+    // Only approved publishers reach the dashboard
+    if (applicationStatus === 'approved') {
+      return <Navigate to="/publisher" replace />;
+    }
+  }
+
   // Redirect based on role
   switch (userRole) {
     case 'publisher':
@@ -136,6 +154,7 @@ const AppRoutes = () => {
       <Route path="/apply/retailer" element={<RetailerApplication />} />
       <Route path="/apply/submitted" element={<ApplicationSubmittedPage />} />
       <Route path="/pending" element={<ApplicationPendingPage />} />
+      <Route path="/rejected" element={<ApplicationRejected />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/p/:slug" element={<PublisherPublicProfile />} />

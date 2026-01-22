@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, Store, Check, X, Pause, ClipboardList, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { AdminLayout, StatCard, ConfirmationModal } from "@/components/admin";
+import { AdminLayout, StatCard, ConfirmationModal, EmailPreviewModal, type EmailPreviewData } from "@/components/admin";
 import { ApplicationDetailSlideOver, ApplicationData, ApplicationNote } from "@/components/admin/ApplicationDetailSlideOver";
-import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState } from "@/components/neesh";
+import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState, FormTextarea } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { useApplications } from "@/hooks/useApplications";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +48,12 @@ export const AdminApplications = () => {
   const [showBulkReject, setShowBulkReject] = useState(false);
   const [showBulkHold, setShowBulkHold] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Email preview state
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailPreviewData, setEmailPreviewData] = useState<EmailPreviewData | null>(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState<{id: string, type: 'publisher' | 'retailer'} | null>(null);
+  const [pendingRejection, setPendingRejection] = useState<{id: string, type: 'publisher' | 'retailer', reason: string} | null>(null);
   
   // Slide-over state
   const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
@@ -57,7 +63,16 @@ export const AdminApplications = () => {
   const [sortColumn, setSortColumn] = useState<string>('submittedDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const { applications, isLoading, error, approveApplication, rejectApplication, refetch } = useApplications();
+  const {
+    applications,
+    isLoading,
+    error,
+    approveApplication,
+    rejectApplication,
+    getApprovalEmailPreview,
+    getRejectionEmailPreview,
+    refetch
+  } = useApplications();
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -254,13 +269,48 @@ export const AdminApplications = () => {
     setSelectedRows([]);
   };
 
-  // Quick action handlers
+  // Quick action handlers - show email preview first
   const handleQuickApprove = async (id: string, type: 'publisher' | 'retailer') => {
-    return approveApplication(id, type);
+    const emailData = await getApprovalEmailPreview(id, type);
+    if (emailData) {
+      setEmailPreviewData(emailData);
+      setPendingApprovalId({ id, type });
+      setShowEmailPreview(true);
+    } else {
+      toast.error('Failed to generate email preview');
+    }
+    return false; // Return false since we're showing preview, not completing action
   };
 
   const handleQuickReject = async (id: string, type: 'publisher' | 'retailer', reason: string) => {
-    return rejectApplication(id, type, reason);
+    const emailData = await getRejectionEmailPreview(id, type, reason);
+    if (emailData) {
+      setEmailPreviewData(emailData);
+      setPendingRejection({ id, type, reason });
+      setShowEmailPreview(true);
+    } else {
+      toast.error('Failed to generate email preview');
+    }
+    return false; // Return false since we're showing preview, not completing action
+  };
+
+  // Handle actual approval/rejection after email is sent
+  const handleEmailSent = async () => {
+    if (pendingApprovalId) {
+      const { id, type } = pendingApprovalId;
+      const success = await approveApplication(id, type);
+      if (success) {
+        toast.success('Application approved');
+        setPendingApprovalId(null);
+      }
+    } else if (pendingRejection) {
+      const { id, type, reason } = pendingRejection;
+      const success = await rejectApplication(id, type, reason);
+      if (success) {
+        toast.success('Application rejected');
+        setPendingRejection(null);
+      }
+    }
   };
 
   // TODO: Implement hold functionality in useApplications
@@ -616,6 +666,19 @@ export const AdminApplications = () => {
         title="Place On Hold"
         message={`Place ${selectedRows.length} application${selectedRows.length !== 1 ? 's' : ''} on hold?`}
         confirmLabel="Place On Hold"
+      />
+
+      {/* Email Preview Modal */}
+      <EmailPreviewModal
+        isOpen={showEmailPreview}
+        onClose={() => {
+          setShowEmailPreview(false);
+          setEmailPreviewData(null);
+          setPendingApprovalId(null);
+          setPendingRejection(null);
+        }}
+        emailData={emailPreviewData}
+        onSend={handleEmailSent}
       />
     </AdminLayout>
   );
