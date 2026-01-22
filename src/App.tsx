@@ -87,9 +87,10 @@ const queryClient = new QueryClient();
 
 // Home redirect component that redirects based on auth state
 const HomeRedirect = () => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole, isLoading, isRoleLoading } = useAuth();
   
-  if (isLoading) {
+  // Wait for both auth and role to finish loading
+  if (isLoading || isRoleLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
   
@@ -97,11 +98,7 @@ const HomeRedirect = () => {
     return <Navigate to="/login" replace />;
   }
   
-  // TODO: Check user.application_status === 'pending' and redirect to /pending
-  // This requires the useAuth hook to expose application status
-  // For now, users with no approved role are redirected to /pending
-  
-  // Redirect based on role
+  // Redirect based on role (role fetch is complete at this point)
   switch (userRole) {
     case 'publisher':
       return <Navigate to="/publisher" replace />;
