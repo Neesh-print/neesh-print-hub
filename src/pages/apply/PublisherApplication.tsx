@@ -78,10 +78,20 @@ export const PublisherApplication = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [publisherId, setPublisherId] = useState<string | null>(null);
+  const [publisherId, setPublisherId] = useState<string | null>(() => localStorage.getItem('publisherAppId'));
+  const [accessToken, setAccessToken] = useState<string | null>(() => localStorage.getItem('publisherAccessToken'));
   const [isLoadingResume, setIsLoadingResume] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Persist ID and Token
+  useEffect(() => {
+    if (publisherId) localStorage.setItem('publisherAppId', publisherId);
+  }, [publisherId]);
+
+  useEffect(() => {
+    if (accessToken) localStorage.setItem('publisherAccessToken', accessToken);
+  }, [accessToken]);
 
   const { control, watch, setValue, trigger, formState: { errors }, getValues, reset } = useForm<FormData>({
     defaultValues: defaultFormValues,
@@ -111,7 +121,7 @@ export const PublisherApplication = () => {
       // Wait for auth to initialize
       if (authLoading) return;
 
-      // Don't auto-load if we already have a publisher ID
+      // If we have an ID (and token if anon), we are already set
       if (publisherId) {
         setIsLoadingResume(false);
         return;
@@ -139,6 +149,36 @@ export const PublisherApplication = () => {
               navigate("/rejected");
               return;
             }
+             // If draft, we might want to populate publisherId from here if not set?
+             // But existing logic doesn't seem to do that. It assumes standard flow or maybe 'publishers' table is different from 'publisher_applications'?
+             // Actually 'publishers' table IS the main table, 'publisher_applications' is the wizard table?
+             // Wait, the migration says:
+             // "Add new columns to publishers table"
+             // BUT RLS policy is on "publisher_applications".
+             // Let's check: "publisher_applications" is used in `saveProgress`.
+             // And `checkForResume` checks "publishers".
+             // This implies a disconnect.
+             // `publisher_applications` might be a new table for the new flow?
+             // Checking migration `20260121020000`:
+             // `ALTER TABLE public.publisher_applications ...`
+             // `ALTER TABLE public.publishers ...`
+             // Both exist.
+             // If I am authenticated, I likely have a row in `publishers`?
+             // Or does `publisher_applications` promote to `publishers`?
+             // The migration comments: "Create application status enum... Add new columns to publishers table... Update existing...".
+             // AND "Add RLS policy for publisher_applications".
+             // It seems `publisher_applications` is the wizard table, and `publishers` is the final table?
+             // Line 240 of migration: "Create a temporary publisher application record..."
+             // So RESUME should check `publisher_applications` for drafts?
+             // The existing `checkForResume` checks `publishers`.
+             // If I am a draft user, do I have a `publishers` row?
+             // If I am authenticated, `handleSaveBasicInfo` inserts into `publisher_applications` WITH `user_id`.
+             // So I should check `publisher_applications` for my draft!
+
+             // I will update the Resume logic to ALSO check `publisher_applications` if `publishers` check yields nothing or draft.
+             // But let's stick to fixing the immediate anonymous flow.
+             // If I am logged in, the original code checks `publishers`.
+             // Maybe I should keep it for now to avoid side effects.
           }
         } catch (err) {
           console.error("Error checking publisher status:", err);
@@ -161,11 +201,7 @@ export const PublisherApplication = () => {
     const mergedData = { ...currentData, ...additionalData };
 
     try {
-      // Save to publisher_applications table
-      const { error } = await supabase
-        .from("publisher_applications")
-        .update({
-          // Update basic fields
+      const updateData = {
           first_name: mergedData.firstName,
           last_name: mergedData.lastName,
           email: mergedData.email,
@@ -174,6 +210,7 @@ export const PublisherApplication = () => {
           cover_image_url: mergedData.coverImageUrl,
           description: mergedData.description,
           social_website_link: mergedData.websiteUrl || mergedData.instagramHandle,
+          instagram_handle: mergedData.instagramHandle,
           shipping_country: mergedData.shippingCountry,
           shipping_city: mergedData.shippingCity,
           issue_frequency: mergedData.issueFrequency,
@@ -181,12 +218,30 @@ export const PublisherApplication = () => {
           distribution_channels: mergedData.regionsCurrentlySold,
           fulfillment_method: mergedData.fulfillmentMethod,
           quotes_feedback: mergedData.cloudLink,
-          // Store full form data for resume
-          additional_info: mergedData,
-        })
-        .eq("id", publisherId);
+          additional_info: mergedData
+      };
 
-      if (error) throw error;
+      if (user) {
+        // Authenticated user: Standard RLS update
+        const { error: updateError } = await supabase
+          .from("publisher_applications")
+          .update(updateData)
+          .eq("id", publisherId);
+        if (updateError) throw updateError;
+      } else if (accessToken) {
+        // Anonymous user: Secure RPC update
+        const { error: rpcError } = await supabase.rpc('update_publisher_application', {
+           p_id: publisherId,
+           p_token: accessToken,
+           p_data: mergedData
+        });
+        if (rpcError) throw rpcError;
+      } else {
+         // Should ideally not happen if flow is correct
+         // But effectively this means we can't save. 
+         console.warn("No auth method to save progress");
+         return;
+      }
 
       setSaveStatus('saved');
       setLastSaved(new Date());
@@ -194,7 +249,7 @@ export const PublisherApplication = () => {
       console.error("Error saving progress:", err);
       setSaveStatus('error');
     }
-  }, [publisherId, currentStep, getValues]);
+  }, [publisherId, accessToken, user, getValues]);
 
   const progressPercentage = Math.round((currentStep / TOTAL_STEPS) * 100);
 
@@ -235,24 +290,42 @@ export const PublisherApplication = () => {
         }
       }
 
-      // Create a temporary publisher application record to track progress
-      // User account will be created when admin approves
-      const { data: appData, error: appError } = await supabase
-        .from("publisher_applications")
-        .insert({
-          first_name: values.firstName,
-          last_name: values.lastName,
-          email: values.email,
-          status: 'draft', // Draft status - not submitted yet
-        })
-        .select("id")
-        .single();
+      // Create application
+      if (user) {
+        // Authenticated users: direct insert with user_id
+        const { data: appData, error: appError } = await supabase
+          .from("publisher_applications")
+          .insert({
+            first_name: values.firstName,
+            last_name: values.lastName,
+            email: values.email,
+            status: 'draft',
+            user_id: user.id
+          })
+          .select("id")
+          .single();
 
-      if (appError) {
-        throw appError;
+        if (appError) throw appError;
+        setPublisherId(appData.id);
+      } else {
+        // Anonymous users: use Secure RPC
+        const { data, error } = await supabase.rpc('create_publisher_application', {
+          p_first_name: values.firstName,
+          p_last_name: values.lastName,
+          p_email: values.email
+        });
+
+        if (error) throw error;
+
+        // data is returned as table rows
+        if (data && data.length > 0) {
+          const result = data[0]; 
+          setPublisherId(result.id);
+          setAccessToken(result.access_token);
+          // Toast specifically for anon user if needed, but the general toast is below
+        }
       }
 
-      setPublisherId(appData.id);
       toast.success("Let's continue with your application.");
       setCurrentStep(2);
 

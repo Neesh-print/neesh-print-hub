@@ -228,3 +228,92 @@ CREATE TRIGGER on_retailer_application_created
 COMMENT ON COLUMN public.publishers.application_status IS 'Application flow status: draft (in progress), submitted (pending review), approved (can access dashboard), rejected';
 COMMENT ON COLUMN public.publishers.current_onboarding_step IS 'Current step in the application form (1-13 for publisher application)';
 COMMENT ON COLUMN public.publishers.application_data IS 'Partial form data saved during draft state for resume capability';
+
+-- =============================================================
+-- Step 5: Secure Anonymous Application Flow (Access Tokens)
+-- =============================================================
+
+-- Add access_token for secure anonymous resumption
+ALTER TABLE public.publisher_applications
+ADD COLUMN IF NOT EXISTS access_token UUID DEFAULT gen_random_uuid();
+
+-- Secure RPC to create application and return token (bypasses RLS)
+CREATE OR REPLACE FUNCTION public.create_publisher_application(
+  p_first_name TEXT,
+  p_last_name TEXT,
+  p_email TEXT
+)
+RETURNS TABLE (
+  id UUID,
+  access_token UUID
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id UUID;
+  v_token UUID;
+BEGIN
+  INSERT INTO public.publisher_applications (
+    first_name,
+    last_name,
+    email,
+    status
+  ) VALUES (
+    p_first_name,
+    p_last_name,
+    p_email,
+    'draft'
+  )
+  RETURNING public.publisher_applications.id, public.publisher_applications.access_token
+  INTO v_id, v_token;
+
+  RETURN QUERY SELECT v_id, v_token;
+END;
+$$;
+
+-- Secure RPC to update application using token (bypasses RLS)
+CREATE OR REPLACE FUNCTION public.update_publisher_application(
+  p_id UUID,
+  p_token UUID,
+  p_data JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.publisher_applications
+  SET
+    first_name = COALESCE((p_data->>'firstName')::text, first_name),
+    last_name = COALESCE((p_data->>'lastName')::text, last_name),
+    email = COALESCE((p_data->>'email')::text, email),
+    business_name = COALESCE((p_data->>'businessName')::text, business_name),
+    magazine_title = COALESCE((p_data->>'magazineTitle')::text, magazine_title),
+    cover_image_url = COALESCE((p_data->>'coverImageUrl')::text, cover_image_url),
+    description = COALESCE((p_data->>'description')::text, description),
+    social_website_link = COALESCE((p_data->>'websiteUrl')::text, social_website_link),
+    instagram_handle = COALESCE((p_data->>'instagramHandle')::text, instagram_handle),
+    shipping_country = COALESCE((p_data->>'shippingCountry')::text, shipping_country),
+    shipping_city = COALESCE((p_data->>'shippingCity')::text, shipping_city),
+    issue_frequency = COALESCE((p_data->>'issueFrequency')::text, issue_frequency),
+    publication_type = COALESCE((p_data->>'publicationType')::text, publication_type),
+    distribution_channels = (CASE WHEN p_data ? 'regionsCurrentlySold' THEN 
+      (SELECT array_agg(x) FROM jsonb_array_elements_text(p_data->'regionsCurrentlySold') t(x))
+      ELSE distribution_channels END),
+    fulfillment_method = COALESCE((p_data->>'fulfillmentMethod')::text, fulfillment_method),
+    quotes_feedback = COALESCE((p_data->>'cloudLink')::text, quotes_feedback),
+    additional_info = COALESCE(p_data, additional_info),
+    -- Handle status update if provided (submission)
+    status = COALESCE((p_data->>'status')::publisher_application_status, status),
+    submitted_at = (CASE WHEN (p_data->>'status') = 'pending' THEN NOW() ELSE submitted_at END)
+  WHERE id = p_id AND access_token = p_token;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Application not found or invalid token';
+  END IF;
+END;
+$$;
+
