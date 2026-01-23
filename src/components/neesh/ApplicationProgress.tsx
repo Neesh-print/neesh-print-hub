@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/neesh/Logo";
 
 export interface ApplicationProgressProps {
   currentStep: number;
@@ -155,8 +156,8 @@ export const ApplicationProgress = ({
           </div>
 
           {/* Bottom signature area decoration */}
-           <div className="absolute bottom-6 right-6 opacity-10 rotate-12">
-              <div className="font-display text-4xl text-accent">Neesh</div>
+           <div className="absolute bottom-6 right-6 opacity-10 rotate-12 grayscale">
+              <Logo size="xl" className="w-48 h-auto" />
            </div>
         </div>
 
