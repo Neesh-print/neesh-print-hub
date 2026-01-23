@@ -15,22 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const FILTER_OPTIONS = [
-  'All',
-  'Art & Culture',
-  'Music',
-  'Sports',
-  'Photography',
-  'Fashion',
-  'Gaming',
-  'Food & Travel',
-  'Nature',
-  'Literature',
-  'Design',
-  'Lifestyle',
-  'Travel',
-  'Culture',
-];
+// Categories are now derived dynamically from the database
 
 export const ExploreMagazinesPage = () => {
   const [activeFilter, setActiveFilter] = useState('All');
@@ -80,7 +65,7 @@ export const ExploreMagazinesPage = () => {
           {/* Filter Bar */}
           <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
             <div className="flex gap-2 min-w-max md:flex-wrap md:justify-center">
-              {(availableCategories.length > 1 ? availableCategories : FILTER_OPTIONS).map((filter) => (
+              {availableCategories.map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setActiveFilter(filter)}

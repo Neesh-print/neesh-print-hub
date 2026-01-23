@@ -789,6 +789,8 @@ export type Database = {
       publisher_applications: {
         Row: {
           accepts_returns: string | null
+          access_token: string | null
+          additional_info: Json | null
           audience_positioning: string | null
           available_quantity: number | null
           business_name: string | null
@@ -805,10 +807,11 @@ export type Database = {
           fulfillment_method: string | null
           has_sold_before: boolean | null
           id: string
+          instagram_handle: string | null
           issue_frequency: string | null
           issue_number: string | null
           last_name: string | null
-          magazine_title: string
+          magazine_title: string | null
           print_run: number | null
           publication_type: string | null
           quotes_feedback: string | null
@@ -832,6 +835,8 @@ export type Database = {
         }
         Insert: {
           accepts_returns?: string | null
+          access_token?: string | null
+          additional_info?: Json | null
           audience_positioning?: string | null
           available_quantity?: number | null
           business_name?: string | null
@@ -848,10 +853,11 @@ export type Database = {
           fulfillment_method?: string | null
           has_sold_before?: boolean | null
           id?: string
+          instagram_handle?: string | null
           issue_frequency?: string | null
           issue_number?: string | null
           last_name?: string | null
-          magazine_title: string
+          magazine_title?: string | null
           print_run?: number | null
           publication_type?: string | null
           quotes_feedback?: string | null
@@ -875,6 +881,8 @@ export type Database = {
         }
         Update: {
           accepts_returns?: string | null
+          access_token?: string | null
+          additional_info?: Json | null
           audience_positioning?: string | null
           available_quantity?: number | null
           business_name?: string | null
@@ -891,10 +899,11 @@ export type Database = {
           fulfillment_method?: string | null
           has_sold_before?: boolean | null
           id?: string
+          instagram_handle?: string | null
           issue_frequency?: string | null
           issue_number?: string | null
           last_name?: string | null
-          magazine_title?: string
+          magazine_title?: string | null
           print_run?: number | null
           publication_type?: string | null
           quotes_feedback?: string | null
@@ -1308,10 +1317,18 @@ export type Database = {
         Args: { application_id: string }
         Returns: number
       }
+      create_publisher_application: {
+        Args: { p_email: string; p_first_name: string; p_last_name: string }
+        Returns: {
+          access_token: string
+          id: string
+        }[]
+      }
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_publisher_application: { Args: { p_token: string }; Returns: Json }
       get_publisher_status: {
         Args: { p_user_id: string }
         Returns: {
@@ -1447,6 +1464,10 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       text_to_bytea: { Args: { data: string }; Returns: string }
+      update_publisher_application: {
+        Args: { p_data: Json; p_id: string; p_token: string }
+        Returns: undefined
+      }
       urlencode:
         | { Args: { data: Json }; Returns: string }
         | {
