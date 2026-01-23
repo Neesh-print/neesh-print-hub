@@ -152,16 +152,22 @@ export const PublisherApplication = () => {
                 ...dbData.additional_info
              };
              
+             console.log("Resuming application with data:", dbData);
+             
              // Restore form state
              reset(formData as FormData);
              
              // Determine step based on data completeness
              let restoreStep = 2; // Default to after Step 1 if record exists
+             /* 
+             // Disable auto-advance for now to allow user to review all steps
+             // and ensure data is actually present
              if (dbData.business_name) restoreStep = 3;
              if (dbData.magazine_title) restoreStep = 4;
              if (dbData.cover_image_url) restoreStep = 5;
              if (dbData.description) restoreStep = 6;
              if (dbData.shipping_country) restoreStep = 8; // Social links step 7 is optional?
+             */
              
              setCurrentStep(restoreStep);
              setIsLoadingResume(false);
