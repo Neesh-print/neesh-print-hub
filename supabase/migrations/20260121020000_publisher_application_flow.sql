@@ -53,6 +53,7 @@ USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
 -- Publishers can insert their own record during signup
+DROP POLICY IF EXISTS "Publishers can create own record" ON public.publishers;
 CREATE POLICY "Publishers can create own record"
 ON public.publishers FOR INSERT
 WITH CHECK (auth.uid() = user_id);
@@ -63,6 +64,7 @@ WITH CHECK (auth.uid() = user_id);
 
 -- Magazines: Only approved publishers can manage magazines
 DROP POLICY IF EXISTS "Publishers can manage own magazines" ON public.magazines;
+DROP POLICY IF EXISTS "Approved publishers can manage own magazines" ON public.magazines;
 CREATE POLICY "Approved publishers can manage own magazines"
 ON public.magazines FOR ALL
 USING (
@@ -82,6 +84,7 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Publishers can view orders for their magazines" ON public.orders;
 DROP POLICY IF EXISTS "Publishers can update their orders" ON public.orders;
 
+DROP POLICY IF EXISTS "Approved publishers can view their orders" ON public.orders;
 CREATE POLICY "Approved publishers can view their orders"
 ON public.orders FOR SELECT
 USING (
@@ -92,6 +95,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Approved publishers can update their orders" ON public.orders;
 CREATE POLICY "Approved publishers can update their orders"
 ON public.orders FOR UPDATE
 USING (
@@ -108,6 +112,7 @@ USING (
 
 -- Update applications bucket policy to allow any authenticated user
 DROP POLICY IF EXISTS "Users can upload application files" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload application files" ON storage.objects;
 CREATE POLICY "Authenticated users can upload application files"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (bucket_id = 'applications');
@@ -115,6 +120,7 @@ WITH CHECK (bucket_id = 'applications');
 -- Also allow uploads to magazine-assets for draft publishers (cover images)
 -- The existing policy already allows this, but let's be explicit
 DROP POLICY IF EXISTS "Users can upload magazine assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload magazine assets" ON storage.objects;
 CREATE POLICY "Authenticated users can upload magazine assets"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (bucket_id = 'magazine-assets');
@@ -300,15 +306,17 @@ BEGIN
     shipping_city = COALESCE((p_data->>'shippingCity')::text, shipping_city),
     issue_frequency = COALESCE((p_data->>'issueFrequency')::text, issue_frequency),
     publication_type = COALESCE((p_data->>'publicationType')::text, publication_type),
-    distribution_channels = (CASE WHEN p_data ? 'regionsCurrentlySold' THEN 
-      (SELECT array_agg(x) FROM jsonb_array_elements_text(p_data->'regionsCurrentlySold') t(x))
-      ELSE distribution_channels END),
+    distribution_channels = (CASE 
+      WHEN p_data ? 'regionsCurrentlySold' AND jsonb_typeof(p_data->'regionsCurrentlySold') = 'array' THEN 
+        COALESCE((SELECT array_agg(x) FROM jsonb_array_elements_text(p_data->'regionsCurrentlySold') t(x)), '{}'::text[])
+      ELSE distribution_channels 
+    END),
     fulfillment_method = COALESCE((p_data->>'fulfillmentMethod')::text, fulfillment_method),
     quotes_feedback = COALESCE((p_data->>'cloudLink')::text, quotes_feedback),
     additional_info = COALESCE(p_data, additional_info),
     -- Handle status update if provided (submission)
     status = COALESCE((p_data->>'status')::publisher_application_status, status),
-    submitted_at = (CASE WHEN (p_data->>'status') = 'pending' THEN NOW() ELSE submitted_at END)
+    submitted_at = (CASE WHEN (p_data->>'status') = 'submitted' THEN NOW() ELSE submitted_at END)
   WHERE id = p_id AND access_token = p_token;
 
   IF NOT FOUND THEN

@@ -489,7 +489,7 @@ export const PublisherApplication = () => {
         distribution_channels: formValues.regionsCurrentlySold,
         fulfillment_method: formValues.fulfillmentMethod,
         quotes_feedback: formValues.cloudLink,
-        status: "pending",
+        status: "submitted",
         submitted_at: new Date().toISOString(),
         additional_info: formValues,
       };
@@ -503,23 +503,46 @@ export const PublisherApplication = () => {
 
         if (appError) throw appError;
       } else {
-        // Anonymous users: Use secure RPC to update based on token
-        // Use update_publisher_application logic similar to get/save
-        // We'll use our existing saveProgress logic for updating fields via generic update?
-        // No, 'update_publisher_application' needs to be implemented or we reuse 'saveProgress' then set status?
-        // Wait, 'saveProgress' calls 'update_publisher_application' RPC.
-        // Let's check saveProgress implementation.
-        // saveProgress calls 'rpc("update_publisher_application", { p_id: publisherId, p_token: accessToken, p_data: data })'
-        // So we can just call that RPC directly with `status: 'pending'`.
-        
+        // Anonymous users: Use secure RPC
         if (!accessToken) throw new Error("No access token found");
         
+        // Convert to camelCase for RPC which expects JSON matching form data keys
+        const rpcData = {
+          firstName: submissionData.first_name,
+          lastName: submissionData.last_name,
+          email: submissionData.email,
+          businessName: submissionData.business_name,
+          magazineTitle: submissionData.magazine_title,
+          coverImageUrl: submissionData.cover_image_url,
+          description: submissionData.description,
+          websiteUrl: formValues.websiteUrl, // use original form values for consistent casing
+          instagramHandle: formValues.instagramHandle,
+          shippingCountry: submissionData.shipping_country,
+          shippingCity: submissionData.shipping_city,
+          issueFrequency: submissionData.issue_frequency,
+          publicationType: submissionData.publication_type,
+          regionsCurrentlySold: submissionData.distribution_channels, // map back to RPC expected key
+          fulfillmentMethod: submissionData.fulfillment_method,
+          cloudLink: submissionData.quotes_feedback,
+          status: 'submitted',
+          // Merge additional info if needed, but we essentially rebuilt it above
+          ...submissionData.additional_info
+        };
+
+        console.log("Submitting RPC update:", { publisherId, inputData: rpcData });
+
         // @ts-ignore
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
              p_id: publisherId,
              p_token: accessToken,
-             p_data: submissionData
+             p_data: rpcData // Send camelCase data
         });
+        
+        if (rpcError) {
+          console.error("RPC Error details:", rpcError);
+          throw rpcError;
+        }
+      }
         
         if (rpcError) throw rpcError;
       }
