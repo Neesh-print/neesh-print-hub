@@ -543,9 +543,6 @@ export const PublisherApplication = () => {
           throw rpcError;
         }
       }
-        
-        if (rpcError) throw rpcError;
-      }
 
       setIsSubmitted(true);
       setCurrentStep(12); // Success Step
