@@ -16,7 +16,8 @@ import {
   PUBLISHER_APPLICATION_STEPS,
 } from "@/lib/constants";
 
-const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
+const TOTAL_STEPS = 5;
+const STEP_LABELS = ["Editorial", "Visuals", "Distribution", "Review"];
 
 interface FormData {
   // Step 1: Contact Info (no password - account created on approval)
@@ -258,6 +259,7 @@ export const PublisherApplication = () => {
         if (updateError) throw updateError;
       } else if (accessToken) {
         // Anonymous user: Secure RPC update
+        // @ts-ignore
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
            p_id: publisherId,
            p_token: accessToken,
@@ -321,6 +323,7 @@ export const PublisherApplication = () => {
       // Create application
       if (user) {
         // Authenticated users: direct insert with user_id
+        // @ts-ignore
         const { data: appData, error: appError } = await supabase
           .from("publisher_applications")
           .insert({
@@ -337,6 +340,7 @@ export const PublisherApplication = () => {
         setPublisherId(appData.id);
       } else {
         // Anonymous users: use Secure RPC
+        // @ts-ignore
         const { data, error } = await supabase.rpc('create_publisher_application', {
           p_first_name: values.firstName,
           p_last_name: values.lastName,
@@ -367,22 +371,25 @@ export const PublisherApplication = () => {
 
   const validateCurrentStep = async (): Promise<boolean> => {
     switch (currentStep) {
-      case 1:
-        return await trigger(["firstName", "lastName", "email"]);
-      case 2:
-        return await trigger("businessName");
-      case 3:
-        return await trigger("magazineTitle");
-      case 4:
+      case 1: // Editorial
+        return await trigger([
+          "firstName", "lastName", "email", 
+          "businessName", "magazineTitle", "description"
+        ]);
+      
+      case 2: // Visuals
         return !!formValues.coverImageUrl;
-      case 5:
-        return await trigger("description");
-      case 6:
-        return !!(formValues.websiteUrl || formValues.instagramHandle);
-      case 7:
-        return await trigger("shippingCountry");
-      case 11:
+      
+      case 3: // Distribution
+        return await trigger([
+          "shippingCountry", "shippingCity", 
+          "issueFrequency", "publicationType", 
+          "fulfillmentMethod"
+        ]);
+      
+      case 4: // Review
         return formValues.confirmRights;
+        
       default:
         return true;
     }
@@ -398,15 +405,11 @@ export const PublisherApplication = () => {
     const isValid = await validateCurrentStep();
 
     if (!isValid) {
-      if (currentStep === 4 && !formValues.coverImageUrl) {
+      if (currentStep === 2 && !formValues.coverImageUrl) {
         toast.error("Please upload a cover image");
         return;
       }
-      if (currentStep === 6 && !formValues.websiteUrl && !formValues.instagramHandle) {
-        toast.error("Please provide either a website or Instagram handle");
-        return;
-      }
-      if (currentStep === 11 && !formValues.confirmRights) {
+      if (currentStep === 4 && !formValues.confirmRights) {
         toast.error("Please confirm you have distribution rights");
         return;
       }
@@ -438,7 +441,7 @@ export const PublisherApplication = () => {
   };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && currentStep !== 5 && currentStep !== 11 && currentStep !== 12) {
+    if (e.key === "Enter" && !e.shiftKey && currentStep !== 5) {
       e.preventDefault();
       handleNext();
     }
@@ -463,36 +466,60 @@ export const PublisherApplication = () => {
     setIsSubmitting(true);
 
     try {
-      // Update application to submitted status
-      const { error: appError } = await supabase
-        .from("publisher_applications")
-        .update({
-          first_name: formValues.firstName,
-          last_name: formValues.lastName,
-          email: formValues.email,
-          business_name: formValues.businessName,
-          magazine_title: formValues.magazineTitle,
-          cover_image_url: formValues.coverImageUrl,
-          description: formValues.description,
-          social_website_link: formValues.websiteUrl || formValues.instagramHandle,
-          instagram_handle: formValues.instagramHandle?.replace("@", ""),
-          shipping_country: formValues.shippingCountry,
-          shipping_city: formValues.shippingCity,
-          issue_frequency: formValues.issueFrequency,
-          publication_type: formValues.publicationType,
-          distribution_channels: formValues.regionsCurrentlySold,
-          fulfillment_method: formValues.fulfillmentMethod,
-          quotes_feedback: formValues.cloudLink,
-          status: "pending",
-          submitted_at: new Date().toISOString(),
-          additional_info: formValues,
-        })
-        .eq("id", publisherId);
+      const submissionData = {
+        first_name: formValues.firstName,
+        last_name: formValues.lastName,
+        email: formValues.email,
+        business_name: formValues.businessName,
+        magazine_title: formValues.magazineTitle,
+        cover_image_url: formValues.coverImageUrl,
+        description: formValues.description,
+        social_website_link: formValues.websiteUrl || formValues.instagramHandle,
+        instagram_handle: formValues.instagramHandle?.replace("@", ""),
+        shipping_country: formValues.shippingCountry,
+        shipping_city: formValues.shippingCity,
+        issue_frequency: formValues.issueFrequency,
+        publication_type: formValues.publicationType,
+        distribution_channels: formValues.regionsCurrentlySold,
+        fulfillment_method: formValues.fulfillmentMethod,
+        quotes_feedback: formValues.cloudLink,
+        status: "pending",
+        submitted_at: new Date().toISOString(),
+        additional_info: formValues,
+      };
 
-      if (appError) throw appError;
+      if (user) {
+        // Authenticated users: Update directly
+        const { error: appError } = await supabase
+          .from("publisher_applications")
+          .update(submissionData)
+          .eq("id", publisherId);
+
+        if (appError) throw appError;
+      } else {
+        // Anonymous users: Use secure RPC to update based on token
+        // Use update_publisher_application logic similar to get/save
+        // We'll use our existing saveProgress logic for updating fields via generic update?
+        // No, 'update_publisher_application' needs to be implemented or we reuse 'saveProgress' then set status?
+        // Wait, 'saveProgress' calls 'update_publisher_application' RPC.
+        // Let's check saveProgress implementation.
+        // saveProgress calls 'rpc("update_publisher_application", { p_id: publisherId, p_token: accessToken, p_data: data })'
+        // So we can just call that RPC directly with `status: 'pending'`.
+        
+        if (!accessToken) throw new Error("No access token found");
+        
+        // @ts-ignore
+        const { error: rpcError } = await supabase.rpc('update_publisher_application', {
+             p_id: publisherId,
+             p_token: accessToken,
+             p_data: submissionData
+        });
+        
+        if (rpcError) throw rpcError;
+      }
 
       setIsSubmitted(true);
-      setCurrentStep(12);
+      setCurrentStep(5); // Success Step
 
     } catch (err) {
       console.error("Submission error:", err);
@@ -516,8 +543,7 @@ export const PublisherApplication = () => {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 1:
-        // If already have publisher ID (started application), skip to step 2
+      case 1: // Editorial
         if (publisherId) {
           setCurrentStep(2);
           return null;
@@ -526,13 +552,15 @@ export const PublisherApplication = () => {
           <div className="space-y-6 animate-fade-in">
             <div className="text-center mb-8">
               <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-                Let's get your magazine on Neesh
+                Editorial Details
               </h1>
               <p className="text-muted-foreground text-lg max-w-md mx-auto mt-4">
-                Start your application. Takes about 3 minutes. We'll create your account once approved.
+                Tell us about your publication (Step 1 of 4)
               </p>
             </div>
+            
             <div className="space-y-4">
+              {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <Controller
                   name="firstName"
@@ -541,7 +569,7 @@ export const PublisherApplication = () => {
                   render={({ field }) => (
                     <FormInput
                       label="First Name"
-                      placeholder="Your first name"
+                      placeholder="Jane"
                       value={field.value}
                       onChange={field.onChange}
                       error={errors.firstName?.message}
@@ -556,7 +584,7 @@ export const PublisherApplication = () => {
                   render={({ field }) => (
                     <FormInput
                       label="Last Name"
-                      placeholder="Your last name"
+                      placeholder="Doe"
                       value={field.value}
                       onChange={field.onChange}
                       error={errors.lastName?.message}
@@ -565,6 +593,7 @@ export const PublisherApplication = () => {
                   )}
                 />
               </div>
+
               <Controller
                 name="email"
                 control={control}
@@ -579,7 +608,7 @@ export const PublisherApplication = () => {
                   <FormInput
                     label="Email Address"
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder="editor@publication.com"
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.email?.message}
@@ -587,93 +616,84 @@ export const PublisherApplication = () => {
                   />
                 )}
               />
+
+              <div className="h-4"></div> {/* Spacer */}
+
+              {/* Publication Info */}
+              <Controller
+                name="businessName"
+                control={control}
+                rules={{ required: "Publication name is required" }}
+                render={({ field }) => (
+                  <FormInput
+                    label="Publication Name"
+                    placeholder="The Daily Creative"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.businessName?.message}
+                    required
+                  />
+                )}
+              />
+
+              <Controller
+                name="magazineTitle"
+                control={control}
+                rules={{ required: "Magazine title is required" }}
+                render={({ field }) => (
+                  <FormInput
+                    label="Current Issue Title"
+                    placeholder="Issue 01: Beginnings"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.magazineTitle?.message}
+                    required
+                  />
+                )}
+              />
+
+              <Controller
+                name="description"
+                control={control}
+                rules={{ required: "Description is required" }}
+                render={({ field }) => (
+                  <FormTextarea
+                    label="Description"
+                    placeholder="Short blurb about this issue..."
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.description?.message}
+                    maxLength={500}
+                    rows={4}
+                    required
+                  />
+                )}
+              />
             </div>
+
             <ButtonPrimary
               onClick={handleNext}
               fullWidth
               className="mt-6"
               loading={isCreatingAccount}
             >
-              Continue
-            </ButtonPrimary>
-            <p className="text-center text-sm text-muted-foreground mt-4">
-              Once approved, we'll send you a magic link to access your account.
-            </p>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              What's your publication called?
-            </h1>
-            <Controller
-              name="businessName"
-              control={control}
-              rules={{ required: "Publication name is required" }}
-              render={({ field }) => (
-                <FormInput
-                  label="Publication / Company Name"
-                  placeholder="e.g., Kinfolk, Monocle, Apartamento"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.businessName?.message}
-                  required
-                  autoComplete="organization"
-                />
-              )}
-            />
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
+              Continue to Visuals
             </ButtonPrimary>
           </div>
         );
 
-      case 3:
+      case 2: // Visuals
         return (
           <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                Which title are you looking to sell?
+            <div className="text-center mb-8">
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Visual Assets
               </h1>
               <p className="text-muted-foreground mt-2">
-                Start with one - you can add more later
+                Showcase your work (Step 2 of 4)
               </p>
             </div>
-            <Controller
-              name="magazineTitle"
-              control={control}
-              rules={{ required: "Magazine title is required" }}
-              render={({ field }) => (
-                <FormInput
-                  label="Magazine Title"
-                  placeholder="e.g., Issue 45, Spring 2025 Edition"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.magazineTitle?.message}
-                  required
-                  autoComplete="off"
-                />
-              )}
-            />
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                Show us your magazine
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Upload a cover image so we can see your work
-              </p>
-            </div>
             <FileUploadZone
               title="Upload Cover Image"
               subtitle="JPG, PNG, WebP or GIF - Max 10MB"
@@ -688,114 +708,73 @@ export const PublisherApplication = () => {
                 resetUpload();
               }}
             />
+
+            <div className="pt-4">
+              <Controller
+                name="cloudLink"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    label="Additional Assets Link (Optional)"
+                    placeholder="Dropbox / GDrive link for press kit"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+            
+             <div className="space-y-4 pt-4">
+               <h3 className="font-medium">Social Presence</h3>
+               <Controller
+                 name="websiteUrl"
+                 control={control}
+                 render={({ field }) => (
+                   <FormInput
+                     label="Website URL (Optional)"
+                     placeholder="https://..."
+                     value={field.value}
+                     onChange={field.onChange}
+                   />
+                 )}
+               />
+               <Controller
+                 name="instagramHandle"
+                 control={control}
+                 render={({ field }) => (
+                   <FormInput
+                     label="Instagram (Optional)"
+                     placeholder="@handle"
+                     value={field.value}
+                     onChange={field.onChange}
+                   />
+                 )}
+               />
+            </div>
+
             <ButtonPrimary
               onClick={handleNext}
               fullWidth
               disabled={!formValues.coverImageUrl}
             >
-              Continue
+              Continue to Distribution
             </ButtonPrimary>
           </div>
         );
 
-      case 5:
+      case 3: // Distribution
         return (
           <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Tell us about your publication
-            </h1>
-            <Controller
-              name="description"
-              control={control}
-              rules={{ required: "Description is required" }}
-              render={({ field }) => (
-                <FormTextarea
-                  label="Description"
-                  placeholder="What's your magazine about? Who's it for?"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.description?.message}
-                  maxLength={500}
-                  helperText="2-3 sentences is perfect"
-                  rows={5}
-                  required
-                />
-              )}
-            />
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
-
-      case 6:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                Where can we find you online?
+             <div className="text-center mb-8">
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Distribution
               </h1>
               <p className="text-muted-foreground mt-2">
-                We use this to verify your publication
+                Logistics & Availability (Step 3 of 4)
               </p>
             </div>
-            <div className="space-y-4">
-              <Controller
-                name="websiteUrl"
-                control={control}
-                rules={{
-                  pattern: {
-                    value: /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/,
-                    message: "Please enter a valid URL"
-                  }
-                }}
-                render={({ field }) => (
-                  <FormInput
-                    label="Website URL"
-                    placeholder="https://yourmagazine.com"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.websiteUrl?.message}
-                  />
-                )}
-              />
-              <Controller
-                name="instagramHandle"
-                control={control}
-                render={({ field }) => (
-                  <FormInput
-                    label="Instagram Handle"
-                    placeholder="@yourmagazine"
-                    value={field.value}
-                    onChange={(val) => {
-                      const formatted = val.startsWith("@") ? val : `@${val}`;
-                      field.onChange(formatted === "@" ? "" : formatted);
-                    }}
-                  />
-                )}
-              />
-              {!formValues.websiteUrl && !formValues.instagramHandle && (
-                <p className="text-sm text-destructive">
-                  Please provide either a website or Instagram
-                </p>
-              )}
-            </div>
-            <ButtonPrimary
-              onClick={handleNext}
-              fullWidth
-              disabled={!formValues.websiteUrl && !formValues.instagramHandle}
-            >
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
 
-      case 7:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Where will you ship from?
-            </h1>
+            <h3 className="font-medium text-lg pt-2">Shipping Origin</h3>
             <div className="space-y-4">
               <Controller
                 name="shippingCountry"
@@ -804,7 +783,7 @@ export const PublisherApplication = () => {
                 render={({ field }) => (
                   <FormSelect
                     label="Country"
-                    placeholder="Select a country"
+                    placeholder="Select Country"
                     options={COUNTRIES.map(c => ({ value: c.value, label: c.label }))}
                     value={field.value}
                     onChange={field.onChange}
@@ -819,131 +798,68 @@ export const PublisherApplication = () => {
                 render={({ field }) => (
                   <FormInput
                     label="City"
-                    placeholder="e.g., Los Angeles, London"
+                    placeholder="City"
                     value={field.value}
                     onChange={field.onChange}
                   />
                 )}
               />
             </div>
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
 
-      case 8:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                A few more details
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Optional, but helps us understand your publication
-              </p>
-            </div>
+            <h3 className="font-medium text-lg pt-4">Publication Details</h3>
             <div className="space-y-4">
               <Controller
                 name="issueFrequency"
                 control={control}
                 render={({ field }) => (
                   <FormSelect
-                    label="Publication Frequency"
-                    placeholder="How often do you publish?"
+                    label="Frequency"
+                    placeholder="Select Frequency"
                     options={PUBLICATION_FREQUENCIES.map(f => ({ value: f.value, label: f.label }))}
                     value={field.value}
                     onChange={field.onChange}
                   />
                 )}
               />
-
+              
               <div>
-                <label className="block mb-2 font-display font-medium text-body text-foreground">
-                  Publication Type
-                </label>
-                <div className="flex gap-4">
-                  {["Single Issue", "Series"].map((type) => (
-                    <label
-                      key={type}
-                      className={`
-                        flex-1 p-4 rounded-lg border-2 cursor-pointer transition-all text-center
-                        ${formValues.publicationType === type.toLowerCase().replace(" ", "_")
-                          ? "border-accent bg-accent/5"
-                          : "border-border hover:border-accent/50"
-                        }
-                      `}
-                    >
-                      <input
-                        type="radio"
-                        name="publicationType"
-                        value={type.toLowerCase().replace(" ", "_")}
-                        checked={formValues.publicationType === type.toLowerCase().replace(" ", "_")}
-                        onChange={(e) => setValue("publicationType", e.target.value)}
-                        className="sr-only"
-                      />
-                      <span className="font-medium">{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-2 font-display font-medium text-body text-foreground">
-                  Regions Currently Sold In
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {DISTRIBUTION_REGIONS.map((region) => (
-                    <label
-                      key={region.id}
-                      className={`
-                        flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all
-                        ${formValues.regionsCurrentlySold.includes(region.id)
-                          ? "border-accent bg-accent/5"
-                          : "border-border hover:border-accent/50"
-                        }
-                      `}
-                    >
-                      <Checkbox
-                        checked={formValues.regionsCurrentlySold.includes(region.id)}
-                        onCheckedChange={(checked) => {
-                          const current = formValues.regionsCurrentlySold;
-                          if (checked) {
-                            setValue("regionsCurrentlySold", [...current, region.id]);
-                          } else {
-                            setValue("regionsCurrentlySold", current.filter(r => r !== region.id));
+                  <label className="block mb-2 font-display font-medium text-sm text-foreground">
+                    Format
+                  </label>
+                  <div className="flex gap-4">
+                    {["Single Issue", "Series"].map((type) => (
+                      <label
+                        key={type}
+                        className={`
+                          flex-1 p-3 rounded-lg border cursor-pointer transition-all text-center text-sm
+                          ${formValues.publicationType === type.toLowerCase().replace(" ", "_")
+                            ? "border-accent bg-accent/5 text-accent font-medium"
+                            : "border-border hover:border-accent/50"
                           }
-                        }}
-                      />
-                      <span className="text-sm">{region.label}</span>
-                    </label>
-                  ))}
-                </div>
+                        `}
+                      >
+                        <input
+                          type="radio"
+                          name="publicationType"
+                          value={type.toLowerCase().replace(" ", "_")}
+                          checked={formValues.publicationType === type.toLowerCase().replace(" ", "_")}
+                          onChange={(e) => setValue("publicationType", e.target.value)}
+                          className="sr-only"
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
               </div>
             </div>
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
 
-      case 9:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                How would you like to ship orders?
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                You can change this later
-              </p>
-            </div>
-            <div className="space-y-3">
+            <h3 className="font-medium text-lg pt-4">Fulfillment</h3>
+             <div className="space-y-2">
               {FULFILLMENT_OPTIONS.map((option) => (
                 <label
                   key={option.value}
                   className={`
-                    block p-4 rounded-lg border-2 cursor-pointer transition-all
+                    flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all
                     ${formValues.fulfillmentMethod === option.value
                       ? "border-accent bg-accent/5"
                       : "border-border hover:border-accent/50"
@@ -958,52 +874,28 @@ export const PublisherApplication = () => {
                     onChange={(e) => setValue("fulfillmentMethod", e.target.value)}
                     className="sr-only"
                   />
-                  <span className="font-medium text-foreground">{option.label}</span>
-                  <p className="text-sm text-muted-foreground mt-1">{option.description}</p>
+                  <div>
+                    <span className="font-medium text-sm text-foreground">{option.label}</span>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
+                  </div>
                 </label>
               ))}
             </div>
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
+
+            <ButtonPrimary onClick={handleNext} fullWidth className="mt-6">
+              Review Application
             </ButtonPrimary>
           </div>
         );
 
-      case 10:
+      case 4: // Review
         return (
           <div className="space-y-6 animate-fade-in">
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                Anything else to share?
+             <div className="text-center mb-6">
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Review & Submit
               </h1>
-              <p className="text-muted-foreground mt-2">
-                Optional - link to a press kit, media folder, or additional images
-              </p>
             </div>
-            <Controller
-              name="cloudLink"
-              control={control}
-              render={({ field }) => (
-                <FormInput
-                  label="Cloud Link"
-                  placeholder="Dropbox, Google Drive, or website link"
-                  value={field.value}
-                  onChange={field.onChange}
-                />
-              )}
-            />
-            <ButtonPrimary onClick={handleNext} fullWidth>
-              Continue
-            </ButtonPrimary>
-          </div>
-        );
-
-      case 11:
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Almost done!
-            </h1>
 
             <div className="card-neesh space-y-4">
               <div className="flex gap-4">
@@ -1011,19 +903,27 @@ export const PublisherApplication = () => {
                   <img
                     src={formValues.coverImageUrl}
                     alt="Cover preview"
-                    className="w-20 h-28 object-cover rounded-lg"
+                    className="w-24 h-32 object-cover rounded-md shadow-sm"
                   />
                 )}
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{formValues.businessName}</p>
-                  <p className="text-sm text-muted-foreground">{formValues.magazineTitle}</p>
-                  <p className="text-sm text-muted-foreground mt-2">{formValues.email}</p>
+                <div className="flex-1 space-y-1">
+                  <h3 className="font-bold text-lg">{formValues.magazineTitle}</h3>
+                  <p className="text-muted-foreground">{formValues.businessName}</p>
+                  <div className="text-sm text-muted-foreground pt-2">
+                    <p>{formValues.firstName} {formValues.lastName}</p>
+                    <p>{formValues.email}</p>
+                  </div>
                 </div>
+              </div>
+              <div className="border-t border-border pt-3">
+                 <p className="text-xs text-muted-foreground line-clamp-2">
+                   {formValues.description}
+                 </p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer">
+            <div className="space-y-4 pt-2">
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-muted/50 transition-colors">
                 <Checkbox
                   checked={formValues.confirmRights}
                   onCheckedChange={(checked) => setValue("confirmRights", !!checked)}
@@ -1033,14 +933,15 @@ export const PublisherApplication = () => {
                   I confirm that I have distribution rights for this content <span className="text-destructive">*</span>
                 </span>
               </label>
-              <label className="flex items-start gap-3 cursor-pointer">
+              
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-muted/50 transition-colors">
                 <Checkbox
                   checked={formValues.optInUpdates}
                   onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
                   className="mt-0.5"
                 />
                 <span className="text-sm text-muted-foreground">
-                  I'd like to receive platform updates and retailer insights
+                  I'd like to receive platform updates
                 </span>
               </label>
             </div>
@@ -1056,11 +957,11 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 12:
+      case 5: // Success
         return (
-          <div className="text-center space-y-6 animate-fade-in">
-            <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
-              <CheckCircle className="w-8 h-8 text-accent" />
+          <div className="text-center space-y-6 animate-fade-in py-12">
+            <div className="w-20 h-20 mx-auto rounded-full bg-green-500/10 flex items-center justify-center mb-6">
+              <CheckCircle className="w-10 h-10 text-green-600" />
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
               Application Submitted!
@@ -1070,13 +971,7 @@ export const PublisherApplication = () => {
               <span className="font-medium text-foreground">{formValues.email}</span>{" "}
               within 2-3 business days.
             </p>
-            <p className="text-sm text-muted-foreground">
-              Questions? Reach out to{" "}
-              <a href="mailto:hi@neesh.art" className="text-accent hover:underline">
-                hi@neesh.art
-              </a>
-            </p>
-            <div className="pt-4">
+            <div className="pt-8">
               <ButtonSecondary onClick={() => navigate("/")} className="min-w-[200px]">
                 Back to Home
               </ButtonSecondary>
@@ -1134,12 +1029,13 @@ export const PublisherApplication = () => {
       {/* Main content */}
       <main className="flex-1 flex items-start justify-center px-4 md:px-6 pt-24 pb-8">
         <div className="w-full max-w-6xl flex gap-8 items-start">
-          {/* Progress sidebar - Desktop only */}
-          {currentStep > 1 && currentStep < 12 && (
+            {/* Progress sidebar - Desktop only */}
+          {currentStep > 1 && currentStep < 5 && (
             <div className="hidden lg:block w-80 sticky top-24">
               <ApplicationProgress
                 currentStep={currentStep}
-                totalSteps={TOTAL_STEPS - 1}
+                totalSteps={4}
+                labels={STEP_LABELS}
               />
             </div>
           )}
@@ -1147,11 +1043,12 @@ export const PublisherApplication = () => {
           {/* Form content */}
           <div className="flex-1 max-w-md mx-auto lg:mx-0">
             {/* Progress card - Mobile only */}
-            {currentStep > 1 && currentStep < 12 && (
+            {currentStep > 1 && currentStep < 5 && (
               <div className="lg:hidden mb-6">
                 <ApplicationProgress
                   currentStep={currentStep}
-                  totalSteps={TOTAL_STEPS - 1}
+                  totalSteps={4}
+                  labels={STEP_LABELS}
                 />
               </div>
             )}
