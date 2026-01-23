@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Star, Search, BookOpen } from 'lucide-react';
+import { Star, BookOpen } from 'lucide-react';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 import { ButtonSecondary } from '@/components/neesh/ButtonSecondary';
 import { EmptyState } from '@/components/neesh/EmptyState';
+import { MagazineCoverImage } from '@/components/neesh/MagazineCoverImage';
 import { LoadingScreen } from '@/components/shared/LoadingScreen';
 import { useMagazines, type Magazine } from '@/hooks/useMagazines';
 import { MagazineCardSkeleton } from '@/components/skeletons/MagazineCardSkeleton';
@@ -124,10 +125,11 @@ export const ExploreMagazinesPage = () => {
                 >
                   {/* Cover Image */}
                   <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary mb-3 shadow-neesh transition-shadow duration-300 group-hover:shadow-neesh-md">
-                    <img
-                      src={magazine.cover_image_url || '/placeholder.svg'}
+                    <MagazineCoverImage
+                      src={magazine.cover_image_url}
                       alt={`${magazine.title} - ${magazine.issue_number || ''}`}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      className="transition-transform duration-300 group-hover:scale-[1.02]"
+                      priority={index < 4}
                     />
                     {index < 3 && (
                       <div className="absolute top-2 left-2 flex items-center gap-1 bg-accent text-accent-foreground text-caption px-2 py-1 rounded-full">
@@ -215,10 +217,10 @@ export const ExploreMagazinesPage = () => {
             <>
               {/* Cover Image */}
               <div className="relative aspect-[3/4] max-h-[50vh] overflow-hidden bg-secondary">
-                <img
-                  src={selectedMagazine.cover_image_url || '/placeholder.svg'}
+                <MagazineCoverImage
+                  src={selectedMagazine.cover_image_url}
                   alt={`${selectedMagazine.title} - ${selectedMagazine.issue_number || ''}`}
-                  className="w-full h-full object-cover"
+                  priority
                 />
                 {featuredMagazines.some(m => m.id === selectedMagazine.id) && (
                   <div className="absolute top-4 left-4 flex items-center gap-1 bg-accent text-accent-foreground text-caption px-2 py-1 rounded-full">

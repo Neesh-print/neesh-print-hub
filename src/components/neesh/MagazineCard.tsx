@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bookmark } from "lucide-react";
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
@@ -63,14 +64,32 @@ export const MagazineCard = ({
   const resolvedStockStatus = stockStatus ?? (inventoryCount !== undefined ? getStockStatus(inventoryCount) : undefined);
   const stockConfig = resolvedStockStatus ? stockStatusConfig[resolvedStockStatus] : null;
 
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const displayImage = imageError ? "/placeholder.svg" : coverImage;
+
   return (
     <article className="group cursor-pointer" onClick={onClick}>
       {/* Cover image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-secondary shadow-neesh transition-shadow duration-300 group-hover:shadow-neesh-md">
+        {/* Loading placeholder */}
+        {!imageLoaded && !imageError && (
+          <div className="absolute inset-0 bg-muted animate-pulse" />
+        )}
         <img
-          src={coverImage}
+          src={displayImage}
           alt={`${title} cover`}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => {
+            setImageError(true);
+            setImageLoaded(true);
+          }}
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
         />
         
         {/* Stock Indicator */}
