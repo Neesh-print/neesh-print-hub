@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Bookmark } from "lucide-react";
+
+const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
@@ -29,6 +31,17 @@ const stockStatusConfig: Record<StockStatus, { color: string; label: string }> =
   in_stock: { color: 'bg-status-success', label: 'In Stock' },
   low_stock: { color: 'bg-status-warning', label: 'Low Stock' },
   out_of_stock: { color: 'bg-status-error', label: 'Out of Stock' },
+};
+
+// Convert Shopify CDN URLs to use our proxy
+const getProxiedUrl = (url: string): string => {
+  if (!url) return "/placeholder.svg";
+  
+  if (url.includes("cdn.shopify.com")) {
+    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  
+  return url;
 };
 
 export const MagazineCard = ({
@@ -67,7 +80,10 @@ export const MagazineCard = ({
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const displayImage = imageError ? "/placeholder.svg" : coverImage;
+  const displayImage = useMemo(() => {
+    if (imageError) return "/placeholder.svg";
+    return getProxiedUrl(coverImage);
+  }, [coverImage, imageError]);
 
   return (
     <article className="group cursor-pointer" onClick={onClick}>
@@ -88,8 +104,6 @@ export const MagazineCard = ({
             setImageError(true);
             setImageLoaded(true);
           }}
-          referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
         />
         
         {/* Stock Indicator */}
