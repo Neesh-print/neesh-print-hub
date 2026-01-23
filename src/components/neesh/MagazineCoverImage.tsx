@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+
+const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
 
 interface MagazineCoverImageProps {
   src: string | null | undefined;
@@ -7,6 +9,18 @@ interface MagazineCoverImageProps {
   className?: string;
   priority?: boolean;
 }
+
+// Convert Shopify CDN URLs to use our proxy
+const getProxiedUrl = (url: string | null | undefined): string => {
+  if (!url) return "/placeholder.svg";
+  
+  // Check if it's a Shopify CDN URL that needs proxying
+  if (url.includes("cdn.shopify.com")) {
+    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  
+  return url;
+};
 
 export const MagazineCoverImage = ({
   src,
@@ -17,7 +31,10 @@ export const MagazineCoverImage = ({
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const displayImage = !src || imageError ? "/placeholder.svg" : src;
+  const displayImage = useMemo(() => {
+    if (imageError) return "/placeholder.svg";
+    return getProxiedUrl(src);
+  }, [src, imageError]);
 
   return (
     <>
@@ -40,7 +57,6 @@ export const MagazineCoverImage = ({
           setImageError(true);
           setImageLoaded(true);
         }}
-        referrerPolicy="no-referrer"
       />
     </>
   );
