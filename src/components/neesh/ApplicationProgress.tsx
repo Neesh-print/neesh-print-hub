@@ -21,22 +21,57 @@ export const ApplicationProgress = ({
   const completedSteps = currentStep - 1;
   const progressPercentage = (completedSteps / totalSteps) * 100;
 
-  // Mobile View: Simple horizontal bar with text
+  // Mobile View: Lined Paper Horizontal Bar
   const MobileProgress = () => (
-    <div className="lg:hidden w-full bg-background border-b border-border sticky top-0 z-30 py-4 px-1">
-       <div className="flex items-center justify-between mb-2">
-         <span className="text-sm font-medium text-foreground">
-           {labels ? labels[currentStep - 1] || `Step ${currentStep}` : `Step ${currentStep}`}
-         </span>
-         <span className="text-xs text-muted-foreground">
-           {currentStep} of {totalSteps}
-         </span>
-       </div>
-       <div className="h-1.5 w-full bg-secondary/30 rounded-full overflow-hidden">
-         <div 
-           className="h-full bg-accent transition-all duration-300"
-           style={{ width: `${((currentStep) / totalSteps) * 100}%` }} 
-         />
+    <div className="lg:hidden w-full sticky top-0 z-30 mb-8 mx-auto -mt-2">
+       {/* Paper Container */}
+       <div className="bg-[#FFFEF7] border-y border-[#E5E3D8] shadow-sm relative overflow-hidden py-4 px-4">
+         {/* Paper lines */}
+         <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-0 right-0 h-[1px] bg-[#D4E5F6]/50 top-1/2" />
+         </div>
+
+         <div className="relative z-10 flex items-center justify-between gap-4">
+             {/* Text with handwriting font */}
+             <div className="flex flex-col">
+               <span 
+                className="text-lg font-medium text-foreground/80 leading-none"
+                style={{ fontFamily: 'ui-serif, Georgia, serif' }}
+               >
+                 {labels ? labels[currentStep - 1] || `Step ${currentStep}` : `Step ${currentStep}`}
+               </span>
+               <span 
+                className="text-xs text-muted-foreground mt-1"
+                style={{ fontFamily: 'ui-monospace, monospace' }}
+               >
+                 {currentStep} / {totalSteps}
+               </span>
+             </div>
+
+             {/* Progress Bar with Pencil Texture */}
+             <div className="h-3 bg-secondary/20 rounded-full overflow-hidden w-32 border border-black/5 relative">
+                <div 
+                   className="h-full bg-accent relative transition-all duration-500 ease-out"
+                   style={{ width: `${((currentStep) / totalSteps) * 100}%` }}
+                >
+                   {/* Pencil scribbles overlay */}
+                   <div 
+                     className="absolute inset-0 opacity-40 mix-blend-overlay"
+                     style={{
+                        backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px)`
+                     }}
+                   />
+                </div>
+             </div>
+         </div>
+         
+         {/* Texture */}
+         <div
+            className="absolute inset-0 pointer-events-none opacity-[0.05]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E")`,
+            }}
+          />
        </div>
     </div>
   );
