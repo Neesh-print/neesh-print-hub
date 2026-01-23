@@ -166,17 +166,14 @@ export const PublisherApplication = () => {
              setCurrentStep(restoreStep);
              setIsLoadingResume(false);
              return;
-          } else {
-             console.warn("Invalid access token or ID, clearing session");
-             // Token invalid, clear storage to prevent stuck state
-             localStorage.removeItem('publisherAppId');
-             localStorage.removeItem('publisherAccessToken');
-             setPublisherId(null);
-             setAccessToken(null);
           }
         } catch (err) {
            console.error("Resume error:", err);
-           // Fall through to other checks or finish
+           // If the token is invalid (400) or not found, we should clear it to prevent blocking the user
+           localStorage.removeItem('publisherAppId');
+           localStorage.removeItem('publisherAccessToken');
+           setPublisherId(null);
+           setAccessToken(null);
         }
       }
 
@@ -258,13 +255,20 @@ export const PublisherApplication = () => {
         if (updateError) throw updateError;
       } else if (accessToken) {
         // Anonymous user: Secure RPC update
+        
+        console.log("Saving progress RPC:", { publisherId, data: mergedData });
+
         // @ts-ignore
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
            p_id: publisherId,
            p_token: accessToken,
            p_data: mergedData
         });
-        if (rpcError) throw rpcError;
+        
+        if (rpcError) {
+          console.error("Save Progress RPC Error:", rpcError);
+          throw rpcError;
+        }
       } else {
          // Should ideally not happen if flow is correct
          // But effectively this means we can't save. 

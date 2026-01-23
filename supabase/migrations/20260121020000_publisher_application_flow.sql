@@ -295,7 +295,7 @@ BEGIN
   SET
     first_name = COALESCE((p_data->>'firstName')::text, first_name),
     last_name = COALESCE((p_data->>'lastName')::text, last_name),
-    email = COALESCE((p_data->>'email')::text, email),
+    email = COALESCE(NULLIF((p_data->>'email')::text, ''), email),
     business_name = COALESCE((p_data->>'businessName')::text, business_name),
     magazine_title = COALESCE((p_data->>'magazineTitle')::text, magazine_title),
     cover_image_url = COALESCE((p_data->>'coverImageUrl')::text, cover_image_url),
