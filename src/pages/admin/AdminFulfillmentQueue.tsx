@@ -24,16 +24,18 @@ export const AdminFulfillmentQueue = () => {
   const [trackingModalOrder, setTrackingModalOrder] = useState<FulfillmentOrder | null>(null);
 
   // Fetch orders by status
-  const { orders: pendingOrders, isLoading: pendingLoading, refetch: refetchPending } = useOrders({
-    fulfillmentStatus: "pending",
-  });
-  const { orders: packedOrders, isLoading: packedLoading, refetch: refetchPacked } = useOrders({
-    fulfillmentStatus: "packed",
-  });
-  const { orders: shippedOrders, isLoading: shippedLoading, refetch: refetchShipped } = useOrders({
-    fulfillmentStatus: "shipped",
+  // Fetch orders by status
+  const pendingOptions = useMemo(() => ({ fulfillmentStatus: "pending" as const }), []);
+  const { orders: pendingOrders, isLoading: pendingLoading, refetch: refetchPending } = useOrders(pendingOptions);
+
+  const packedOptions = useMemo(() => ({ fulfillmentStatus: "packed" as const }), []);
+  const { orders: packedOrders, isLoading: packedLoading, refetch: refetchPacked } = useOrders(packedOptions);
+
+  const shippedOptions = useMemo(() => ({
+    fulfillmentStatus: "shipped" as const,
     dateRange: { start: startOfToday(), end: endOfToday() },
-  });
+  }), []);
+  const { orders: shippedOrders, isLoading: shippedLoading, refetch: refetchShipped } = useOrders(shippedOptions);
 
   const { updateStatus, addTracking, isUpdating } = useUpdateOrderStatus();
 
