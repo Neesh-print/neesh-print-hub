@@ -405,7 +405,6 @@ export const RetailerCatalogue = () => {
                 retailPrice={mag.suggested_retail_price}
                 inventoryCount={mag.inventory_count}
                 showStockIndicator={true}
-                showRetailPrice={true}
                 onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
                 onBookmark={() => handleToggleBookmark(mag.id)}
                 isBookmarked={isInWishlist(mag.id)}
