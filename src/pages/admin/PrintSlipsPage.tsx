@@ -1,119 +1,17 @@
-import { useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Printer, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { PackingSlip, packingSlipPrintStyles } from "@/components/admin/PackingSlip";
 import { ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { supabase } from "@/integrations/supabase/client";
 import type { PackingSlipOrder } from "@/components/admin/PackingSlip";
-
-// Mock order data - in real app, fetch based on IDs
-const mockOrderData: Record<string, PackingSlipOrder> = {
-  "1": {
-    orderNumber: "0052",
-    createdAt: "2025-01-15T10:30:00Z",
-    retailerName: "Powell's Books",
-    shippingAddress: {
-      street: "1005 W Burnside St",
-      city: "Portland",
-      state: "OR",
-      zip: "97209",
-    },
-    items: [
-      { title: "Kinfolk Issue 45", publisher: "Kinfolk Magazine", quantity: 3 },
-      { title: "Apartamento #28", publisher: "Apartamento Publishing", quantity: 2 },
-    ],
-  },
-  "2": {
-    orderNumber: "0051",
-    createdAt: "2025-01-15T09:15:00Z",
-    retailerName: "McNally Jackson",
-    shippingAddress: {
-      street: "52 Prince St",
-      city: "New York",
-      state: "NY",
-      zip: "10012",
-    },
-    items: [
-      { title: "Cereal Magazine Vol. 21", publisher: "Cereal Magazine", quantity: 5 },
-    ],
-  },
-  "3": {
-    orderNumber: "0050",
-    createdAt: "2025-01-14T16:45:00Z",
-    retailerName: "City Lights Bookstore",
-    shippingAddress: {
-      street: "261 Columbus Ave",
-      city: "San Francisco",
-      state: "CA",
-      zip: "94133",
-    },
-    items: [
-      { title: "The Gourmand Issue 19", publisher: "The Gourmand", quantity: 2 },
-      { title: "Drift Vol. 12", publisher: "Drift Magazine", quantity: 4 },
-      { title: "MacGuffin #14", publisher: "MacGuffin Magazine", quantity: 1 },
-    ],
-  },
-  "4": {
-    orderNumber: "0049",
-    createdAt: "2025-01-14T14:20:00Z",
-    retailerName: "Skylight Books",
-    shippingAddress: {
-      street: "1818 N Vermont Ave",
-      city: "Los Angeles",
-      state: "CA",
-      zip: "90027",
-    },
-    items: [
-      { title: "Offscreen Magazine #23", publisher: "Offscreen Magazine", quantity: 3 },
-    ],
-  },
-  "5": {
-    orderNumber: "0048",
-    createdAt: "2025-01-14T11:00:00Z",
-    retailerName: "The Strand",
-    shippingAddress: {
-      street: "828 Broadway",
-      city: "New York",
-      state: "NY",
-      zip: "10003",
-    },
-    items: [
-      { title: "Eye on Design Issue 8", publisher: "AIGA", quantity: 4 },
-      { title: "Works That Work #9", publisher: "Works That Work", quantity: 2 },
-    ],
-  },
-  "6": {
-    orderNumber: "0047",
-    createdAt: "2025-01-13T15:30:00Z",
-    retailerName: "Rare Device",
-    shippingAddress: {
-      street: "600 Divisadero St",
-      city: "San Francisco",
-      state: "CA",
-      zip: "94117",
-    },
-    items: [
-      { title: "Hole & Corner Issue 18", publisher: "Hole & Corner", quantity: 2 },
-    ],
-  },
-  "7": {
-    orderNumber: "0046",
-    createdAt: "2025-01-13T10:15:00Z",
-    retailerName: "Mast Books",
-    shippingAddress: {
-      street: "72 Ave A",
-      city: "New York",
-      state: "NY",
-      zip: "10009",
-    },
-    items: [
-      { title: "Apartamento #28", publisher: "Apartamento Publishing", quantity: 3 },
-    ],
-  },
-};
 
 export const PrintSlipsPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [orders, setOrders] = useState<PackingSlipOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Parse order IDs from query params
   const orderIds = useMemo(() => {
@@ -122,12 +20,93 @@ export const PrintSlipsPage = () => {
     return ordersParam.split(",").filter(Boolean);
   }, [searchParams]);
 
-  // Get orders data
-  const orders = useMemo(() => {
-    return orderIds
-      .map((id) => mockOrderData[id])
-      .filter(Boolean);
+  const fetchOrders = useCallback(async () => {
+    if (orderIds.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          quantity,
+          created_at,
+          shipping_address,
+          retailers (
+            shop_name,
+            address,
+            city,
+            state,
+            postal_code,
+            country
+          ),
+          magazines (
+            title,
+            publishers (
+              company_name
+            )
+          )
+        `)
+        .in('id', orderIds);
+
+      if (fetchError) throw fetchError;
+
+      const transformed: PackingSlipOrder[] = (data || []).map((order: any) => {
+        // Parse shipping address: try to use structured retailer data if no shipping_address
+        let shippingAddress = {
+          street: '',
+          city: '',
+          state: '',
+          zip: '',
+        };
+
+        if (order.shipping_address) {
+          // If shipping_address is a single string, split by newlines/commas
+          const parts = order.shipping_address.split(/[,\n]+/).map((s: string) => s.trim());
+          shippingAddress = {
+            street: parts[0] || '',
+            city: parts[1] || '',
+            state: parts[2] || '',
+            zip: parts[3] || '',
+          };
+        } else if (order.retailers) {
+          shippingAddress = {
+            street: order.retailers.address || '',
+            city: order.retailers.city || '',
+            state: order.retailers.state || '',
+            zip: order.retailers.postal_code || '',
+          };
+        }
+
+        return {
+          orderNumber: order.id.slice(0, 8).toUpperCase(),
+          createdAt: order.created_at || new Date().toISOString(),
+          retailerName: order.retailers?.shop_name || 'Unknown Retailer',
+          shippingAddress,
+          items: [{
+            title: order.magazines?.title || 'Unknown Magazine',
+            publisher: order.magazines?.publishers?.company_name || 'Unknown Publisher',
+            quantity: order.quantity || 1,
+          }],
+        };
+      });
+
+      setOrders(transformed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch orders');
+    } finally {
+      setIsLoading(false);
+    }
   }, [orderIds]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // Inject print styles on mount
   useEffect(() => {
@@ -148,11 +127,37 @@ export const PrintSlipsPage = () => {
     window.print();
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-muted-foreground" />
+          <p className="text-body text-muted-foreground">Loading packing slips...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-10 h-10 text-status-error-text mx-auto mb-3" />
+          <h3 className="font-display font-semibold text-heading text-foreground mb-1">Failed to load orders</h3>
+          <p className="text-body text-muted-foreground mb-4">{error}</p>
+          <ButtonSecondary onClick={() => navigate("/admin/fulfillment")}>Back to Fulfillment</ButtonSecondary>
+        </div>
+      </div>
+    );
+  }
+
   if (orders.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-lg text-muted-foreground mb-4">No orders found to print</p>
+          <Printer className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+          <h3 className="font-display font-semibold text-heading text-foreground mb-1">No orders found to print</h3>
+          <p className="text-body text-muted-foreground mb-4">The requested orders could not be found.</p>
           <ButtonSecondary onClick={() => navigate("/admin/fulfillment")}>
             Back to Fulfillment
           </ButtonSecondary>

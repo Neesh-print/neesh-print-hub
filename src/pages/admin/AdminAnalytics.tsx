@@ -1,75 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { BarChart3, Loader2, AlertCircle } from "lucide-react";
 import { AdminLayout, StatCard, DateRangePicker } from "@/components/admin";
-import { BackNavigation, DataTable } from "@/components/neesh";
+import { BackNavigation, DataTable, ButtonSecondary } from "@/components/neesh";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { format, eachDayOfInterval, startOfDay } from "date-fns";
 
-// Mock data
-const revenueData = [
-  { date: "Jan 1", revenue: 1200, orders: 12 },
-  { date: "Jan 2", revenue: 1800, orders: 18 },
-  { date: "Jan 3", revenue: 1400, orders: 14 },
-  { date: "Jan 4", revenue: 2200, orders: 22 },
-  { date: "Jan 5", revenue: 2800, orders: 28 },
-  { date: "Jan 6", revenue: 2400, orders: 24 },
-  { date: "Jan 7", revenue: 3200, orders: 32 },
-  { date: "Jan 8", revenue: 2900, orders: 29 },
-  { date: "Jan 9", revenue: 3100, orders: 31 },
-  { date: "Jan 10", revenue: 2600, orders: 26 },
-  { date: "Jan 11", revenue: 3400, orders: 34 },
-  { date: "Jan 12", revenue: 3800, orders: 38 },
-  { date: "Jan 13", revenue: 3200, orders: 32 },
-  { date: "Jan 14", revenue: 4100, orders: 41 },
-  { date: "Jan 15", revenue: 4500, orders: 45 },
-  { date: "Jan 16", revenue: 4850, orders: 48 },
-];
+interface OrderData {
+  id: string;
+  total_price: number;
+  created_at: string;
+  status: string;
+  retailer_id: string;
+  magazine_id: string;
+  quantity: number;
+}
 
-const topPublishers = [
-  { id: "1", rank: 1, name: "Kinfolk Magazine", revenue: 12450.00, orders: 124, percentage: 25.6 },
-  { id: "2", rank: 2, name: "Monocle", revenue: 9820.00, orders: 98, percentage: 20.2 },
-  { id: "3", rank: 3, name: "Cereal Magazine", revenue: 7650.00, orders: 76, percentage: 15.7 },
-  { id: "4", rank: 4, name: "The Gourmand", revenue: 5430.00, orders: 54, percentage: 11.2 },
-  { id: "5", rank: 5, name: "Apartamento", revenue: 4120.00, orders: 41, percentage: 8.5 },
-  { id: "6", rank: 6, name: "Drift Magazine", revenue: 3210.00, orders: 32, percentage: 6.6 },
-  { id: "7", rank: 7, name: "MacGuffin Magazine", revenue: 2140.00, orders: 21, percentage: 4.4 },
-  { id: "8", rank: 8, name: "Offscreen Magazine", revenue: 1680.00, orders: 17, percentage: 3.5 },
-  { id: "9", rank: 9, name: "Perdiz Magazine", revenue: 1120.00, orders: 11, percentage: 2.3 },
-  { id: "10", rank: 10, name: "Works That Work", revenue: 980.00, orders: 10, percentage: 2.0 },
-];
+interface PublisherRevenue {
+  id: string;
+  name: string;
+  revenue: number;
+  orders: number;
+  percentage: number;
+  [key: string]: unknown;
+}
 
-const topMagazines = [
-  { id: "1", rank: 1, title: "Kinfolk Issue 50", publisher: "Kinfolk Magazine", unitsSold: 342, revenue: 6156.00 },
-  { id: "2", rank: 2, title: "Monocle Issue 178", publisher: "Monocle", unitsSold: 289, revenue: 5780.00 },
-  { id: "3", rank: 3, title: "Cereal Vol. 22", publisher: "Cereal Magazine", unitsSold: 256, revenue: 4608.00 },
-  { id: "4", rank: 4, title: "Kinfolk Issue 49", publisher: "Kinfolk Magazine", unitsSold: 234, revenue: 4212.00 },
-  { id: "5", rank: 5, title: "The Gourmand Issue 18", publisher: "The Gourmand", unitsSold: 198, revenue: 3564.00 },
-  { id: "6", rank: 6, title: "Apartamento Issue 31", publisher: "Apartamento", unitsSold: 176, revenue: 3168.00 },
-  { id: "7", rank: 7, title: "Drift Vol. 15", publisher: "Drift Magazine", unitsSold: 154, revenue: 2772.00 },
-  { id: "8", rank: 8, title: "Monocle Issue 177", publisher: "Monocle", unitsSold: 143, revenue: 2860.00 },
-  { id: "9", rank: 9, title: "MacGuffin Issue 10", publisher: "MacGuffin Magazine", unitsSold: 121, revenue: 2178.00 },
-  { id: "10", rank: 10, title: "Cereal Vol. 21", publisher: "Cereal Magazine", unitsSold: 108, revenue: 1944.00 },
-];
-
-const geographicData = [
-  { id: "1", region: "California", orders: 156, revenue: 14580.00, percentage: 22.4 },
-  { id: "2", region: "New York", orders: 142, revenue: 13420.00, percentage: 20.6 },
-  { id: "3", region: "Oregon", orders: 98, revenue: 9120.00, percentage: 14.0 },
-  { id: "4", region: "Illinois", orders: 67, revenue: 6230.00, percentage: 9.6 },
-  { id: "5", region: "Washington", orders: 54, revenue: 5040.00, percentage: 7.7 },
-  { id: "6", region: "Texas", orders: 45, revenue: 4180.00, percentage: 6.4 },
-  { id: "7", region: "Massachusetts", orders: 38, revenue: 3520.00, percentage: 5.4 },
-  { id: "8", region: "Colorado", orders: 32, revenue: 2980.00, percentage: 4.6 },
-  { id: "9", region: "Other", orders: 63, revenue: 5930.00, percentage: 9.3 },
-];
-
-const storeTypeData = [
-  { type: "Independent Bookstore", orders: 312, percentage: 45 },
-  { type: "Boutique", orders: 142, percentage: 20 },
-  { type: "Coffee Shop", orders: 98, percentage: 14 },
-  { type: "Record Store", orders: 76, percentage: 11 },
-  { type: "Museum Shop", orders: 45, percentage: 7 },
-  { type: "Other", orders: 22, percentage: 3 },
-];
+interface MagazineRevenue {
+  id: string;
+  title: string;
+  publisher: string;
+  unitsSold: number;
+  revenue: number;
+  [key: string]: unknown;
+}
 
 export const AdminAnalytics = () => {
   const navigate = useNavigate();
@@ -77,15 +41,147 @@ export const AdminAnalytics = () => {
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     end: new Date(),
   });
-  const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [publishers, setPublishers] = useState<Record<string, string>>({});
+  const [magazines, setMagazines] = useState<Record<string, { title: string; publisher_id: string }>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const grossRevenue = 48600;
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Fetch orders in date range
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('id, total_price, created_at, status, retailer_id, magazine_id, quantity')
+        .gte('created_at', dateRange.start.toISOString())
+        .lte('created_at', dateRange.end.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (orderError) throw orderError;
+      setOrders(orderData || []);
+
+      // Fetch publishers
+      const { data: pubData } = await supabase
+        .from('publishers')
+        .select('id, company_name');
+
+      const pubMap: Record<string, string> = {};
+      (pubData || []).forEach((p: any) => {
+        pubMap[p.id] = p.company_name || 'Unknown';
+      });
+      setPublishers(pubMap);
+
+      // Fetch magazines
+      const { data: magData } = await supabase
+        .from('magazines')
+        .select('id, title, publisher_id');
+
+      const magMap: Record<string, { title: string; publisher_id: string }> = {};
+      (magData || []).forEach((m: any) => {
+        magMap[m.id] = { title: m.title, publisher_id: m.publisher_id };
+      });
+      setMagazines(magMap);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateRange.start, dateRange.end]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Compute metrics
+  const grossRevenue = useMemo(() => orders.reduce((sum, o) => sum + Number(o.total_price || 0), 0), [orders]);
   const neeshCommission = grossRevenue * 0.1;
-  const totalOrders = 486;
-  const avgOrderValue = grossRevenue / totalOrders;
+  const totalOrders = orders.length;
+  const avgOrderValue = totalOrders > 0 ? grossRevenue / totalOrders : 0;
+
+  // Revenue over time chart data
+  const revenueChartData = useMemo(() => {
+    if (orders.length === 0) return [];
+
+    const days = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
+    const dayMap: Record<string, { revenue: number; orders: number }> = {};
+
+    days.forEach(day => {
+      const key = format(day, "MMM d");
+      dayMap[key] = { revenue: 0, orders: 0 };
+    });
+
+    orders.forEach(order => {
+      const key = format(new Date(order.created_at), "MMM d");
+      if (dayMap[key]) {
+        dayMap[key].revenue += Number(order.total_price || 0);
+        dayMap[key].orders += 1;
+      }
+    });
+
+    return Object.entries(dayMap).map(([date, data]) => ({
+      date,
+      revenue: Math.round(data.revenue * 100) / 100,
+      orders: data.orders,
+    }));
+  }, [orders, dateRange]);
+
+  // Top publishers
+  const topPublishers = useMemo((): PublisherRevenue[] => {
+    const pubRevenue: Record<string, { revenue: number; orders: number }> = {};
+
+    orders.forEach(order => {
+      const mag = magazines[order.magazine_id];
+      if (mag) {
+        const pubId = mag.publisher_id;
+        if (!pubRevenue[pubId]) pubRevenue[pubId] = { revenue: 0, orders: 0 };
+        pubRevenue[pubId].revenue += Number(order.total_price || 0);
+        pubRevenue[pubId].orders += 1;
+      }
+    });
+
+    return Object.entries(pubRevenue)
+      .map(([id, data]) => ({
+        id,
+        name: publishers[id] || 'Unknown',
+        revenue: Math.round(data.revenue * 100) / 100,
+        orders: data.orders,
+        percentage: grossRevenue > 0 ? Math.round((data.revenue / grossRevenue) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+  }, [orders, magazines, publishers, grossRevenue]);
+
+  // Top magazines
+  const topMagazines = useMemo((): MagazineRevenue[] => {
+    const magRevenue: Record<string, { revenue: number; units: number; publisher_id: string }> = {};
+
+    orders.forEach(order => {
+      const magId = order.magazine_id;
+      const mag = magazines[magId];
+      if (mag) {
+        if (!magRevenue[magId]) magRevenue[magId] = { revenue: 0, units: 0, publisher_id: mag.publisher_id };
+        magRevenue[magId].revenue += Number(order.total_price || 0);
+        magRevenue[magId].units += order.quantity;
+      }
+    });
+
+    return Object.entries(magRevenue)
+      .map(([id, data]) => ({
+        id,
+        title: magazines[id]?.title || 'Unknown',
+        publisher: publishers[data.publisher_id] || 'Unknown',
+        unitsSold: data.units,
+        revenue: Math.round(data.revenue * 100) / 100,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+  }, [orders, magazines, publishers]);
 
   const publisherColumns = [
-    { key: "rank", header: "#", align: "center" as const },
     { key: "name", header: "Publisher" },
     { key: "revenue", header: "Revenue", align: "right" as const, render: (v: unknown) => `$${(v as number).toLocaleString()}` },
     { key: "orders", header: "Orders", align: "center" as const },
@@ -93,19 +189,29 @@ export const AdminAnalytics = () => {
   ];
 
   const magazineColumns = [
-    { key: "rank", header: "#", align: "center" as const },
     { key: "title", header: "Magazine" },
     { key: "publisher", header: "Publisher" },
     { key: "unitsSold", header: "Units", align: "center" as const },
     { key: "revenue", header: "Revenue", align: "right" as const, render: (v: unknown) => `$${(v as number).toLocaleString()}` },
   ];
 
-  const geoColumns = [
-    { key: "region", header: "Region" },
-    { key: "orders", header: "Orders", align: "center" as const },
-    { key: "revenue", header: "Revenue", align: "right" as const, render: (v: unknown) => `$${(v as number).toLocaleString()}` },
-    { key: "percentage", header: "% of Total", align: "right" as const, render: (v: unknown) => `${v}%` },
-  ];
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="px-4 md:px-6">
+          <BackNavigation title="Analytics" onBack={() => navigate("/admin")} />
+        </div>
+        <div className="px-4 md:px-6 pb-8">
+          <div className="card-neesh flex flex-col items-center justify-center py-12">
+            <AlertCircle className="w-10 h-10 text-status-error-text mb-3" />
+            <h3 className="font-display font-semibold text-heading text-foreground mb-1">Failed to load analytics</h3>
+            <p className="text-body text-muted-foreground mb-4">{error}</p>
+            <ButtonSecondary onClick={fetchData}>Try Again</ButtonSecondary>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -120,150 +226,117 @@ export const AdminAnalytics = () => {
         </div>
       </div>
 
-      {/* Top Metrics */}
-      <div className="px-4 md:px-6 pb-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="Gross Revenue"
-            value={`$${grossRevenue.toLocaleString()}`}
-            trend={{ value: 12.5, direction: 'up' }}
-          />
-          <StatCard
-            label="Neesh Commission"
-            value={`$${neeshCommission.toLocaleString()}`}
-            subtitle="10% of revenue"
-            highlight="success"
-          />
-          <StatCard
-            label="Total Orders"
-            value={totalOrders}
-            trend={{ value: 8.2, direction: 'up' }}
-          />
-          <StatCard
-            label="Avg Order Value"
-            value={`$${avgOrderValue.toFixed(2)}`}
-            trend={{ value: 3.1, direction: 'up' }}
-          />
+      {isLoading ? (
+        <div className="px-4 md:px-6 pb-8 flex items-center justify-center py-20">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-muted-foreground" />
+            <p className="text-body text-muted-foreground">Loading analytics...</p>
+          </div>
         </div>
-      </div>
-
-      {/* Revenue Chart */}
-      <div className="px-4 md:px-6 pb-6">
-        <div className="card-neesh">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-semibold text-heading text-foreground">Revenue Over Time</h3>
-            <div className="flex gap-1">
-              {(['daily', 'weekly', 'monthly'] as const).map((view) => (
-                <button
-                  key={view}
-                  onClick={() => setChartView(view)}
-                  className={`px-3 py-1 rounded text-caption font-medium capitalize ${
-                    chartView === view
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {view}
-                </button>
-              ))}
+      ) : (
+        <>
+          {/* Top Metrics */}
+          <div className="px-4 md:px-6 pb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard
+                label="Gross Revenue"
+                value={`$${grossRevenue.toLocaleString()}`}
+              />
+              <StatCard
+                label="Neesh Commission"
+                value={`$${neeshCommission.toLocaleString()}`}
+                subtitle="10% of revenue"
+                highlight="success"
+              />
+              <StatCard
+                label="Total Orders"
+                value={totalOrders}
+              />
+              <StatCard
+                label="Avg Order Value"
+                value={`$${avgOrderValue.toFixed(2)}`}
+              />
             </div>
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={revenueData}>
-                <XAxis dataKey="date" axisLine={false} tickLine={false} className="text-caption" />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-                  className="text-caption"
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: "hsl(var(--card))", 
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px"
-                  }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--chart-purple))" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
 
-      {/* Top Publishers & Magazines */}
-      <div className="px-4 md:px-6 pb-6">
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="card-neesh">
-            <h3 className="font-display font-semibold text-heading text-foreground mb-4">Top Publishers</h3>
-            <DataTable
-              columns={publisherColumns}
-              data={topPublishers as unknown as Record<string, unknown>[]}
-            />
-          </div>
-          <div className="card-neesh">
-            <h3 className="font-display font-semibold text-heading text-foreground mb-4">Top Magazines</h3>
-            <DataTable
-              columns={magazineColumns}
-              data={topMagazines as unknown as Record<string, unknown>[]}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Geographic & Store Type */}
-      <div className="px-4 md:px-6 pb-8">
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div className="card-neesh">
-            <h3 className="font-display font-semibold text-heading text-foreground mb-4">Geographic Distribution</h3>
-            <DataTable
-              columns={geoColumns}
-              data={geographicData as unknown as Record<string, unknown>[]}
-            />
-          </div>
-          <div className="card-neesh">
-            <h3 className="font-display font-semibold text-heading text-foreground mb-4">Orders by Store Type</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={storeTypeData} layout="vertical">
-                  <XAxis type="number" axisLine={false} tickLine={false} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="type" 
-                    axisLine={false} 
-                    tickLine={false}
-                    width={120}
-                    className="text-caption"
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "hsl(var(--card))", 
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px"
-                    }}
-                    formatter={(value: number) => [value, "Orders"]}
-                  />
-                  <Bar 
-                    dataKey="orders" 
-                    fill="hsl(var(--chart-purple))" 
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+          {/* Revenue Chart */}
+          <div className="px-4 md:px-6 pb-6">
+            <div className="card-neesh">
+              <h3 className="font-display font-semibold text-heading text-foreground mb-4">Revenue Over Time</h3>
+              {revenueChartData.length > 0 ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={revenueChartData}>
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} className="text-caption" />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                        className="text-caption"
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px"
+                        }}
+                        formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="hsl(var(--chart-purple))"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-center">
+                    <BarChart3 className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                    <p className="text-caption text-muted-foreground">No revenue data for this period</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
+
+          {/* Top Publishers & Magazines */}
+          <div className="px-4 md:px-6 pb-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div className="card-neesh">
+                <h3 className="font-display font-semibold text-heading text-foreground mb-4">Top Publishers</h3>
+                {topPublishers.length > 0 ? (
+                  <DataTable
+                    columns={publisherColumns}
+                    data={topPublishers as unknown as Record<string, unknown>[]}
+                  />
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-caption text-muted-foreground">No publisher data for this period</p>
+                  </div>
+                )}
+              </div>
+              <div className="card-neesh">
+                <h3 className="font-display font-semibold text-heading text-foreground mb-4">Top Magazines</h3>
+                {topMagazines.length > 0 ? (
+                  <DataTable
+                    columns={magazineColumns}
+                    data={topMagazines as unknown as Record<string, unknown>[]}
+                  />
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-caption text-muted-foreground">No magazine data for this period</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </AdminLayout>
   );
 };
