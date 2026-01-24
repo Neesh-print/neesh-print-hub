@@ -203,16 +203,16 @@ Deno.serve(async (req) => {
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
+      // Try to update existing publisher, or create new one
       const { error: updateError } = await supabaseAdmin
         .from('publishers')
         .update({
-          application_status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
           company_name: application.business_name || application.magazine_title,
           description: application.description,
           website_url: application.social_website_link,
           instagram_handle: application.instagram_handle?.replace('@', ''),
+          verified: true,
+          verified_at: new Date().toISOString(),
         })
         .eq('user_id', userId)
 
@@ -226,9 +226,8 @@ Deno.serve(async (req) => {
             description: application.description,
             website_url: application.social_website_link,
             instagram_handle: application.instagram_handle?.replace('@', ''),
-            application_status: 'approved',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: user.id,
+            verified: true,
+            verified_at: new Date().toISOString(),
           })
 
         if (insertError && insertError.code !== '23505') {
@@ -242,7 +241,7 @@ Deno.serve(async (req) => {
         .from('retailers')
         .upsert({
           user_id: userId,
-          shop_name: application.shop_name,
+          shop_name: application.shop_name || application.buyer_name,
           shop_url: application.shop_url,
           address: application.shop_address,
           city: application.city,
@@ -251,6 +250,8 @@ Deno.serve(async (req) => {
           country: application.country,
           phone: application.phone,
           instagram_handle: application.instagram_handle,
+          verified: true,
+          verified_at: new Date().toISOString(),
         }, {
           onConflict: 'user_id',
         })
