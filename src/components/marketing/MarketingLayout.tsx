@@ -4,6 +4,8 @@ import { Menu, X } from 'lucide-react';
 import { Logo } from '@/components/neesh/Logo';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 
+import { useAuth } from '@/hooks/useAuth';
+
 interface MarketingLayoutProps {
   children: ReactNode;
 }
@@ -20,6 +22,7 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState('');
   const location = useLocation();
+  const { user, userRole } = useAuth();
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,12 +55,21 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                to="/login"
-                className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
-              >
-                Log In
-              </Link>
+              {user ? (
+                <Link
+                  to={userRole === 'publisher' ? '/publisher' : userRole === 'retailer' ? '/retailer' : userRole === 'admin' ? '/admin' : '/'}
+                  className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
+                >
+                  Log In
+                </Link>
+              )}
             </nav>
 
             {/* Mobile Menu Button */}
@@ -91,13 +103,23 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
-              >
-                Log In
-              </Link>
+              {user ? (
+                <Link
+                  to={userRole === 'publisher' ? '/publisher' : userRole === 'retailer' ? '/retailer' : userRole === 'admin' ? '/admin' : '/'}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
+                >
+                  Log In
+                </Link>
+              )}
             </nav>
           </div>
         )}

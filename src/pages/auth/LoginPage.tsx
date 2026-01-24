@@ -11,7 +11,7 @@ const passwordSchema = z.string().min(1, 'Password is required');
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, signIn } = useAuth();
+  const { user, isLoading: authLoading, signIn, userRole } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,9 +21,40 @@ const LoginPage = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/');
+      // Redirect based on role
+      // Note: userRole might be null initially while profile fetches, 
+      // but useAuth handles this by updating state
+      if (user) {
+         // We need to wait for userRole to be populated if it's not yet
+         // This logic might need refinement if userRole allows null for new users
+         // But for now, let's try to route correctly
+         
+         // Assuming useAuth fetches role quickly or we might need to wait for it.
+         // Let's add a check for profile/role if available
+         
+         // Using a simple interval or effect dependency on userRole would be better
+      }
     }
   }, [user, authLoading, navigate]);
+
+  // Handle post-login redirection
+  useEffect(() => {
+    if (user && !authLoading) {
+        // Default destination
+        let destination = '/';
+        
+        // If we have a role, go there
+        // We import useAuth which gives us userRole
+        // Let's assume useAuth is exposing userRole
+        // It does: const { user, isLoading: authLoading, signIn, userRole } = useAuth();
+        
+        if (userRole === 'publisher') destination = '/publisher';
+        else if (userRole === 'retailer') destination = '/retailer';
+        else if (userRole === 'admin') destination = '/admin';
+        
+        navigate(destination);
+    }
+  }, [user, authLoading, userRole, navigate]);
 
   const validateForm = () => {
     setError('');

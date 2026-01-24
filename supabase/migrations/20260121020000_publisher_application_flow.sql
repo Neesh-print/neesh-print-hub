@@ -240,8 +240,10 @@ COMMENT ON COLUMN public.publishers.application_data IS 'Partial form data saved
 -- =============================================================
 
 -- Add access_token for secure anonymous resumption
+-- Add access_token for secure anonymous resumption and submitted_at logging
 ALTER TABLE public.publisher_applications
-ADD COLUMN IF NOT EXISTS access_token UUID DEFAULT gen_random_uuid();
+ADD COLUMN IF NOT EXISTS access_token UUID DEFAULT gen_random_uuid(),
+ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
 
 -- Secure RPC to create application and return token (bypasses RLS)
 CREATE OR REPLACE FUNCTION public.create_publisher_application(
@@ -293,29 +295,29 @@ AS $$
 BEGIN
   UPDATE public.publisher_applications
   SET
-    first_name = COALESCE((p_data->>'firstName')::text, first_name),
-    last_name = COALESCE((p_data->>'lastName')::text, last_name),
+    first_name = COALESCE(NULLIF((p_data->>'firstName')::text, ''), first_name),
+    last_name = COALESCE(NULLIF((p_data->>'lastName')::text, ''), last_name),
     email = COALESCE(NULLIF((p_data->>'email')::text, ''), email),
-    business_name = COALESCE((p_data->>'businessName')::text, business_name),
-    magazine_title = COALESCE((p_data->>'magazineTitle')::text, magazine_title),
-    cover_image_url = COALESCE((p_data->>'coverImageUrl')::text, cover_image_url),
-    description = COALESCE((p_data->>'description')::text, description),
-    social_website_link = COALESCE((p_data->>'websiteUrl')::text, social_website_link),
-    instagram_handle = COALESCE((p_data->>'instagramHandle')::text, instagram_handle),
-    shipping_country = COALESCE((p_data->>'shippingCountry')::text, shipping_country),
-    shipping_city = COALESCE((p_data->>'shippingCity')::text, shipping_city),
-    issue_frequency = COALESCE((p_data->>'issueFrequency')::text, issue_frequency),
-    publication_type = COALESCE((p_data->>'publicationType')::text, publication_type),
+    business_name = COALESCE(NULLIF((p_data->>'businessName')::text, ''), business_name),
+    magazine_title = COALESCE(NULLIF((p_data->>'magazineTitle')::text, ''), magazine_title),
+    cover_image_url = COALESCE(NULLIF((p_data->>'coverImageUrl')::text, ''), cover_image_url),
+    description = COALESCE(NULLIF((p_data->>'description')::text, ''), description),
+    social_website_link = COALESCE(NULLIF((p_data->>'websiteUrl')::text, ''), social_website_link),
+    instagram_handle = COALESCE(NULLIF((p_data->>'instagramHandle')::text, ''), instagram_handle),
+    shipping_country = COALESCE(NULLIF((p_data->>'shippingCountry')::text, ''), shipping_country),
+    shipping_city = COALESCE(NULLIF((p_data->>'shippingCity')::text, ''), shipping_city),
+    issue_frequency = COALESCE(NULLIF((p_data->>'issueFrequency')::text, ''), issue_frequency),
+    publication_type = COALESCE(NULLIF((p_data->>'publicationType')::text, ''), publication_type),
     distribution_channels = (CASE 
       WHEN p_data ? 'regionsCurrentlySold' AND jsonb_typeof(p_data->'regionsCurrentlySold') = 'array' THEN 
         COALESCE((SELECT array_agg(x) FROM jsonb_array_elements_text(p_data->'regionsCurrentlySold') t(x)), '{}'::text[])
       ELSE distribution_channels 
     END),
-    fulfillment_method = COALESCE((p_data->>'fulfillmentMethod')::text, fulfillment_method),
-    quotes_feedback = COALESCE((p_data->>'cloudLink')::text, quotes_feedback),
+    fulfillment_method = COALESCE(NULLIF((p_data->>'fulfillmentMethod')::text, ''), fulfillment_method),
+    quotes_feedback = COALESCE(NULLIF((p_data->>'cloudLink')::text, ''), quotes_feedback),
     additional_info = COALESCE(p_data, additional_info),
     -- Handle status update if provided (submission)
-    status = COALESCE((p_data->>'status')::publisher_application_status, status),
+    status = COALESCE(p_data->>'status', status),
     submitted_at = (CASE WHEN (p_data->>'status') = 'submitted' THEN NOW() ELSE submitted_at END)
   WHERE id = p_id AND access_token = p_token;
 
