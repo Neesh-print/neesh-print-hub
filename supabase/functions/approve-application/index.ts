@@ -136,24 +136,41 @@ Deno.serve(async (req) => {
       })
 
       if (authUserError) {
-        console.error('Error creating auth user:', authUserError)
-        return new Response(
-          JSON.stringify({ error: `Failed to create account: ${authUserError.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        // Check if user already exists (422 error)
+        if (authUserError.message?.includes('already') || authUserError.status === 422) {
+          console.log('User already exists, looking up by email...')
+          // Look up existing user by email
+          const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+          if (!listError && existingUsers) {
+            const existingUser = existingUsers.users.find(u => u.email === email)
+            if (existingUser) {
+              userId = existingUser.id
+              console.log(`Found existing user with ID: ${userId}`)
+            }
+          }
+          
+          if (!userId) {
+            console.error('Could not find existing user:', email)
+            return new Response(
+              JSON.stringify({ error: 'User exists but could not be found' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        } else {
+          console.error('Error creating auth user:', authUserError)
+          return new Response(
+            JSON.stringify({ error: `Failed to create account: ${authUserError.message}` }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      } else if (authData?.user) {
+        userId = authData.user.id
+        console.log(`Created auth user with ID: ${userId}`)
       }
 
-      if (!authData.user) {
-        return new Response(
-          JSON.stringify({ error: 'Failed to create user account' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      userId = authData.user.id
-      console.log(`Created auth user with ID: ${userId}`)
-
-      // Step 2: Create user record
+      // Only create user/profile records if we just created a new auth user
+      if (!application.user_id) {
+        // Step 2: Create user record
       const { error: userInsertError } = await supabaseAdmin
         .from('users')
         .insert({
@@ -199,7 +216,8 @@ Deno.serve(async (req) => {
       } catch (emailError) {
         console.error('Error with magic link:', emailError)
       }
-    }
+      } // end if (!application.user_id)
+    } // end if (!userId)
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
