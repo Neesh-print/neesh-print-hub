@@ -564,6 +564,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orders_magazine_id_fkey"
+            columns: ["magazine_id"]
+            isOneToOne: false
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["magazine_id"]
+          },
+          {
             foreignKeyName: "orders_retailer_id_fkey"
             columns: ["retailer_id"]
             isOneToOne: false
@@ -826,6 +833,7 @@ export type Database = {
           social_website_link: string | null
           specs: string | null
           status: string
+          submitted_at: string | null
           suggested_retail_price: number | null
           updated_at: string
           user_id: string | null
@@ -872,6 +880,7 @@ export type Database = {
           social_website_link?: string | null
           specs?: string | null
           status?: string
+          submitted_at?: string | null
           suggested_retail_price?: number | null
           updated_at?: string
           user_id?: string | null
@@ -918,6 +927,7 @@ export type Database = {
           social_website_link?: string | null
           specs?: string | null
           status?: string
+          submitted_at?: string | null
           suggested_retail_price?: number | null
           updated_at?: string
           user_id?: string | null
@@ -1309,7 +1319,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      order_details_with_pricing: {
+        Row: {
+          cover_image_url: string | null
+          created_at: string | null
+          id: string | null
+          magazine_id: string | null
+          magazine_title: string | null
+          publisher_email: string | null
+          publisher_id: string | null
+          publisher_name: string | null
+          quantity: number | null
+          retailer_email: string | null
+          retailer_id: string | null
+          retailer_shop_name: string | null
+          status: string | null
+          total_price: number | null
+          unit_price: number | null
+          wholesale_price: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "magazines_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_retailer_id_fkey"
+            columns: ["retailer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       bytea_to_text: { Args: { data: string }; Returns: string }
