@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Bookmark } from "lucide-react";
+import { PriceDisplay } from "@/components/ui/price-display";
 
 const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
 
@@ -10,7 +11,9 @@ export interface MagazineCardProps {
   title: string;
   publisher: string;
   region?: string;
+  /** Wholesale price in dollars */
   price: number;
+  /** Suggested retail price in dollars */
   retailPrice?: number;
   stockStatus?: StockStatus;
   inventoryCount?: number;
@@ -18,7 +21,6 @@ export interface MagazineCardProps {
   onBookmark?: () => void;
   isBookmarked?: boolean;
   showStockIndicator?: boolean;
-  showRetailPrice?: boolean;
 }
 
 const getStockStatus = (inventoryCount: number): StockStatus => {
@@ -57,22 +59,7 @@ export const MagazineCard = ({
   onBookmark,
   isBookmarked = false,
   showStockIndicator = false,
-  showRetailPrice = false,
 }: MagazineCardProps) => {
-  const formattedPrice = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(price);
-
-  const formattedRetailPrice = retailPrice
-    ? new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-      }).format(retailPrice)
-    : null;
-
   // Determine stock status from inventory count if not explicitly provided
   const resolvedStockStatus = stockStatus ?? (inventoryCount !== undefined ? getStockStatus(inventoryCount) : undefined);
   const stockConfig = resolvedStockStatus ? stockStatusConfig[resolvedStockStatus] : null;
@@ -138,7 +125,7 @@ export const MagazineCard = ({
 
       {/* Info */}
       <div className="space-y-1">
-        <h3 className="font-display font-semibold text-body text-foreground line-clamp-1 group-hover:text-accent transition-colors">
+        <h3 className="font-display font-semibold text-body text-foreground line-clamp-2 group-hover:text-accent transition-colors">
           {title}
         </h3>
         
@@ -147,16 +134,14 @@ export const MagazineCard = ({
           {region && <span className="ml-1">· {region}</span>}
         </p>
         
-        <div className="flex items-baseline gap-2">
-          <p className="font-display font-medium text-body text-accent">
-            {formattedPrice} <span className="text-caption text-muted-foreground font-normal">WSP</span>
-          </p>
-          {showRetailPrice && formattedRetailPrice && (
-            <p className="text-caption text-muted-foreground line-through">
-              {formattedRetailPrice}
-            </p>
-          )}
-        </div>
+        <PriceDisplay
+          wholesalePrice={price}
+          retailPrice={retailPrice}
+          layout="inline"
+          size="sm"
+          showMargin={false}
+          showTotal={false}
+        />
       </div>
     </article>
   );
