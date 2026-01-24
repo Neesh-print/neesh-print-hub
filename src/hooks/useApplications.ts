@@ -124,180 +124,25 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
   }, [options.type, options.status]);
 
   const approveApplication = async (id: string, type: 'publisher' | 'retailer'): Promise<boolean> => {
-    const table = type === 'publisher' ? 'publisher_applications' : 'retailer_applications';
-
     try {
-      // Get application data first
-      const { data: applicationData, error: fetchError } = await supabase
-        .from(table)
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Call Edge Function to approve application
+      // This handles user creation securely with the service role key
+      const { data, error } = await supabase.functions.invoke('approve-application', {
+        body: {
+          applicationId: id,
+          type: type,
+          redirectUrl: window.location.origin,
+        },
+      });
 
-      if (fetchError) throw fetchError;
-
-      // Use any type for flexible access to application fields
-      const application = applicationData as any;
-      const email = application.email || application.buyer_email;
-
-      if (!email) {
-        throw new Error('No email found in application');
+      if (error) {
+        console.error('Error approving application:', error);
+        throw new Error(error.message || 'Failed to approve application');
       }
 
-      // Step 1: Create auth user if they don't have one already
-      let userId = application.user_id;
-
-      if (!userId) {
-        // Generate a random password (they'll use magic link to sign in)
-        const randomPassword = crypto.randomUUID();
-
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: email,
-          password: randomPassword,
-          email_confirm: true, // Auto-confirm so they can sign in with magic link
-          user_metadata: {
-            role: type,
-            first_name: application.first_name || application.buyer_name?.split(' ')[0],
-            last_name: application.last_name || application.buyer_name?.split(' ')[1],
-          },
-        });
-
-        if (authError) {
-          console.error('Error creating auth user:', authError);
-          throw new Error(`Failed to create account: ${authError.message}`);
-        }
-
-        if (!authData.user) {
-          throw new Error('Failed to create user account');
-        }
-
-        userId = authData.user.id;
-
-        // Step 2: Create user record in users table
-        const { error: userError } = await supabase
-          .from('users')
-          .insert({
-            id: userId,
-            email: email,
-            username: email.split('@')[0],
-            role: type,
-            password_hash: 'managed_by_supabase_auth',
-          });
-
-        if (userError && userError.code !== '23505') {
-          console.error('Error creating user record:', userError);
-        }
-
-        // Step 3: Create profile record
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: userId,
-            full_name: application.first_name && application.last_name
-              ? `${application.first_name} ${application.last_name}`
-              : application.buyer_name || email.split('@')[0],
-          });
-
-        if (profileError && profileError.code !== '23505') {
-          console.error('Error creating profile:', profileError);
-        }
-
-        // Step 4: Send magic link for sign in
-        try {
-          const { error: magicLinkError } = await supabase.auth.signInWithOtp({
-            email: email,
-            options: {
-              shouldCreateUser: false, // User already exists
-              emailRedirectTo: `${window.location.origin}/${type}`,
-            },
-          });
-
-          if (magicLinkError) {
-            console.error('Error sending magic link:', magicLinkError);
-            // Don't fail the approval if email sending fails
-          }
-        } catch (emailError) {
-          console.error('Error sending welcome email:', emailError);
-          // Continue with approval even if email fails
-        }
+      if (!data.success) {
+        throw new Error(data.error || 'Application approval failed');
       }
-
-      // Step 5: Create/update role-specific record
-      if (type === 'publisher') {
-        // Update existing publisher record or create new one
-        const { error: updatePublisherError } = await supabase
-          .from('publishers')
-          .update({
-            application_status: 'approved',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: user?.id,
-            company_name: application.business_name || application.magazine_title,
-            description: application.description,
-            website_url: application.social_website_link,
-            instagram_handle: application.instagram_handle?.replace('@', ''),
-          })
-          .eq('user_id', userId);
-
-        if (updatePublisherError) {
-          // If publisher record doesn't exist, create it
-          if (updatePublisherError.code === 'PGRST116') {
-            const { error: insertError } = await supabase
-              .from('publishers')
-              .insert({
-                user_id: userId,
-                company_name: application.business_name || application.magazine_title,
-                description: application.description,
-                website_url: application.social_website_link,
-                instagram_handle: application.instagram_handle?.replace('@', ''),
-                application_status: 'approved',
-                reviewed_at: new Date().toISOString(),
-                reviewed_by: user?.id,
-              });
-
-            if (insertError && insertError.code !== '23505') {
-              console.error('Error creating publisher:', insertError);
-            }
-          } else {
-            console.error('Error updating publisher status:', updatePublisherError);
-          }
-        }
-      } else if (type === 'retailer') {
-        // For retailers: Create or update retailer record
-        const { error: upsertError } = await supabase
-          .from('retailers')
-          .upsert({
-            user_id: userId,
-            shop_name: application.shop_name,
-            shop_url: application.shop_url,
-            address: application.shop_address,
-            city: application.city,
-            state: application.state,
-            postal_code: application.postal_code,
-            country: application.country,
-            phone: application.phone,
-            instagram_handle: application.instagram_handle,
-          }, {
-            onConflict: 'user_id',
-          });
-
-        if (upsertError) {
-          console.error('Error creating/updating retailer:', upsertError);
-        }
-      }
-
-      // Step 6: Update application status in the applications table
-      const { error: updateError } = await supabase
-        .from(table)
-        .update({
-          status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id,
-          user_id: userId, // Link the application to the created user
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
 
       await fetchApplications();
       return true;

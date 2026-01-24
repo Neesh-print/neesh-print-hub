@@ -56,38 +56,16 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     setError(null);
 
     try {
-      let query = supabase
-        .from('orders')
-        .select(`
-          id,
-          status,
-          total_price,
-          unit_price,
-          quantity,
-          created_at,
-          updated_at,
-          tracking_number,
-          shipping_address,
-          notes,
-          retailer_id,
-          magazine_id,
-          retailers (
-            id,
-            shop_name,
-            user_id
-          ),
-          magazines (
-            id,
-            title,
-            cover_image_url,
-            publisher_id
-          )
-        `)
+      // Use the order_details_with_pricing view which already joins orders with
+      // retailers, magazines, and publishers correctly
+      // Note: Cast to 'any' since views aren't included in generated types
+      let query = (supabase.from as any)('order_details_with_pricing')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      // Filter by publisher - get orders for magazines owned by this publisher
+      // Filter by publisher
       if (options.publisherId) {
-        query = query.eq('magazines.publisher_id', options.publisherId);
+        query = query.eq('publisher_id', options.publisherId);
       }
 
       if (options.retailerId) {
@@ -112,42 +90,38 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
 
       if (fetchError) throw fetchError;
 
-      // Transform data to match Order interface
+      // Transform view data to match Order interface
+      // The view returns flat fields, not nested objects
       const transformedOrders: Order[] = (data || []).map((item: any, index: number) => ({
         id: item.id,
         order_number: `#${String(index + 1).padStart(4, '0')}`,
         status: item.status,
-        fulfillment_status: item.status, // Using status as fulfillment_status since schema doesn't have separate field
+        fulfillment_status: item.status,
         payment_status: item.status === 'pending' ? 'pending' : 'paid',
         total_amount: Number(item.total_price) || 0,
-        shipping_amount: 0, // Not in current schema
+        shipping_amount: 0,
         created_at: item.created_at,
-        shipped_at: null, // Not in current schema
-        tracking_number: item.tracking_number,
-        carrier: null, // Not in current schema
-        shipping_address: item.shipping_address,
-        retailer: item.retailers ? {
-          id: item.retailers.id,
-          shop_name: item.retailers.shop_name,
-          user_id: item.retailers.user_id,
+        shipped_at: null,
+        tracking_number: null, // Not in view
+        carrier: null,
+        shipping_address: null, // Not in view
+        retailer: item.retailer_id ? {
+          id: item.retailer_id, // View doesn't have retailer.id, use retailer_id
+          shop_name: item.retailer_shop_name,
+          user_id: item.retailer_id,
         } : null,
-        magazine: item.magazines ? {
-          id: item.magazines.id,
-          title: item.magazines.title,
-          cover_image_url: item.magazines.cover_image_url,
-          publisher_id: item.magazines.publisher_id,
+        magazine: item.magazine_id ? {
+          id: item.magazine_id,
+          title: item.magazine_title,
+          cover_image_url: item.cover_image_url,
+          publisher_id: item.publisher_id,
         } : null,
         quantity: item.quantity,
         unit_price: Number(item.unit_price) || 0,
       }));
 
-      // If filtering by publisher, filter out orders without matching magazines
+      // Filter by fulfillment status if specified (not available in view query)
       let filteredOrders = transformedOrders;
-      if (options.publisherId) {
-        filteredOrders = transformedOrders.filter(
-          order => order.magazine?.publisher_id === options.publisherId
-        );
-      }
 
       // Filter by fulfillment status if specified
       if (options.fulfillmentStatus) {

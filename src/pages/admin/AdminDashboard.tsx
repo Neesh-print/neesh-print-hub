@@ -59,17 +59,24 @@ export const AdminDashboard = () => {
   // Fetch publisher and retailer counts
   useEffect(() => {
     const fetchCounts = async () => {
-      const { count: pubCount } = await supabase
+      // Use select with count instead of HEAD request for more reliable results
+      const { data: publishers, error: pubError } = await supabase
         .from('publishers')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('verified', true);
-      setPublisherCount(pubCount || 0);
+      
+      if (!pubError && publishers) {
+        setPublisherCount(publishers.length);
+      }
 
-      const { count: retCount } = await supabase
+      const { data: retailers, error: retError } = await supabase
         .from('retailers')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('verified', true);
-      setRetailerCount(retCount || 0);
+      
+      if (!retError && retailers) {
+        setRetailerCount(retailers.length);
+      }
     };
     fetchCounts();
   }, []);
