@@ -82,11 +82,12 @@ export const PriceDisplay = ({
   const hasWholesale = wholesalePrice !== null && wholesalePrice !== undefined && !isNaN(wholesalePrice);
   const hasRetail = retailPrice !== null && retailPrice !== undefined && !isNaN(retailPrice);
 
-  // Calculate margin
+  // Calculate margin: MSRP - (WSP × 1.20) to account for 20% markup
   const margin = useMemo(() => {
     if (!hasWholesale || !hasRetail) return null;
-    const dollarAmount = retailPrice! - wholesalePrice!;
-    const percentage = retailPrice! > 0 ? ((dollarAmount) / retailPrice!) * 100 : 0;
+    const wspWithMarkup = wholesalePrice! * 1.20;
+    const dollarAmount = retailPrice! - wspWithMarkup;
+    const percentage = retailPrice! > 0 ? (dollarAmount / retailPrice!) * 100 : 0;
     return {
       dollarAmount,
       percentage: Math.round(percentage),

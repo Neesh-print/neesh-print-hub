@@ -279,9 +279,8 @@ export const RetailerTitleDetail = () => {
               <PriceDisplay
                 wholesalePrice={wspPrice}
                 retailPrice={msrpPrice}
-                quantity={quantity}
                 showMargin={true}
-                showTotal={true}
+                showTotal={false}
                 layout="stacked"
                 size="lg"
               />
