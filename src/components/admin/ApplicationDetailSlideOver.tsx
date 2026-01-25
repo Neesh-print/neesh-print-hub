@@ -140,7 +140,7 @@ export const ApplicationDetailSlideOver = ({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={onClose}>
-        <SheetContent side="right" className="w-full sm:max-w-[480px] p-0 flex flex-col">
+        <SheetContent side="right" className="w-full sm:max-w-[480px] p-0 flex flex-col" hideCloseButton>
           {/* Header with navigation */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
@@ -157,27 +157,36 @@ export const ApplicationDetailSlideOver = ({
               </SheetHeader>
             </div>
             
-            {/* Navigation arrows */}
-            {onNavigate && (hasPrev || hasNext) && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onNavigate('prev')}
-                  disabled={!hasPrev}
-                  className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
-                  aria-label="Previous application"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onNavigate('next')}
-                  disabled={!hasNext}
-                  className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
-                  aria-label="Next application"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            )}
+            {/* Navigation arrows and Close */}
+            <div className="flex items-center gap-1">
+              {onNavigate && (hasPrev || hasNext) && (
+                <>
+                  <button
+                    onClick={() => onNavigate('prev')}
+                    disabled={!hasPrev}
+                    className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Previous application"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => onNavigate('next')}
+                    disabled={!hasNext}
+                    className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Next application"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div className="w-px h-4 bg-border mx-1" />
+                </>
+              )}
+              <ButtonSecondary
+                onClick={onClose}
+                className="h-8 px-3 text-xs"
+              >
+                Close
+              </ButtonSecondary>
+            </div>
           </div>
 
           {/* Scrollable content */}
@@ -314,8 +323,47 @@ export const ApplicationDetailSlideOver = ({
                   )}
                   {appData.additional_notes && (
                     <div className="mt-3">
-                      <p className="text-caption text-muted-foreground mb-1">Additional Notes</p>
-                      <p className="text-body">{appData.additional_notes}</p>
+                      <p className="text-caption text-muted-foreground mb-1">Additional Detail</p>
+                      {(() => {
+                        try {
+                          // Try to parse as JSON first
+                          const data = JSON.parse(appData.additional_notes);
+                          // If it parsed but isn't an object, throw to catch block
+                          if (typeof data !== 'object' || data === null) throw new Error('Not an object');
+                          
+                          return (
+                            <div className="space-y-3 pt-1">
+                              {data.storeType && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Store Type</p>
+                                  <p className="text-body text-foreground capitalize">{data.storeType.replace(/_/g, ' ')}</p>
+                                </div>
+                              )}
+                              {data.storeSize && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Store Size</p>
+                                  <p className="text-body text-foreground capitalize">{data.storeSize.replace(/_/g, ' ')}</p>
+                                </div>
+                              )}
+                              {data.yearsInBusiness && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Years in Business</p>
+                                  <p className="text-body text-foreground capitalize">{data.yearsInBusiness.replace(/_/g, ' ')}</p>
+                                </div>
+                              )}
+                              {typeof data.optInUpdates !== 'undefined' && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Opted into Updates</p>
+                                  <p className="text-body text-foreground">{data.optInUpdates ? 'Yes' : 'No'}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        } catch (e) {
+                          // Fallback to plain text
+                          return <p className="text-body">{appData.additional_notes}</p>;
+                        }
+                      })()}
                     </div>
                   )}
                 </InfoCard>

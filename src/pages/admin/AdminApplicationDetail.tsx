@@ -73,7 +73,7 @@ export const AdminApplicationDetail = () => {
           website: pubData.social_website_link,
           instagram: null,
           submittedDate: pubData.created_at ? format(new Date(pubData.created_at), "MMMM d, yyyy") : 'Unknown',
-          status: pubData.status,
+          status: pubData.status || 'submitted',
           location: location || null,
           bio: pubData.description || pubData.descriptive_blurb,
           magazineName: pubData.magazine_title,
@@ -149,7 +149,7 @@ export const AdminApplicationDetail = () => {
 
   const getStatusBanner = () => {
     if (!application) return null;
-    if (application.status === 'pending') {
+    if (application.status === 'pending' || application.status === 'submitted') {
       return (
         <div className="bg-status-pending/20 border border-status-pending text-status-pending-text px-4 py-3 rounded-lg">
           This application is awaiting review
@@ -413,8 +413,46 @@ export const AdminApplicationDetail = () => {
                 )}
 
                 {application.additionalNotes && (
-                  <InfoCard title="Additional Notes">
-                    <p className="text-body text-foreground">{application.additionalNotes}</p>
+                  <InfoCard title="Additional Detail">
+                    {(() => {
+                      try {
+                        // Check if it looks like JSON
+                        if (application.additionalNotes.trim().startsWith('{')) {
+                          const data = JSON.parse(application.additionalNotes);
+                          return (
+                            <div className="space-y-3">
+                              {data.storeType && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Store Type</p>
+                                  <p className="text-body text-foreground capitalize">{data.storeType.replace(/_/g, ' ')}</p>
+                                </div>
+                              )}
+                              {data.storeSize && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Store Size</p>
+                                  <p className="text-body text-foreground capitalize">{data.storeSize}</p>
+                                </div>
+                              )}
+                              {data.yearsInBusiness && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Years in Business</p>
+                                  <p className="text-body text-foreground capitalize">{data.yearsInBusiness.replace(/_/g, ' ')}</p>
+                                </div>
+                              )}
+                              {typeof data.optInUpdates !== 'undefined' && (
+                                <div>
+                                  <p className="text-caption text-muted-foreground">Opted into Updates</p>
+                                  <p className="text-body text-foreground">{data.optInUpdates ? 'Yes' : 'No'}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return <p className="text-body text-foreground">{application.additionalNotes}</p>;
+                      } catch (e) {
+                         return <p className="text-body text-foreground">{application.additionalNotes}</p>;
+                      }
+                    })()}
                   </InfoCard>
                 )}
               </>
@@ -423,7 +461,7 @@ export const AdminApplicationDetail = () => {
         </div>
 
         {/* Action Buttons */}
-        {application.status === 'pending' && (
+        {(application.status === 'pending' || application.status === 'submitted') && (
           <div className="mt-6 flex gap-4 flex-wrap">
             <ButtonPrimary onClick={() => setShowApproveModal(true)} className="bg-status-success hover:bg-status-success/90">
               Approve Application

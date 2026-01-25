@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CartProvider } from "@/components/retailer/CartContext";
 import { WishlistProvider } from "@/components/retailer/WishlistContext";
-import { ErrorBoundary } from "@/components/shared";
+import { ErrorBoundary, ScrollToTop } from "@/components/shared";
 
 // Auth pages
 import {
@@ -562,6 +562,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ScrollToTop />
             <AppRoutes />
           </BrowserRouter>
         </ErrorBoundary>

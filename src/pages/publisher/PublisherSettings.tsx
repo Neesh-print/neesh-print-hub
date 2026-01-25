@@ -1,15 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, FormInput, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary, FormTextarea } from "@/components/neesh";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 export const PublisherSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { publisher, isLoading, updateProfile } = usePublisherProfile();
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    company_name: "",
+    description: "",
+    website_url: "",
+    instagram_handle: "",
+  });
+
+  // Sync form data when publisher data loads
+  useEffect(() => {
+    if (publisher) {
+      setFormData({
+        company_name: publisher.company_name || "",
+        description: publisher.description || "",
+        website_url: publisher.website_url || "",
+        instagram_handle: publisher.instagram_handle || "",
+      });
+    }
+  }, [publisher]);
 
   // Notification preferences state
   const [notifications, setNotifications] = useState({
@@ -23,12 +49,41 @@ export const PublisherSettings = () => {
     navigate("/publisher");
   };
 
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const success = await updateProfile(formData);
+      if (success) {
+        toast({
+          title: "Settings saved",
+          description: "Your profile has been updated successfully.",
+        });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleNotificationChange = (key: keyof typeof notifications) => {
     setNotifications(prev => ({
       ...prev,
       [key]: !prev[key],
     }));
   };
+
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+          <div className="flex items-center justify-center p-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+      </PublisherLayout>
+    );
+  }
 
   return (
     <PublisherLayout>
@@ -39,6 +94,50 @@ export const PublisherSettings = () => {
         />
 
         <div className="space-y-6">
+          {/* Publisher Profile */}
+          <div className="card-neesh">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-lg text-foreground">
+                Publisher Profile
+                </h3>
+                <ButtonPrimary onClick={handleSave} disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                </ButtonPrimary>
+            </div>
+            
+            <div className="space-y-4">
+              <FormInput
+                label="Company / Publication Name"
+                placeholder="e.g. Kinfolk"
+                value={formData.company_name}
+                onChange={(value) => handleChange('company_name', value)}
+              />
+
+              <FormTextarea
+                label="Description / Bio"
+                placeholder="Tell retailers about your publications..."
+                value={formData.description}
+                onChange={(value) => handleChange('description', value)}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <FormInput
+                    label="Website"
+                    placeholder="https://..."
+                    value={formData.website_url}
+                    onChange={(value) => handleChange('website_url', value)}
+                  />
+                  <FormInput
+                    label="Instagram"
+                    placeholder="@..."
+                    value={formData.instagram_handle}
+                    onChange={(value) => handleChange('instagram_handle', value)}
+                  />
+              </div>
+            </div>
+          </div>
+
           {/* Notification Preferences */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-lg text-foreground mb-4">
@@ -97,9 +196,28 @@ export const PublisherSettings = () => {
               Payout Settings
             </h3>
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Current payout method</p>
-                <p className="text-foreground">Bank account ending in ****1234</p>
+              <p className="text-sm text-muted-foreground mb-2">
+                Update your bank account details for receiving periodic payouts.
+              </p>
+              
+              <FormInput
+                label="Bank Name"
+                value="Stripe Connected Account"
+                onChange={() => {}}
+                disabled
+                helperText="Managed via Stripe Connect"
+              />
+
+              <div className="p-4 bg-secondary/50 rounded-lg border border-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">Stripe Connect Status</p>
+                    <p className="text-sm text-muted-foreground">Account active and ready for payouts</p>
+                  </div>
+                  <ButtonSecondary onClick={() => window.open('https://dashboard.stripe.com/', '_blank')}>
+                    View Dashboard
+                  </ButtonSecondary>
+                </div>
               </div>
 
               <div>
@@ -107,12 +225,8 @@ export const PublisherSettings = () => {
                 <p className="text-foreground">Monthly, on the 15th</p>
               </div>
 
-              <ButtonSecondary>
-                Update Payout Method
-              </ButtonSecondary>
-
               <p className="text-sm text-muted-foreground">
-                Contact support@neesh.art to change your payout details
+                To update your bank account details, please visit your Stripe Express dashboard.
               </p>
             </div>
           </div>

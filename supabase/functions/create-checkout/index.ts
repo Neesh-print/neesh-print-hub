@@ -201,8 +201,11 @@ Deno.serve(async (req) => {
       payment_intent_data: {
         metadata, // Also add to payment intent
       },
-      // Enable automatic tax calculation if needed
-      // automatic_tax: { enabled: true },
+      // Enable automatic tax calculation
+      automatic_tax: { enabled: true },
+      shipping_address_collection: {
+        allowed_countries: ['US', 'CA'],
+      },
     })
 
     console.log(`Checkout session created: ${session.id}`)

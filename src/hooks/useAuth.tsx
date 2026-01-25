@@ -123,6 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Defer profile fetch to avoid deadlock
         if (session?.user) {
+          setIsRoleLoading(true); // Ensure role loading is true before we start fetching
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);

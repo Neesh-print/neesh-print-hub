@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
+import { ImagePlaceholder } from "@/components/shared/ImagePlaceholder";
 
 export const RetailerTitleDetail = () => {
   const navigate = useNavigate();
@@ -139,11 +140,17 @@ export const RetailerTitleDetail = () => {
           <div>
             {/* Main Image */}
             <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary mb-4">
-              <img
-                src={images[selectedImageIndex] || "/placeholder.svg"}
-                alt={magazine.title}
-                className="w-full h-full object-cover"
-              />
+              {!images[selectedImageIndex] || images[selectedImageIndex] === "/placeholder.svg" ? (
+                 <div className="absolute inset-0">
+                    <ImagePlaceholder />
+                 </div>
+              ) : (
+                <img
+                  src={images[selectedImageIndex]}
+                  alt={magazine.title}
+                  className="w-full h-full object-cover"
+                />
+              )}
               
               {/* Navigation Arrows */}
               {images.length > 1 && (

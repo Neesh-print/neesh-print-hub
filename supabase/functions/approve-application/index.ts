@@ -166,10 +166,8 @@ Deno.serve(async (req) => {
       } else if (authData?.user) {
         userId = authData.user.id
         console.log(`Created auth user with ID: ${userId}`)
-      }
 
-      // Only create user/profile records if we just created a new auth user
-      if (!application.user_id) {
+        // Only create user/profile records for new auth users
         // Step 2: Create user record
       const { error: userInsertError } = await supabaseAdmin
         .from('users')
@@ -216,8 +214,19 @@ Deno.serve(async (req) => {
       } catch (emailError) {
         console.error('Error with magic link:', emailError)
       }
-      } // end if (!application.user_id)
-    } // end if (!userId)
+      }
+    } // end if (!userId) - new user creation
+
+    // Validate we have a userId at this point
+    if (!userId) {
+      console.error('No userId available after user lookup/creation')
+      return new Response(
+        JSON.stringify({ error: 'Could not resolve user identity' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Proceeding with userId: ${userId}`)
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
@@ -286,7 +295,6 @@ Deno.serve(async (req) => {
         status: 'approved',
         reviewed_at: new Date().toISOString(),
         reviewed_by: user.id,
-        user_id: userId,
       })
       .eq('id', applicationId)
 

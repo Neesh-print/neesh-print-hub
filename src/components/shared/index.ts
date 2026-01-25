@@ -5,3 +5,4 @@ export { MobileBottomNav } from './MobileBottomNav';
 export { SidebarNav } from './SidebarNav';
 export { NotificationCenter } from './NotificationCenter';
 export { OnboardingChecklist } from './OnboardingChecklist';
+export { ScrollToTop } from './ScrollToTop';

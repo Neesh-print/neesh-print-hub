@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { convertImageToWebP } from "@/lib/imageUtils";
 
 export interface UseFileUploadOptions {
   bucket: string;
@@ -41,13 +41,27 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
 
     setIsUploading(true);
     setError(null);
-    setProgress(10);
+    setProgress(5);
 
     try {
+      // Optimize image if needed
+      let fileToUpload = file;
+      if (file.type.startsWith('image/') && file.type !== 'image/webp' && file.type !== 'image/gif') {
+        try {
+          // Skip optimization for GIFs to preserve animation (unless we want to handle frames)
+          // Also skip if it's already WebP
+          fileToUpload = await convertImageToWebP(file);
+          console.log(`Optimized image: ${file.name} (${(file.size / 1024).toFixed(1)}KB) -> ${fileToUpload.name} (${(fileToUpload.size / 1024).toFixed(1)}KB)`);
+        } catch (optErr) {
+          console.warn('Image optimization failed, proceeding with original file', optErr);
+        }
+      }
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', fileToUpload);
       formData.append('bucket', options.bucket);
-      formData.append('folder', options.folder || 'uploads');
+      formData.append('folder', options.folder || 'uploads'); // e.g. 'covers'
+
       if (options.allowAnonymous) {
         formData.append('isAnonymous', 'true');
       }
@@ -111,16 +125,27 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
     setProgress(10);
 
     try {
+      // Optimize image if needed
+      let fileToUpload = file;
+      if (file.type.startsWith('image/') && file.type !== 'image/webp' && file.type !== 'image/gif') {
+        try {
+          fileToUpload = await convertImageToWebP(file);
+          console.log(`Optimized image: ${file.name} (${(file.size / 1024).toFixed(1)}KB) -> ${fileToUpload.name} (${(fileToUpload.size / 1024).toFixed(1)}KB)`);
+        } catch (optErr) {
+          console.warn('Image optimization failed, proceeding with original file', optErr);
+        }
+      }
+
       const timestamp = Date.now();
-      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeName = fileToUpload.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const folder = options.folder || 'uploads';
       const path = `${user.id}/${folder}/${timestamp}-${safeName}`;
-
+      
       setProgress(30);
 
       const { data, error: uploadError } = await supabase.storage
         .from(options.bucket)
-        .upload(path, file, {
+        .upload(path, fileToUpload, {
           cacheControl: '3600',
           upsert: false
         });

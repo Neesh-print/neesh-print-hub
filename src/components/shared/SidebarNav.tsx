@@ -21,6 +21,7 @@ import {
   HelpCircle
 } from "lucide-react";
 import { Logo } from "@/components/neesh/Logo";
+import { CartSidebarBadge } from "@/components/retailer/CartSidebarBadge";
 
 interface SidebarNavProps {
   userRole: 'publisher' | 'retailer' | 'admin';
@@ -138,6 +139,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
                     {item.icon}
                   </span>
                   {item.label}
+                  {item.path === '/retailer/cart' && <CartSidebarBadge />}
                 </button>
               </li>
             );

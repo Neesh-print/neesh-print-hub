@@ -5,6 +5,8 @@ import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { toast } from "sonner";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { supabase } from "@/integrations/supabase/client";
 
 export const PublisherEditTitle = () => {
   const { id } = useParams();
@@ -104,17 +106,61 @@ export const PublisherEditTitle = () => {
     }
   };
 
-  const handleSubmit = () => {
-    const magazineData = {
-      ...formData,
-      cover_image_url: coverImageUrl,
-      sample_spread_url: sampleSpreadUrl,
-      logo_url: logoUrl,
-    };
-    
-    console.log("Submitting:", magazineData);
-    toast.success(isNew ? "Magazine created successfully" : "Magazine updated successfully");
-    navigate("/publisher/titles");
+  const { publisher } = usePublisherProfile();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!publisher) {
+      toast.error("Publisher profile not found. Please reload.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const magazineData = {
+        publisher_id: publisher.id,
+        title: formData.title,
+        issue_number: formData.issueNumber,
+        issue_frequency: formData.frequency,
+        category: formData.genres,
+        specs: formData.pageCount && formData.dimensions 
+          ? `${formData.pageCount} pages, ${formData.dimensions}` 
+          : formData.dimensions || formData.pageCount,
+        inventory_count: parseInt(formData.availableQuantities.replace(/,/g, '')) || 0,
+        description: formData.promotionalText,
+        wholesale_price: parseFloat(formData.wholesalePrice) || 0,
+        suggested_retail_price: parseFloat(formData.retailPrice) || 0,
+        cover_image_url: coverImageUrl,
+        // Using existing columns based on schema inference
+        publication_type: formData.isSingleIssue ? 'Issue' : 'Journal',
+        is_active: true,
+      };
+
+      if (isNew) {
+        const { error } = await supabase
+          .from('magazines')
+          .insert(magazineData);
+        
+        if (error) throw error;
+        toast.success("Magazine created successfully");
+      } else {
+        const { error } = await supabase
+          .from('magazines')
+          .update(magazineData)
+          .eq('id', id);
+
+        if (error) throw error;
+        toast.success("Magazine updated successfully");
+      }
+
+      navigate("/publisher/titles");
+    } catch (error) {
+      console.error('Error saving magazine:', error);
+      toast.error("Failed to save magazine. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -353,9 +399,9 @@ export const PublisherEditTitle = () => {
             variant="purple"
             icon={<Check className="w-4 h-4" />}
             onClick={handleSubmit}
-            disabled={coverUpload.isUploading || spreadUpload.isUploading || logoUpload.isUploading}
+            disabled={coverUpload.isUploading || spreadUpload.isUploading || logoUpload.isUploading || isSubmitting}
           >
-            {isNew ? "Create Magazine" : "Confirm Edits"}
+            {isSubmitting ? "Saving..." : (isNew ? "Create Magazine" : "Confirm Edits")}
           </ButtonPrimary>
         </div>
       </div>

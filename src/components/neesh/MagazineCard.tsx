@@ -8,6 +8,7 @@ export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { calculateRetailerPrice } from "@/utils/pricing";
+import { ImagePlaceholder } from "@/components/shared/ImagePlaceholder";
 
 export interface MagazineCardProps {
   coverImage: string;
@@ -79,22 +80,29 @@ export const MagazineCard = ({
     <article className="group cursor-pointer" onClick={onClick}>
       {/* Cover image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-secondary shadow-neesh transition-shadow duration-300 group-hover:shadow-neesh-md">
-        {/* Loading placeholder */}
+        {/* Image / Placeholder */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 bg-muted animate-pulse" />
         )}
-        <img
-          src={displayImage}
-          alt={`${title} cover`}
-          className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => {
-            setImageError(true);
-            setImageLoaded(true);
-          }}
-        />
+        
+        {imageError ? (
+          <div className="absolute inset-0">
+            <ImagePlaceholder />
+          </div>
+        ) : (
+          <img
+            src={displayImage}
+            alt={`${title} cover`}
+            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => {
+              setImageError(true);
+              setImageLoaded(true);
+            }}
+          />
+        )}
         
         {/* Stock Indicator */}
         {showStockIndicator && stockConfig && (

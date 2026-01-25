@@ -6,7 +6,9 @@ import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   DesktopFilterBar,
   MobileFilterSheet,
@@ -31,22 +33,27 @@ export const RetailerCatalogue = () => {
   const [filters, setFilters] = useState<CatalogueFilters>(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   
+  // Debounce search query to prevent frequent reloads
+  const debouncedQuery = useDebounce(searchQuery, 500);
+  
   const { isInWishlist, toggleWishlist, wishlistCount } = useWishlistContext();
 
   const { magazines, isLoading, error, refetch } = useMagazines({ 
     status: 'active',
-    searchQuery: searchQuery || undefined,
+    searchQuery: debouncedQuery || undefined,
   });
+
+  const { retailer } = useRetailerProfile();
 
   // Onboarding progress for retailers
   const onboarding = useOnboardingProgress('retailer', {
-    hasProfile: false,
-    hasProfileWebsite: false,
-    hasProfileInstagram: false,
-    hasShippingAddress: false,
-    orderCount: 0,
+    hasProfile: !!retailer?.shop_name,
+    hasProfileWebsite: !!retailer?.shop_url,
+    hasProfileInstagram: !!retailer?.instagram_handle,
+    hasShippingAddress: !!retailer?.address,
+    orderCount: retailer?.total_orders || 0,
     wishlistCount: wishlistCount,
-    storeName: undefined,
+    storeName: retailer?.shop_name || undefined,
   });
 
   // Extract unique categories and publishers from magazines

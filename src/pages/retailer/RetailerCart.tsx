@@ -21,7 +21,12 @@ export const RetailerCart = () => {
     try {
       setIsCheckingOut(true);
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { cartItems }
+        body: { 
+          cart_items: cartItems.map(item => ({
+            magazine_id: item.magazineId,
+            quantity: item.quantity
+          }))
+        }
       });
 
       if (error) throw error;
@@ -31,11 +36,28 @@ export const RetailerCart = () => {
       } else {
         throw new Error('No checkout URL returned');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Checkout error:', error);
+      
+      let errorMessage = "Please try again later.";
+      
+      // Try to extract message, checking for edge function error body
+      if (error?.context?.json) {
+        try {
+           const errorBody = await error.context.json();
+           if (errorBody?.error) {
+             errorMessage = errorBody.error;
+           }
+        } catch (e) {
+          // invalid json, ignore
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Checkout failed",
-        description: "Please try again later.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

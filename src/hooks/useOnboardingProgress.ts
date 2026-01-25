@@ -189,7 +189,7 @@ function getRetailerChecklist(
   
   // Track catalog browsing
   const catalogViews = parseInt(localStorage.getItem(getStorageKey('retailer', 'catalog_views')) || '0');
-  const hasBrowsedCatalog = catalogViews >= 5;
+  const hasBrowsedCatalog = catalogViews >= 1;
 
   return [
     {

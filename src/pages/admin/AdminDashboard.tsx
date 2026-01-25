@@ -53,8 +53,12 @@ export const AdminDashboard = () => {
   const [retailerCount, setRetailerCount] = useState(0);
 
   // Fetch this week's orders
-  const weekAgo = useMemo(() => subDays(new Date(), 7), []);
-  const { orders } = useOrders({ dateRange: { start: weekAgo, end: new Date() } });
+  const dateRange = useMemo(() => ({
+    start: subDays(startOfDay(new Date()), 7),
+    end: new Date()
+  }), []);
+
+  const { orders } = useOrders({ dateRange });
 
   // Fetch publisher and retailer counts
   useEffect(() => {

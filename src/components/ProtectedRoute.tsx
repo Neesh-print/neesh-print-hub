@@ -19,10 +19,10 @@ export const ProtectedRoute = ({
   allowedRoles,
   allowPendingPublishers = false,
 }: ProtectedRouteProps) => {
-  const { user, userRole, publisherStatus, isLoading } = useAuth();
+  const { user, userRole, publisherStatus, isLoading, isRoleLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading || isRoleLoading) {
     return <LoadingScreen message="Checking authentication..." />;
   }
 
