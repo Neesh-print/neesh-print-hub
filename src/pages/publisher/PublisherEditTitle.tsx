@@ -4,6 +4,8 @@ import { Check } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { CountrySelect } from "@/components/ui/country-select";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const PublisherEditTitle = () => {
@@ -31,6 +33,7 @@ export const PublisherEditTitle = () => {
     retailPrice: isNew ? "" : "45.00",
     discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
     paymentTerms: isNew ? "" : "Net 30",
+    originCountryCode: isNew ? null as string | null : "US",
   });
 
   // Uploaded image URLs
@@ -110,6 +113,7 @@ export const PublisherEditTitle = () => {
       cover_image_url: coverImageUrl,
       sample_spread_url: sampleSpreadUrl,
       logo_url: logoUrl,
+      origin_country_code: formData.originCountryCode,
     };
     
     console.log("Submitting:", magazineData);
@@ -189,6 +193,18 @@ export const PublisherEditTitle = () => {
                   onChange={handleInputChange("pageCount")}
                   placeholder="e.g., 160"
                 />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Origin Country</Label>
+                  <CountrySelect
+                    value={formData.originCountryCode}
+                    onChange={(value) => setFormData(prev => ({ ...prev, originCountryCode: value }))}
+                    allowClear={true}
+                    placeholder="Select country"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Where is this publication based? This helps retailers answer customer questions.
+                  </p>
+                </div>
               </div>
             </div>
 

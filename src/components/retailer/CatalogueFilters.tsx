@@ -26,6 +26,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { CountrySelect } from "@/components/ui/country-select";
+import { getCountryName, getCountryFlag } from "@/lib/countries";
 
 export type SortOption = "newest" | "oldest" | "price-asc" | "price-desc" | "title-asc" | "title-desc";
 
@@ -34,6 +36,7 @@ export interface CatalogueFilters {
   categories: string[];
   publishers: string[];
   inStock: boolean;
+  country: string | null;
 }
 
 export interface CatalogueFilterProps {
@@ -232,6 +235,7 @@ export function MobileFilterSheet({
       categories: [],
       publishers: [],
       inStock: false,
+      country: null,
     };
     setLocalFilters(defaultFilters);
     setLocalSort("newest");
@@ -308,6 +312,19 @@ export function MobileFilterSheet({
             </div>
           )}
 
+          {/* Country Filter */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Origin Country</Label>
+            <CountrySelect
+              value={localFilters.country}
+              onChange={(country) =>
+                setLocalFilters({ ...localFilters, country })
+              }
+              allowClear={true}
+              placeholder="All Countries"
+            />
+          </div>
+
           {/* In Stock */}
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -353,6 +370,7 @@ export function DesktopFilterBar({
       categories: [],
       publishers: [],
       inStock: false,
+      country: null,
     });
   };
 
@@ -424,6 +442,37 @@ export function DesktopFilterBar({
             </PopoverContent>
           </Popover>
         )}
+
+        {/* Country Filter */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={filters.country ? "border-primary" : ""}
+            >
+              {filters.country ? (
+                <span className="flex items-center gap-1">
+                  <span aria-hidden="true">{getCountryFlag(filters.country)}</span>
+                  <span>{getCountryName(filters.country)}</span>
+                </span>
+              ) : (
+                <>
+                  Country
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[250px]" align="start">
+            <CountrySelect
+              value={filters.country}
+              onChange={(country) => onFiltersChange({ ...filters, country })}
+              allowClear={true}
+              placeholder="All Countries"
+            />
+          </PopoverContent>
+        </Popover>
 
         {/* In Stock Toggle */}
         <Button
@@ -509,6 +558,15 @@ export function ActiveFilterTags({
     tags.push({
       label: "In Stock",
       onRemove: () => onFiltersChange({ ...filters, inStock: false }),
+    });
+  }
+
+  if (filters.country) {
+    const flag = getCountryFlag(filters.country);
+    const name = getCountryName(filters.country);
+    tags.push({
+      label: `${flag} ${name}`,
+      onRemove: () => onFiltersChange({ ...filters, country: null }),
     });
   }
 

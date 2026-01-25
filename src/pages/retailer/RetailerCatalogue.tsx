@@ -21,6 +21,7 @@ const DEFAULT_FILTERS: CatalogueFilters = {
   categories: [],
   publishers: [],
   inStock: false,
+  country: null,
 };
 
 export const RetailerCatalogue = () => {
@@ -107,6 +108,11 @@ export const RetailerCatalogue = () => {
       result = result.filter((mag) => mag.inventory_count > 0);
     }
 
+    // Country filter
+    if (filters.country) {
+      result = result.filter((mag) => mag.origin_country_code === filters.country);
+    }
+
     // Sort
     switch (sortBy) {
       case "newest":
@@ -139,6 +145,7 @@ export const RetailerCatalogue = () => {
     count += filters.categories.length;
     count += filters.publishers.length;
     if (filters.inStock) count++;
+    if (filters.country) count++;
     return count;
   }, [filters, maxPrice]);
 
