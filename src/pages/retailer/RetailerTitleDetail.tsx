@@ -7,6 +7,7 @@ import { LoadingScreen } from "@/components/shared";
 import { PriceDisplay } from "@/components/ui/price-display";
 import { PublicationDate } from "@/components/ui/publication-date";
 import { CountryDisplay } from "@/components/ui/country-display";
+import { SocialLinks } from "@/components/ui/social-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -208,9 +209,21 @@ export const RetailerTitleDetail = () => {
             <h1 className="font-display font-bold text-3xl text-foreground mb-2">
               {magazine.title}
             </h1>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground mb-2">
               {magazine.publisher?.company_name || "Unknown Publisher"} · {magazine.issue_number || ""}
             </p>
+            
+            {/* Publisher Social Links */}
+            {(magazine.publisher?.instagram_handle || magazine.publisher?.website_url) && (
+              <div className="mb-6">
+                <SocialLinks
+                  instagramHandle={magazine.publisher?.instagram_handle || null}
+                  websiteUrl={magazine.publisher?.website_url || null}
+                  layout="inline"
+                  size="sm"
+                />
+              </div>
+            )}
 
             {/* Specs Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">

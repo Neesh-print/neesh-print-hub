@@ -1,15 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, FormInput, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary } from "@/components/neesh";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { SocialLinkInput } from "@/components/ui/social-link-input";
 import { useAuth } from "@/hooks/useAuth";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { toast } from "sonner";
 
 export const PublisherSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { publisher, updateProfile } = usePublisherProfile();
+
+  // Social links state
+  const [instagramHandle, setInstagramHandle] = useState<string | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState<string | null>(null);
+  const [isSavingSocial, setIsSavingSocial] = useState(false);
+
+  // Sync with publisher data
+  useEffect(() => {
+    if (publisher) {
+      setInstagramHandle(publisher.instagram_handle);
+      setWebsiteUrl(publisher.website_url);
+    }
+  }, [publisher]);
 
   // Notification preferences state
   const [notifications, setNotifications] = useState({
@@ -87,8 +104,59 @@ export const PublisherSettings = () => {
                   checked={notifications.messagesFromNeesh}
                   onCheckedChange={() => handleNotificationChange('messagesFromNeesh')}
                 />
-              </div>
             </div>
+          </div>
+
+          {/* Social & Web */}
+          <div className="card-neesh">
+            <h3 className="font-display font-semibold text-lg text-foreground mb-4">
+              Social & Web
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-2 block">Instagram</Label>
+                <SocialLinkInput
+                  type="instagram"
+                  value={instagramHandle}
+                  onChange={setInstagramHandle}
+                />
+                <p className="mt-1.5 text-caption text-muted-foreground">
+                  Your Instagram handle helps retailers gauge your audience reach
+                </p>
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Website</Label>
+                <SocialLinkInput
+                  type="website"
+                  value={websiteUrl}
+                  onChange={setWebsiteUrl}
+                />
+                <p className="mt-1.5 text-caption text-muted-foreground">
+                  Link to your publication's website or online store
+                </p>
+              </div>
+
+              <ButtonPrimary
+                onClick={async () => {
+                  setIsSavingSocial(true);
+                  const success = await updateProfile({
+                    instagram_handle: instagramHandle,
+                    website_url: websiteUrl,
+                  });
+                  setIsSavingSocial(false);
+                  if (success) {
+                    toast.success("Social links updated");
+                  } else {
+                    toast.error("Failed to update social links");
+                  }
+                }}
+                disabled={isSavingSocial}
+              >
+                {isSavingSocial ? "Saving..." : "Save Social Links"}
+              </ButtonPrimary>
+            </div>
+          </div>
           </div>
 
           {/* Payout Settings */}
