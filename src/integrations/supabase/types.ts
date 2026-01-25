@@ -120,6 +120,7 @@ export type Database = {
           issue_number: string | null
           origin_country_code: string | null
           price: number
+          publication_date: string | null
           publication_type: string | null
           publisher_id: string
           sold_count: number | null
@@ -142,6 +143,7 @@ export type Database = {
           issue_number?: string | null
           origin_country_code?: string | null
           price: number
+          publication_date?: string | null
           publication_type?: string | null
           publisher_id: string
           sold_count?: number | null
@@ -164,6 +166,7 @@ export type Database = {
           issue_number?: string | null
           origin_country_code?: string | null
           price?: number
+          publication_date?: string | null
           publication_type?: string | null
           publisher_id?: string
           sold_count?: number | null
