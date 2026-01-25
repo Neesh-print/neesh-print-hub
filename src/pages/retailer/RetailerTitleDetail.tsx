@@ -1,15 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Heart, Copy, MessageCircle, AlertCircle, Minus, Plus } from "lucide-react";
-import { RetailerLayout, QuantitySelector, useCart, useWishlistContext } from "@/components/retailer";
+import { ChevronLeft, ChevronRight, Heart, Copy, MessageCircle, AlertCircle } from "lucide-react";
+import { RetailerLayout, useCart, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
-import { PriceDisplay } from "@/components/ui/price-display";
 import { PublicationDate } from "@/components/ui/publication-date";
 import { CountryDisplay } from "@/components/ui/country-display";
 import { SocialLinks } from "@/components/ui/social-links";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DynamicPricing } from "@/components/product/DynamicPricing";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -37,44 +35,18 @@ export const RetailerTitleDetail = () => {
   // Quantity handlers with stock validation
   const maxQuantity = magazine?.inventory_count || 999;
 
-  const handleQuantityChange = useCallback((value: string) => {
-    const parsed = parseInt(value, 10);
-    if (value === '') {
-      // Allow empty during typing
-      setQuantity(0);
-      return;
-    }
-    if (isNaN(parsed) || parsed < 1) {
-      setQuantity(1);
-      return;
-    }
-    if (parsed > maxQuantity) {
-      setQuantity(maxQuantity);
-      toast.info(`Only ${maxQuantity} copies available`);
-      return;
-    }
-    setQuantity(parsed);
-  }, [maxQuantity]);
+  // Reset quantity when magazine changes
+  useEffect(() => {
+    setQuantity(1);
+  }, [id]);
 
-  const handleQuantityBlur = useCallback(() => {
-    if (quantity < 1) {
-      setQuantity(1);
-    }
-  }, [quantity]);
+  const handleQuantityChange = useCallback((newQuantity: number) => {
+    setQuantity(newQuantity);
+  }, []);
 
-  const incrementQuantity = useCallback(() => {
-    if (quantity < maxQuantity) {
-      setQuantity(q => q + 1);
-    } else {
-      toast.info(`Only ${maxQuantity} copies available`);
-    }
-  }, [quantity, maxQuantity]);
-
-  const decrementQuantity = useCallback(() => {
-    if (quantity > 1) {
-      setQuantity(q => q - 1);
-    }
-  }, [quantity]);
+  const handleMaxExceeded = useCallback((max: number) => {
+    toast.info(`Only ${max} copies available`);
+  }, []);
 
   if (isLoading) {
     return (
@@ -298,57 +270,17 @@ export const RetailerTitleDetail = () => {
               </div>
             )}
 
-            {/* Price Section with Quantity */}
-            <div className="card-neesh mb-6 space-y-4">
-              <p className="text-caption text-muted-foreground">Pricing</p>
-              
-              <PriceDisplay
+            {/* Dynamic Pricing with Quantity */}
+            <div className="card-neesh mb-6">
+              <DynamicPricing
                 wholesalePrice={wspPrice}
                 retailPrice={msrpPrice}
-                showMargin={true}
-                showTotal={false}
-                layout="stacked"
-                size="lg"
+                quantity={quantity}
+                onQuantityChange={handleQuantityChange}
+                maxQuantity={maxQuantity}
+                disabled={maxQuantity <= 0}
+                onMaxExceeded={handleMaxExceeded}
               />
-
-              {/* Quantity Controls */}
-              <div className="pt-4 border-t border-border">
-                <label className="text-caption text-muted-foreground block mb-2">Quantity</label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={decrementQuantity}
-                    disabled={quantity <= 1}
-                    aria-label="Decrease quantity"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  
-                  <Input
-                    type="number"
-                    min={1}
-                    max={maxQuantity}
-                    value={quantity === 0 ? '' : quantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                    onBlur={handleQuantityBlur}
-                    className="w-20 text-center"
-                    aria-label="Quantity"
-                  />
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={incrementQuantity}
-                    disabled={quantity >= maxQuantity}
-                    aria-label="Increase quantity"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
             </div>
 
             {/* Add to Cart */}
