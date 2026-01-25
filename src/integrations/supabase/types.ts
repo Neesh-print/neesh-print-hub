@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      countries: {
+        Row: {
+          code: string
+          display_order: number | null
+          name: string
+        }
+        Insert: {
+          code: string
+          display_order?: number | null
+          name: string
+        }
+        Update: {
+          code?: string
+          display_order?: number | null
+          name?: string
+        }
+        Relationships: []
+      }
       faq_items: {
         Row: {
           answer: string
@@ -100,6 +118,7 @@ export type Database = {
           is_active: boolean | null
           issue_frequency: string | null
           issue_number: string | null
+          origin_country_code: string | null
           price: number
           publication_type: string | null
           publisher_id: string
@@ -121,6 +140,7 @@ export type Database = {
           is_active?: boolean | null
           issue_frequency?: string | null
           issue_number?: string | null
+          origin_country_code?: string | null
           price: number
           publication_type?: string | null
           publisher_id: string
@@ -142,6 +162,7 @@ export type Database = {
           is_active?: boolean | null
           issue_frequency?: string | null
           issue_number?: string | null
+          origin_country_code?: string | null
           price?: number
           publication_type?: string | null
           publisher_id?: string

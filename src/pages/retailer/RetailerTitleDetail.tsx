@@ -5,6 +5,7 @@ import { RetailerLayout, QuantitySelector, useCart, useWishlistContext } from "@
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { PriceDisplay } from "@/components/ui/price-display";
+import { CountryDisplay } from "@/components/ui/country-display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -212,6 +213,18 @@ export const RetailerTitleDetail = () => {
 
             {/* Specs Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
+              {magazine.origin_country_code && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Origin</span>
+                  <p className="font-medium">
+                    <CountryDisplay 
+                      countryCode={magazine.origin_country_code} 
+                      showFlag={true}
+                      size="md"
+                    />
+                  </p>
+                </div>
+              )}
               {magazine.issue_frequency && (
                 <div>
                   <span className="text-caption text-muted-foreground">Frequency</span>

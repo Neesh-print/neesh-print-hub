@@ -19,6 +19,7 @@ export interface Magazine {
   inventory_count: number;
   sold_count: number;
   created_at: string;
+  origin_country_code: string | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -68,6 +69,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
           inventory_count,
           sold_count,
           created_at,
+          origin_country_code,
           publisher_id,
           publishers (
             id,
@@ -115,6 +117,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         inventory_count: item.inventory_count || 0,
         sold_count: item.sold_count || 0,
         created_at: item.created_at,
+        origin_country_code: item.origin_country_code,
         publisher: item.publishers ? {
           id: item.publishers.id,
           company_name: item.publishers.company_name,
