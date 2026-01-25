@@ -34,6 +34,7 @@ interface AuthContextType {
   userRole: UserRole | null;
   publisherStatus: PublisherStatus | null;
   isLoading: boolean;
+  isRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, role: UserRole) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -52,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [publisherStatus, setPublisherStatus] = useState<PublisherStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRoleLoading, setIsRoleLoading] = useState(true);
 
   const fetchPublisherStatus = async (userId: string) => {
     const { data: publisher, error } = await supabase
@@ -72,6 +74,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const fetchProfile = async (userId: string) => {
+    setIsRoleLoading(true);
+    
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
@@ -97,7 +101,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (role === 'publisher') {
         await fetchPublisherStatus(userId);
       }
+    } else {
+      setUserRole(null);
     }
+    
+    setIsRoleLoading(false);
   };
 
   const refreshPublisherStatus = async () => {
@@ -122,6 +130,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile(null);
           setUserRole(null);
           setPublisherStatus(null);
+          setIsRoleLoading(false);
         }
 
         setIsLoading(false);
@@ -135,6 +144,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (session?.user) {
         fetchProfile(session.user.id);
+      } else {
+        setIsRoleLoading(false);
       }
 
       setIsLoading(false);
@@ -253,6 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userRole,
       publisherStatus,
       isLoading,
+      isRoleLoading,
       signIn,
       signUp,
       signInWithGoogle,

@@ -90,9 +90,10 @@ const queryClient = new QueryClient();
 
 // Home redirect component that redirects based on auth state
 const HomeRedirect = () => {
-  const { user, userRole, publisherStatus, isLoading } = useAuth();
-
-  if (isLoading) {
+  const { user, userRole, publisherStatus, isLoading, isRoleLoading } = useAuth();
+  
+  // Wait for both auth and role to finish loading
+  if (isLoading || isRoleLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
 
@@ -119,7 +120,7 @@ const HomeRedirect = () => {
     }
   }
 
-  // Redirect based on role
+  // Redirect based on role (role fetch is complete at this point)
   switch (userRole) {
     case 'publisher':
       return <Navigate to="/publisher" replace />;

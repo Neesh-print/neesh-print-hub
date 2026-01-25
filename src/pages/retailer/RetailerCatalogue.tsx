@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Grid3X3, List, Search, SlidersHorizontal, Bookmark, BookOpen, AlertCircle } from "lucide-react";
 import { RetailerLayout, useWishlistContext } from "@/components/retailer";
-import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
@@ -177,12 +177,15 @@ export const RetailerCatalogue = () => {
   if (magazines.length === 0) {
     return (
       <RetailerLayout>
-        <BackNavigation title="Catalogue" onBack={() => navigate("/")} />
+        <div className="px-4 md:px-6 pt-4 pb-2">
+          <h1 className="text-display-sm md:text-display-md font-display font-bold">Browse Titles</h1>
+          <p className="text-body text-muted-foreground mt-1">Wholesale pricing on independent magazines</p>
+        </div>
         <div className="p-6">
           <EmptyState
             icon={<BookOpen className="w-12 h-12" />}
-            title="No magazines yet"
-            description="Check back soon for new titles"
+            title="New titles coming soon"
+            description="Check back shortly for our curated magazine selection"
           />
         </div>
       </RetailerLayout>
@@ -191,7 +194,11 @@ export const RetailerCatalogue = () => {
 
   return (
     <RetailerLayout>
-      <BackNavigation title="Neesh Favs" onBack={() => navigate("/")} />
+      {/* Header Section */}
+      <div className="px-4 md:px-6 pt-4 pb-2">
+        <h1 className="text-display-sm md:text-display-md font-display font-bold">Browse Titles</h1>
+        <p className="text-body text-muted-foreground mt-1">Wholesale pricing on independent magazines</p>
+      </div>
 
       {/* Onboarding Checklist for new retailers */}
       {!onboarding.dismissed && !onboarding.allComplete && (
@@ -395,6 +402,9 @@ export const RetailerCatalogue = () => {
                 publisher={mag.publisher?.company_name || "Unknown Publisher"}
                 region={mag.category || undefined}
                 price={mag.wholesale_price}
+                retailPrice={mag.suggested_retail_price}
+                inventoryCount={mag.inventory_count}
+                showStockIndicator={true}
                 onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
                 onBookmark={() => handleToggleBookmark(mag.id)}
                 isBookmarked={isInWishlist(mag.id)}

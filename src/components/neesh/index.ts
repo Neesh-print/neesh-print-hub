@@ -42,6 +42,8 @@ export type { InfoCardProps } from './InfoCard';
 export { MagazineCard } from './MagazineCard';
 export type { MagazineCardProps } from './MagazineCard';
 
+export { MagazineCoverImage } from './MagazineCoverImage';
+
 // Forms
 export { FormInput } from './FormInput';
 export type { FormInputProps } from './FormInput';
