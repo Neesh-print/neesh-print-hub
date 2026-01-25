@@ -3,11 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
+import { FormSelect } from "@/components/neesh/FormSelect";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { CountrySelect } from "@/components/ui/country-select";
 import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { getCategoryOptions } from "@/lib/categories";
 
 export const PublisherEditTitle = () => {
   const { id } = useParams();
@@ -21,7 +23,7 @@ export const PublisherEditTitle = () => {
     frequency: isNew ? "" : "Quarterly",
     isSingleIssue: true,
     isSeries: false,
-    genres: isNew ? "" : "Lifestyle, Design, Culture",
+    category: isNew ? "" : "Art",
     dimensions: isNew ? "" : "210 x 280mm, 350g",
     pageCount: isNew ? "" : "160",
     printRun: isNew ? "" : "25,000",
@@ -177,11 +179,12 @@ export const PublisherEditTitle = () => {
                     <span className="text-body text-foreground">Series</span>
                   </label>
                 </div>
-                <FormInput
-                  label="Genre(s)"
-                  value={formData.genres}
-                  onChange={handleInputChange("genres")}
-                  placeholder="e.g., Lifestyle, Design, Culture"
+                <FormSelect
+                  label="Category"
+                  value={formData.category}
+                  onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                  options={getCategoryOptions()}
+                  placeholder="Select a category"
                 />
                 <FormInput
                   label="Dimensions"
