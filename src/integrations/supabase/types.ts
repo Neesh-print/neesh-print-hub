@@ -1293,8 +1293,15 @@ export type Database = {
             foreignKeyName: "user_wishlists_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "magazines"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_wishlists_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["magazine_id"]
           },
           {
             foreignKeyName: "user_wishlists_user_id_fkey"

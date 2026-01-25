@@ -166,8 +166,9 @@ export const PriceDisplay = ({
 
       {/* Margin */}
       {showMargin && margin && (
-        <p className={cn(styles.margin, 'text-muted-foreground')}>
-          Margin: {formatCurrency(margin.dollarAmount)} ({margin.percentage}%)
+        <p className={cn(styles.margin, 'text-accent')}>
+          {formatCurrency(margin.dollarAmount)}
+          <span className={cn(styles.label, 'text-accent font-normal ml-1')}>MY MARGIN</span>
         </p>
       )}
 
