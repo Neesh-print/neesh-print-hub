@@ -15,7 +15,7 @@ interface CountryDisplayProps {
  */
 export function CountryDisplay({
   countryCode,
-  showFlag = true,
+  showFlag = false,
   showLabel = false,
   size = 'md',
   className,
