@@ -5,6 +5,7 @@ import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { CountrySelect } from "@/components/ui/country-select";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ export const PublisherEditTitle = () => {
     discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
     paymentTerms: isNew ? "" : "Net 30",
     originCountryCode: isNew ? null as string | null : "US",
+    publicationDate: isNew ? null as string | null : "2025-01-01",
   });
 
   // Uploaded image URLs
@@ -114,6 +116,7 @@ export const PublisherEditTitle = () => {
       sample_spread_url: sampleSpreadUrl,
       logo_url: logoUrl,
       origin_country_code: formData.originCountryCode,
+      publication_date: formData.publicationDate,
     };
     
     console.log("Submitting:", magazineData);
@@ -203,6 +206,18 @@ export const PublisherEditTitle = () => {
                   />
                   <p className="text-xs text-muted-foreground">
                     Where is this publication based? This helps retailers answer customer questions.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Publication Date</Label>
+                  <MonthYearPicker
+                    value={formData.publicationDate}
+                    onChange={(value) => setFormData(prev => ({ ...prev, publicationDate: value }))}
+                    allowClear={true}
+                    allowFuture={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When was this issue released? This helps retailers find the newest titles.
                   </p>
                 </div>
               </div>
