@@ -5,6 +5,7 @@ import { RetailerLayout, QuantitySelector, useCart, useWishlistContext } from "@
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { PriceDisplay } from "@/components/ui/price-display";
+import { PublicationDate } from "@/components/ui/publication-date";
 import { CountryDisplay } from "@/components/ui/country-display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -219,8 +220,20 @@ export const RetailerTitleDetail = () => {
                   <p className="font-medium">
                     <CountryDisplay 
                       countryCode={magazine.origin_country_code} 
-                      showFlag={true}
+                      showFlag={false}
                       size="md"
+                    />
+                  </p>
+                </div>
+              )}
+              {magazine.publication_date && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Published</span>
+                  <p className="font-medium">
+                    <PublicationDate 
+                      date={magazine.publication_date} 
+                      format="long"
+                      showNewBadge={true}
                     />
                   </p>
                 </div>

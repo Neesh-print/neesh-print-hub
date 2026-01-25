@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { Bookmark } from "lucide-react";
 import { PriceDisplay } from "@/components/ui/price-display";
+import { PublicationDate } from "@/components/ui/publication-date";
+import { Badge } from "@/components/ui/badge";
+import { isCurrentMonth } from "@/lib/publication-date";
 
 const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
 
@@ -15,6 +18,8 @@ export interface MagazineCardProps {
   price: number;
   /** Suggested retail price in dollars */
   retailPrice?: number;
+  /** Publication date as ISO string (e.g., "2025-12-01") */
+  publicationDate?: string | null;
   stockStatus?: StockStatus;
   inventoryCount?: number;
   onClick: () => void;
@@ -53,6 +58,7 @@ export const MagazineCard = ({
   region,
   price,
   retailPrice,
+  publicationDate,
   stockStatus,
   inventoryCount,
   onClick,
@@ -63,6 +69,7 @@ export const MagazineCard = ({
   // Determine stock status from inventory count if not explicitly provided
   const resolvedStockStatus = stockStatus ?? (inventoryCount !== undefined ? getStockStatus(inventoryCount) : undefined);
   const stockConfig = resolvedStockStatus ? stockStatusConfig[resolvedStockStatus] : null;
+  const isNew = isCurrentMonth(publicationDate);
 
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -93,6 +100,16 @@ export const MagazineCard = ({
           }}
         />
         
+        {/* New Badge - top right corner on image */}
+        {isNew && (
+          <Badge 
+            className="absolute top-2 right-2 bg-status-success text-status-success-text text-[10px] px-1.5"
+            aria-label="New release"
+          >
+            New
+          </Badge>
+        )}
+        
         {/* Stock Indicator */}
         {showStockIndicator && stockConfig && (
           <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-background/90 backdrop-blur-sm px-2 py-1 rounded-full">
@@ -109,7 +126,7 @@ export const MagazineCard = ({
               onBookmark();
             }}
             className={`
-              absolute top-2 right-2 p-2 rounded-full
+              absolute ${isNew ? 'top-10' : 'top-2'} right-2 p-2 rounded-full
               backdrop-blur-sm transition-all
               ${isBookmarked 
                 ? 'bg-accent text-accent-foreground' 
@@ -133,6 +150,15 @@ export const MagazineCard = ({
           {publisher}
           {region && <span className="ml-1">· {region}</span>}
         </p>
+        
+        {/* Publication Date */}
+        {publicationDate && (
+          <PublicationDate 
+            date={publicationDate} 
+            format="short" 
+            size="sm"
+          />
+        )}
         
         <PriceDisplay
           wholesalePrice={price}

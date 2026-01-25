@@ -116,10 +116,21 @@ export const RetailerCatalogue = () => {
     // Sort
     switch (sortBy) {
       case "newest":
-        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        result.sort((a, b) => {
+          // Sort by publication_date first (nulls last), then created_at
+          const dateA = a.publication_date ? new Date(a.publication_date).getTime() : 0;
+          const dateB = b.publication_date ? new Date(b.publication_date).getTime() : 0;
+          if (dateA !== dateB) return dateB - dateA;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
         break;
       case "oldest":
-        result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        result.sort((a, b) => {
+          const dateA = a.publication_date ? new Date(a.publication_date).getTime() : Infinity;
+          const dateB = b.publication_date ? new Date(b.publication_date).getTime() : Infinity;
+          if (dateA !== dateB) return dateA - dateB;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
         break;
       case "price-asc":
         result.sort((a, b) => a.wholesale_price - b.wholesale_price);
@@ -410,6 +421,7 @@ export const RetailerCatalogue = () => {
                 region={mag.category || undefined}
                 price={mag.wholesale_price}
                 retailPrice={mag.suggested_retail_price}
+                publicationDate={mag.publication_date}
                 inventoryCount={mag.inventory_count}
                 showStockIndicator={true}
                 onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
