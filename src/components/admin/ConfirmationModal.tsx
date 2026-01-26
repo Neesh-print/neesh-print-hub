@@ -1,4 +1,11 @@
-import { Modal } from "@/components/neesh/Modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ButtonPrimary, ButtonSecondary } from "@/components/neesh";
 
 export interface ConfirmationModalProps {
@@ -23,13 +30,13 @@ export const ConfirmationModal = ({
   isLoading = false,
 }: ConfirmationModalProps) => {
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      size="sm"
-      footer={
-        <div className="flex gap-3 justify-end">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{message}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
           <ButtonSecondary onClick={onClose} disabled={isLoading}>
             Cancel
           </ButtonSecondary>
@@ -46,10 +53,8 @@ export const ConfirmationModal = ({
               {isLoading ? 'Processing...' : confirmLabel}
             </ButtonPrimary>
           )}
-        </div>
-      }
-    >
-      <p className="text-body text-foreground">{message}</p>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
