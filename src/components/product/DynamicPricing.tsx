@@ -43,19 +43,19 @@ export const DynamicPricing = ({
   const lowStock = isLowStock(maxQuantity);
   const isDisabled = disabled || outOfStock;
 
-  // Calculate margin (per unit, doesn't change with quantity)
-  const margin = useMemo(() => {
+  // Calculate per-unit margin
+  const unitMargin = useMemo(() => {
     if (!retailPrice || retailPrice <= 0 || !wholesalePrice) return null;
-    return {
-      amount: calculateMarginPerUnit(wholesalePrice, retailPrice),
-      percentage: Math.round(calculateMarginPercentage(wholesalePrice, retailPrice)),
-    };
+    return calculateMarginPerUnit(wholesalePrice, retailPrice);
   }, [wholesalePrice, retailPrice]);
 
-  // Calculate total (changes with quantity)
-  const total = useMemo(() => {
-    return calculateLineTotal(wholesalePrice, quantity);
-  }, [wholesalePrice, quantity]);
+  // Calculate totals based on quantity
+  const totals = useMemo(() => {
+    const totalWSP = calculateLineTotal(wholesalePrice, quantity);
+    const totalMSRP = retailPrice ? retailPrice * quantity : null;
+    const totalMargin = unitMargin ? unitMargin * quantity : null;
+    return { wsp: totalWSP, msrp: totalMSRP, margin: totalMargin };
+  }, [wholesalePrice, retailPrice, quantity, unitMargin]);
 
   // Handle invalid wholesale price
   if (!wholesalePrice || wholesalePrice <= 0) {
@@ -68,33 +68,33 @@ export const DynamicPricing = ({
 
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Pricing Info */}
+      {/* Pricing Info - All values update with quantity */}
       <div className="space-y-2">
         <p className="text-caption text-muted-foreground uppercase tracking-wide">Pricing</p>
         
-        {/* WSP */}
+        {/* WSP Total */}
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold font-display text-accent">
-            {formatPrice(wholesalePrice)}
+            {formatPrice(totals.wsp)}
           </span>
           <span className="text-sm text-muted-foreground">WSP</span>
         </div>
 
-        {/* MSRP */}
-        {retailPrice && retailPrice > 0 && (
+        {/* MSRP Total */}
+        {totals.msrp && totals.msrp > 0 && (
           <div className="flex items-baseline gap-2">
             <span className="text-base text-muted-foreground">
-              {formatPrice(retailPrice)}
+              {formatPrice(totals.msrp)}
             </span>
             <span className="text-xs text-muted-foreground">MSRP</span>
           </div>
         )}
 
-        {/* Margin */}
-        {margin && margin.amount > 0 && (
+        {/* Margin Total */}
+        {totals.margin && totals.margin > 0 && (
           <div className="flex items-baseline gap-2">
             <span className="text-base text-status-success-text font-medium">
-              {formatPrice(margin.amount)}
+              {formatPrice(totals.margin)}
             </span>
             <span className="text-xs text-muted-foreground">MY MARGIN</span>
           </div>
@@ -132,22 +132,6 @@ export const DynamicPricing = ({
         )}
       </div>
 
-      {/* Dynamic Total */}
-      <div className="pt-4 border-t border-border">
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-muted-foreground uppercase tracking-wide">
-            Total
-          </span>
-          <span className="text-xl font-bold font-display text-foreground">
-            {formatPrice(total)}
-          </span>
-        </div>
-        {quantity > 1 && (
-          <p className="text-xs text-muted-foreground text-right mt-1">
-            {quantity} × {formatPrice(wholesalePrice)}
-          </p>
-        )}
-      </div>
     </div>
   );
 };
