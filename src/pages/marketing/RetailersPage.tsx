@@ -31,7 +31,7 @@ export const RetailersPage = () => {
 
             {/* Hero Image */}
             <div className="order-1 lg:order-2">
-              <div className="aspect-[3/4] rounded-lg overflow-hidden bg-secondary">
+              <div className="aspect-[4/3] rounded-lg overflow-hidden bg-secondary">
                 <img 
                   src={retailersHeroImage} 
                   alt="Beautiful independent magazine shop interior with curated displays" 
