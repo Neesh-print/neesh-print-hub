@@ -9,6 +9,8 @@ import { CountryDisplay } from "@/components/ui/country-display";
 import { SocialLinks } from "@/components/ui/social-links";
 import { DynamicPricing } from "@/components/product/DynamicPricing";
 import { ContactPublisherButton } from "@/components/messaging";
+import { StockIndicator } from "@/components/ui/stock-indicator";
+import { getStockLevel, isInStock, STOCK_THRESHOLDS } from "@/lib/inventory";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -34,7 +36,9 @@ export const RetailerTitleDetail = () => {
   const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
 
   // Quantity handlers with stock validation
-  const maxQuantity = magazine?.inventory_count || 999;
+  const maxQuantity = magazine?.inventory_count || 0;
+  const stockLevel = getStockLevel(maxQuantity);
+  const outOfStock = !isInStock(maxQuantity);
 
   // Reset quantity when magazine changes
   useEffect(() => {
@@ -251,8 +255,15 @@ export const RetailerTitleDetail = () => {
                 </div>
               )}
               <div>
-                <span className="text-caption text-muted-foreground">In Stock</span>
-                <p className="font-medium">{magazine.inventory_count || 0} copies</p>
+                <span className="text-caption text-muted-foreground">Availability</span>
+                {stockLevel === 'normal' ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-status-success" aria-hidden="true" />
+                    <span className="font-medium">In stock</span>
+                  </div>
+                ) : (
+                  <StockIndicator quantity={maxQuantity} size="md" />
+                )}
               </div>
             </div>
 
@@ -280,6 +291,13 @@ export const RetailerTitleDetail = () => {
             )}
 
             {/* Dynamic Pricing with Quantity */}
+            {/* Warning when ordering all available stock */}
+            {quantity >= maxQuantity && maxQuantity > 0 && maxQuantity <= STOCK_THRESHOLDS.LOW && (
+              <p className="text-xs text-status-warning-text mb-2">
+                You're ordering all available copies
+              </p>
+            )}
+
             <div className="card-neesh mb-6">
               <DynamicPricing
                 wholesalePrice={wspPrice}
@@ -293,9 +311,15 @@ export const RetailerTitleDetail = () => {
             </div>
 
             {/* Add to Cart */}
-            <ButtonPrimary fullWidth onClick={handleAddToCart}>
-              Add To Cart
+            <ButtonPrimary fullWidth onClick={handleAddToCart} disabled={outOfStock}>
+              {outOfStock ? 'Out of Stock' : 'Add To Cart'}
             </ButtonPrimary>
+
+            {outOfStock && (
+              <p className="text-sm text-muted-foreground text-center mt-2">
+                Check back soon or contact the publisher
+              </p>
+            )}
           </div>
         </div>
 
