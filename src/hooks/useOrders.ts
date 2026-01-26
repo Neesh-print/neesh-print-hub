@@ -56,6 +56,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     setError(null);
 
     try {
+      // First, fetch orders with magazines (no retailers join - FK points to users, not retailers)
       let query = supabase
         .from('orders')
         .select(`
@@ -71,11 +72,6 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
           notes,
           retailer_id,
           magazine_id,
-          retailers (
-            id,
-            shop_name,
-            user_id
-          ),
           magazines (
             id,
             title,
@@ -112,6 +108,25 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
 
       if (fetchError) throw fetchError;
 
+      // Get unique retailer_ids to fetch retailer info
+      const retailerIds = [...new Set((data || []).map((item: any) => item.retailer_id).filter(Boolean))];
+      
+      // Fetch retailers by user_id (since retailer_id in orders references users.id)
+      let retailersMap: Record<string, { id: string; shop_name: string | null; user_id: string }> = {};
+      if (retailerIds.length > 0) {
+        const { data: retailers } = await supabase
+          .from('retailers')
+          .select('id, shop_name, user_id')
+          .in('user_id', retailerIds);
+        
+        if (retailers) {
+          retailersMap = retailers.reduce((acc, r) => {
+            acc[r.user_id] = { id: r.id, shop_name: r.shop_name, user_id: r.user_id };
+            return acc;
+          }, {} as Record<string, { id: string; shop_name: string | null; user_id: string }>);
+        }
+      }
+
       // Transform data to match Order interface
       const transformedOrders: Order[] = (data || []).map((item: any, index: number) => ({
         id: item.id,
@@ -126,11 +141,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
         tracking_number: item.tracking_number,
         carrier: null, // Not in current schema
         shipping_address: item.shipping_address,
-        retailer: item.retailers ? {
-          id: item.retailers.id,
-          shop_name: item.retailers.shop_name,
-          user_id: item.retailers.user_id,
-        } : null,
+        retailer: retailersMap[item.retailer_id] || null,
         magazine: item.magazines ? {
           id: item.magazines.id,
           title: item.magazines.title,

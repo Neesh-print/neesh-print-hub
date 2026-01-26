@@ -64,6 +64,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
     setError(null);
 
     try {
+      // Fetch order with magazines (no retailers join - FK points to users, not retailers)
       const { data, error: fetchError } = await supabase
         .from('orders')
         .select(`
@@ -80,17 +81,6 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           payment_intent_id,
           retailer_id,
           magazine_id,
-          retailers (
-            id,
-            shop_name,
-            user_id,
-            address,
-            city,
-            state,
-            postal_code,
-            country,
-            phone
-          ),
           magazines (
             id,
             title,
@@ -107,6 +97,17 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
         .single();
 
       if (fetchError) throw fetchError;
+
+      // Fetch retailer info separately using retailer_id as user_id
+      let retailerData = null;
+      if (data?.retailer_id) {
+        const { data: retailer } = await supabase
+          .from('retailers')
+          .select('id, shop_name, user_id, address, city, state, postal_code, country, phone')
+          .eq('user_id', data.retailer_id)
+          .maybeSingle();
+        retailerData = retailer;
+      }
 
       if (data) {
         const transformed: OrderDetail = {
@@ -125,16 +126,16 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           shipping_address: data.shipping_address,
           notes: data.notes,
           payment_intent_id: data.payment_intent_id,
-          retailer: (data as any).retailers ? {
-            id: (data as any).retailers.id,
-            shop_name: (data as any).retailers.shop_name,
-            user_id: (data as any).retailers.user_id,
-            address: (data as any).retailers.address,
-            city: (data as any).retailers.city,
-            state: (data as any).retailers.state,
-            postal_code: (data as any).retailers.postal_code,
-            country: (data as any).retailers.country,
-            phone: (data as any).retailers.phone,
+          retailer: retailerData ? {
+            id: retailerData.id,
+            shop_name: retailerData.shop_name,
+            user_id: retailerData.user_id,
+            address: retailerData.address,
+            city: retailerData.city,
+            state: retailerData.state,
+            postal_code: retailerData.postal_code,
+            country: retailerData.country,
+            phone: retailerData.phone,
           } : null,
           magazine: (data as any).magazines ? {
             id: (data as any).magazines.id,
