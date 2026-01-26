@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Search, Send, LayoutDashboard, FileText } from 'lucide-react';
+import { Search, Send, LayoutDashboard } from 'lucide-react';
+import publishersHeroImage from '@/assets/publishers-hero.png';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 
@@ -31,12 +32,11 @@ export const PublishersPage = () => {
             {/* Hero Image */}
             <div className="order-1 lg:order-2">
               <div className="aspect-[4/3] rounded-lg overflow-hidden bg-secondary">
-                <div className="w-full h-full bg-gradient-to-br from-muted to-secondary flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm">Publisher Workspace Image</p>
-                  </div>
-                </div>
+                <img 
+                  src={publishersHeroImage} 
+                  alt="Publisher workspace with stacks of independent magazines" 
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
           </div>
