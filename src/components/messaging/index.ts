@@ -7,3 +7,5 @@ export { MessageBubble } from './MessageBubble';
 export { MessageThread } from './MessageThread';
 export { MessageComposer } from './MessageComposer';
 export { MessageThreadView } from './MessageThreadView';
+export { UserSearch } from './UserSearch';
+export { NewConversationModal } from './NewConversationModal';
