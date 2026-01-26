@@ -9,10 +9,10 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole, isLoading, isRoleLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading || isRoleLoading) {
     return <LoadingScreen message="Checking authentication..." />;
   }
 
