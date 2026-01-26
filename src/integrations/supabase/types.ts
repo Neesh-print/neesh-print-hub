@@ -1628,6 +1628,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      publisher_has_active_magazines: {
+        Args: { _publisher_id: string }
+        Returns: boolean
+      }
       text_to_bytea: { Args: { data: string }; Returns: string }
       update_publisher_application: {
         Args: { p_data: Json; p_id: string; p_token: string }
