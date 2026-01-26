@@ -2,6 +2,7 @@ export { PublisherDashboard } from "./PublisherDashboard";
 export { PublisherOrdersList } from "./PublisherOrdersList";
 export { PublisherOrderDetail } from "./PublisherOrderDetail";
 export { PublisherProfile } from "./PublisherProfile";
+export { PublisherEditProfile } from "./PublisherEditProfile";
 export { PublisherEditTitle } from "./PublisherEditTitle";
 export { PublisherTransactionHistory } from "./PublisherTransactionHistory";
 export { PublisherTransfers } from "./PublisherTransfers";
