@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   ArrowLeft, 
   Send, 
   MessageSquare, 
-  Plus,
   Package,
   Search
 } from "lucide-react";
@@ -15,13 +14,20 @@ import { Input } from "@/components/ui/input";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
-  useConversations, 
+  ConversationList,
+  MessagesHeader,
+  EmptyConversationState,
+} from "@/components/messaging";
+import { 
+  useConversationsQuery,
+  useCurrentMessagingUser,
+} from "@/hooks/useConversationsQuery";
+import { 
   useConversation, 
-  formatMessageTime,
   formatMessageTimestamp,
   getAvatarProps,
-  type Conversation,
 } from "@/hooks/useMessages";
+import type { Conversation } from "@/types/messaging";
 
 // Avatar component for consistent styling
 const ConversationAvatar = ({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) => {
@@ -36,53 +42,6 @@ const ConversationAvatar = ({ name, size = 'md' }: { name: string; size?: 'sm' |
     <div className={`${sizeClasses[size]} ${bgColor} rounded-full flex items-center justify-center text-white font-medium`}>
       {initials}
     </div>
-  );
-};
-
-// Conversation list item
-const ConversationItem = ({ 
-  conversation, 
-  isActive, 
-  onClick,
-  userRole,
-}: { 
-  conversation: Conversation;
-  isActive: boolean;
-  onClick: () => void;
-  userRole: 'publisher' | 'retailer';
-}) => {
-  const participant = userRole === 'publisher' ? conversation.retailer : conversation.publisher;
-  const hasUnread = conversation.unread_count > 0;
-  
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-border
-        ${isActive ? 'bg-secondary' : 'hover:bg-secondary/50'}
-        ${hasUnread ? 'bg-accent/5' : ''}
-      `}
-    >
-      <div className="relative">
-        <ConversationAvatar name={participant?.name || 'Unknown'} />
-        {hasUnread && (
-          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent rounded-full border-2 border-background" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <p className={`text-sm truncate ${hasUnread ? 'font-semibold' : 'font-medium'} text-foreground`}>
-            {participant?.name || 'Unknown'}
-          </p>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {conversation.last_message && formatMessageTime(conversation.last_message.created_at)}
-          </span>
-        </div>
-        <p className={`text-sm truncate ${hasUnread ? 'text-foreground' : 'text-muted-foreground'}`}>
-          {conversation.last_message?.content || 'No messages yet'}
-        </p>
-      </div>
-    </button>
   );
 };
 
@@ -182,25 +141,23 @@ const MessageInput = ({
   );
 };
 
-// Conversation view (thread)
+// Conversation view (thread) - uses old hook for now (will be upgraded in next prompt)
 const ConversationView = ({
   conversation,
-  userRole,
   onBack,
   onViewOrders,
 }: {
   conversation: Conversation | null;
-  userRole: 'publisher' | 'retailer';
   onBack: () => void;
   onViewOrders: () => void;
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { groupedMessages, loading, sendMessage, markAsRead } = useConversation(
     conversation?.id || null,
-    userRole
+    'publisher'
   );
   
-  const participant = userRole === 'publisher' ? conversation?.retailer : conversation?.publisher;
+  const participant = conversation?.otherParticipant;
   
   // Auto-scroll to bottom
   useEffect(() => {
@@ -209,10 +166,10 @@ const ConversationView = ({
   
   // Mark as read when opening
   useEffect(() => {
-    if (conversation?.id && conversation.unread_count > 0) {
+    if (conversation?.id && (conversation.unreadCount || 0) > 0) {
       markAsRead();
     }
-  }, [conversation?.id, conversation?.unread_count, markAsRead]);
+  }, [conversation?.id, conversation?.unreadCount, markAsRead]);
   
   if (!conversation) return null;
   
@@ -223,23 +180,16 @@ const ConversationView = ({
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 md:hidden">
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <ConversationAvatar name={participant?.name || 'Unknown'} />
+        <ConversationAvatar name={participant?.display_name || 'Unknown'} />
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-foreground truncate">{participant?.name}</p>
-          <p className="text-sm text-muted-foreground truncate">{participant?.location}</p>
+          <p className="font-semibold text-foreground truncate">{participant?.display_name}</p>
+          <p className="text-sm text-muted-foreground truncate capitalize">{participant?.user_type}</p>
         </div>
         <Button variant="outline" size="sm" onClick={onViewOrders} className="shrink-0">
           <Package className="w-4 h-4 mr-2" />
           View Orders
         </Button>
       </div>
-      
-      {/* Order context banner - optional */}
-      {/* <div className="px-4 py-2 bg-muted/50 border-b border-border">
-        <p className="text-sm text-muted-foreground">
-          Recent order: #ORD-123 · 3 items · $156 · Jan 15
-        </p>
-      </div> */}
       
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
@@ -254,7 +204,7 @@ const ConversationView = ({
             <p className="text-sm text-muted-foreground">Start the conversation!</p>
           </div>
         ) : (
-          groupedMessages.map((group, groupIndex) => (
+          groupedMessages.map((group) => (
             <div key={group.date}>
               <DateSeparator date={group.date} />
               <div className="space-y-3">
@@ -263,7 +213,7 @@ const ConversationView = ({
                     key={message.id}
                     content={message.content}
                     timestamp={message.created_at}
-                    isOwn={message.sender_role === userRole}
+                    isOwn={message.sender_role === 'publisher'}
                   />
                 ))}
               </div>
@@ -283,29 +233,21 @@ const ConversationView = ({
 const NewMessageDrawer = ({
   isOpen,
   onClose,
-  userRole,
   onSelectContact,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  userRole: 'publisher' | 'retailer';
   onSelectContact: (contactId: string) => void;
 }) => {
   const [search, setSearch] = useState('');
   
-  // Mock eligible contacts (retailers/publishers they've transacted with)
-  const eligibleContacts = userRole === 'publisher' 
-    ? [
-        { id: 'ret-1', name: 'McNally Jackson', location: 'New York, NY', lastOrder: 'Jan 15, 2026' },
-        { id: 'ret-2', name: 'Spoonbill & Sugartown', location: 'Brooklyn, NY', lastOrder: 'Jan 12, 2026' },
-        { id: 'ret-3', name: 'Commonplace Books', location: 'Denver, CO', lastOrder: 'Jan 10, 2026' },
-        { id: 'ret-4', name: 'Book Culture', location: 'New York, NY', lastOrder: 'Jan 8, 2026' },
-      ]
-    : [
-        { id: 'pub-1', name: 'Wax Poetics', location: 'Brooklyn, NY', lastOrder: 'Jan 15, 2026' },
-        { id: 'pub-2', name: 'Kinfolk', location: 'Copenhagen, Denmark', lastOrder: 'Jan 12, 2026' },
-        { id: 'pub-3', name: 'Drift', location: 'Los Angeles, CA', lastOrder: 'Jan 5, 2026' },
-      ];
+  // Mock eligible contacts (retailers they've transacted with)
+  const eligibleContacts = [
+    { id: 'ret-1', name: 'McNally Jackson', location: 'New York, NY', lastOrder: 'Jan 15, 2026' },
+    { id: 'ret-2', name: 'Spoonbill & Sugartown', location: 'Brooklyn, NY', lastOrder: 'Jan 12, 2026' },
+    { id: 'ret-3', name: 'Commonplace Books', location: 'Denver, CO', lastOrder: 'Jan 10, 2026' },
+    { id: 'ret-4', name: 'Book Culture', location: 'New York, NY', lastOrder: 'Jan 8, 2026' },
+  ];
   
   const filteredContacts = eligibleContacts.filter(contact =>
     contact.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -324,7 +266,7 @@ const NewMessageDrawer = ({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${userRole === 'publisher' ? 'retailers' : 'publishers'}...`}
+              placeholder="Search retailers..."
               className="pl-10"
             />
           </div>
@@ -366,7 +308,8 @@ export const PublisherMessages = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { conversations, loading, totalUnread } = useConversations('publisher');
+  const currentUser = useCurrentMessagingUser();
+  const { data: conversations = [], isLoading } = useConversationsQuery();
   
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     searchParams.get('conversation')
@@ -376,11 +319,13 @@ export const PublisherMessages = () => {
   
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
   
-  // Filter conversations
-  const filteredConversations = conversations.filter(conv => {
-    const name = conv.retailer?.name?.toLowerCase() || '';
-    return name.includes(searchQuery.toLowerCase());
-  });
+  // Filter conversations by other participant's name
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(conv => {
+      const name = conv.otherParticipant?.display_name?.toLowerCase() || '';
+      return name.includes(searchQuery.toLowerCase());
+    });
+  }, [conversations, searchQuery]);
   
   const handleSelectConversation = (id: string) => {
     setSelectedConversationId(id);
@@ -393,13 +338,11 @@ export const PublisherMessages = () => {
   };
   
   const handleViewOrders = () => {
-    // Navigate to orders filtered by this retailer
     navigate('/publisher/orders');
   };
   
   const handleNewMessage = (contactId: string) => {
     // In a real app, this would create or find an existing conversation
-    // For now, just select the first conversation as a demo
     if (conversations.length > 0) {
       handleSelectConversation(conversations[0].id);
     }
@@ -418,58 +361,25 @@ export const PublisherMessages = () => {
             ${isMobile && selectedConversationId ? 'hidden' : 'flex'} 
             flex-col w-full md:w-80 lg:w-96 border-r border-border bg-background
           `}>
-            {/* Header */}
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h1 className="text-xl font-semibold text-foreground">Messages</h1>
-                  <p className="text-sm text-muted-foreground">Conversations with your retailers</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="icon"
-                  onClick={() => setIsNewMessageOpen(true)}
-                >
-                  <Plus className="w-5 h-5" />
-                </Button>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search conversations..."
-                  className="pl-10"
-                />
-              </div>
-            </div>
+            <MessagesHeader
+              title="Messages"
+              subtitle="Conversations with your retailers"
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onNewMessage={() => setIsNewMessageOpen(true)}
+              searchPlaceholder="Search conversations..."
+            />
             
-            {/* Conversation List */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  Loading conversations...
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="p-8">
-                  <EmptyState
-                    icon={<MessageSquare className="w-12 h-12" />}
-                    title="No messages yet"
-                    description="When retailers order from you, you can message them here to build your relationship."
-                  />
-                </div>
-              ) : (
-                filteredConversations.map((conversation) => (
-                  <ConversationItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    isActive={conversation.id === selectedConversationId}
-                    onClick={() => handleSelectConversation(conversation.id)}
-                    userRole="publisher"
-                  />
-                ))
-              )}
-            </div>
+            {currentUser && (
+              <ConversationList
+                conversations={filteredConversations}
+                selectedId={selectedConversationId}
+                currentUserId={currentUser.id}
+                currentUserType={currentUser.type}
+                isLoading={isLoading}
+                onSelect={handleSelectConversation}
+              />
+            )}
           </div>
         )}
         
@@ -477,17 +387,11 @@ export const PublisherMessages = () => {
         {showConversation && selectedConversation ? (
           <ConversationView
             conversation={selectedConversation}
-            userRole="publisher"
             onBack={handleBack}
             onViewOrders={handleViewOrders}
           />
         ) : !isMobile && (
-          <div className="flex-1 flex items-center justify-center bg-muted/30">
-            <div className="text-center">
-              <MessageSquare className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
-              <p className="text-muted-foreground">Select a conversation to start messaging</p>
-            </div>
-          </div>
+          <EmptyConversationState />
         )}
       </div>
       
@@ -495,7 +399,6 @@ export const PublisherMessages = () => {
       <NewMessageDrawer
         isOpen={isNewMessageOpen}
         onClose={() => setIsNewMessageOpen(false)}
-        userRole="publisher"
         onSelectContact={handleNewMessage}
       />
     </PublisherLayout>
