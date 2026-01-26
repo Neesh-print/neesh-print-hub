@@ -97,9 +97,6 @@ export const DynamicPricing = ({
               {formatPrice(margin.amount)}
             </span>
             <span className="text-xs text-muted-foreground">MY MARGIN</span>
-            <span className="text-xs text-status-success-text">
-              ({margin.percentage}%)
-            </span>
           </div>
         )}
       </div>
