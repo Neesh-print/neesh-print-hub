@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, Store, Check, X, Pause, ClipboardList, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { AdminLayout, StatCard, ConfirmationModal, EmailPreviewModal, type EmailPreviewData } from "@/components/admin";
@@ -75,7 +75,7 @@ export const AdminApplications = () => {
   } = useApplications();
 
   // Keep selectedApplication in sync with live data
-  useMemo(() => {
+  useEffect(() => {
     if (selectedApplication && isSlideOverOpen) {
       const liveApp = applications.find(a => a.id === selectedApplication.id);
       if (liveApp) {
