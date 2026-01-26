@@ -3,6 +3,8 @@
  * Re-exports US states and adds country data with provinces.
  */
 
+import { US_STATES } from './us-states';
+
 // Re-export existing US states
 export { US_STATES, getStateLabel, isValidState } from './us-states';
 export type { USStateValue } from './us-states';
@@ -36,7 +38,6 @@ export type CountryValue = typeof COUNTRIES[number]['value'];
  * Get states/provinces for a given country code.
  */
 export function getRegionsForCountry(countryCode: string): readonly { value: string; label: string }[] {
-  const { US_STATES } = require('./us-states');
   switch (countryCode) {
     case 'US':
       return US_STATES;
