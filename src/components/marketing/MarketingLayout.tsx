@@ -3,33 +3,38 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Logo } from '@/components/neesh/Logo';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
-
 interface MarketingLayoutProps {
   children: ReactNode;
 }
-
-const navLinks = [
-  { label: 'Explore Magazines', href: '/explore' },
-  { label: 'For Publishers', href: '/publishers' },
-  { label: 'For Retailers', href: '/retailers' },
-  { label: 'Pricing', href: '/pricing' },
-  { label: 'FAQ', href: '/faq' },
-];
-
-export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
+const navLinks = [{
+  label: 'Explore Magazines',
+  href: '/explore'
+}, {
+  label: 'For Publishers',
+  href: '/publishers'
+}, {
+  label: 'For Retailers',
+  href: '/retailers'
+}, {
+  label: 'Pricing',
+  href: '/pricing'
+}, {
+  label: 'FAQ',
+  href: '/faq'
+}];
+export const MarketingLayout = ({
+  children
+}: MarketingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState('');
   const location = useLocation();
-
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Implement newsletter subscription
     console.log('Subscribe:', email);
     setEmail('');
   };
-
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
+  return <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
         <div className="container mx-auto px-4 md:px-6">
@@ -41,66 +46,32 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-8">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  className={`text-body font-medium transition-colors hover:text-accent ${
-                    location.pathname === link.href ? 'text-accent' : 'text-foreground'
-                  }`}
-                >
+              {navLinks.map(link => <Link key={link.href} to={link.href} className={`text-body font-medium transition-colors hover:text-accent ${location.pathname === link.href ? 'text-accent' : 'text-foreground'}`}>
                   {link.label}
-                </Link>
-              ))}
-              <Link
-                to="/login"
-                className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
-              >
+                </Link>)}
+              <Link to="/login" className="text-body font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer">
                 Log In
               </Link>
             </nav>
 
             {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 -mr-2"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 -mr-2" aria-label="Toggle menu">
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
 
         {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 top-16 bg-background z-40">
+        {mobileMenuOpen && <div className="lg:hidden fixed inset-0 top-16 bg-background z-40">
             <nav className="container mx-auto px-4 py-8 flex flex-col gap-6">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-display-sm font-medium transition-colors hover:text-accent ${
-                    location.pathname === link.href ? 'text-accent' : 'text-foreground'
-                  }`}
-                >
+              {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)} className={`text-display-sm font-medium transition-colors hover:text-accent ${location.pathname === link.href ? 'text-accent' : 'text-foreground'}`}>
                   {link.label}
-                </Link>
-              ))}
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer"
-              >
+                </Link>)}
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="text-display-sm font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer">
                 Log In
               </Link>
             </nav>
-          </div>
-        )}
+          </div>}
       </header>
 
       {/* Main Content */}
@@ -118,14 +89,7 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
             Get NEESH updates, magazine reviews, and all things indie print.
           </p>
           <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email address"
-              className="flex-1 px-4 py-3 bg-white border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-              required
-            />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email address" className="flex-1 px-4 py-3 bg-white border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent" required />
             <ButtonPrimary type="submit" variant="black">
               Subscribe
             </ButtonPrimary>
@@ -144,32 +108,18 @@ export const MarketingLayout = ({ children }: MarketingLayoutProps) => {
 
             {/* Links */}
             <div className="flex items-center gap-6 text-body text-muted-foreground">
-              <a
-                href="https://instagram.com/neesh_art"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
+              <a target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" href="https://www.instagram.com/neeshprint/">
                 Instagram
               </a>
-              <a
-                href="mailto:hi@neesh.art"
-                className="hover:text-foreground transition-colors"
-              >
+              <a href="mailto:hi@neesh.art" className="hover:text-foreground transition-colors">
                 Contact
               </a>
-              <a
-                href="https://casesensitive.studio"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors flex items-center gap-1"
-              >
+              <a href="https://casesensitive.studio" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors flex items-center gap-1">
                 <span>✦✦</span> Casesensitive
               </a>
             </div>
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
