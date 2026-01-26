@@ -185,17 +185,6 @@ export const RetailerTitleDetail = () => {
               {magazine.publisher?.company_name || "Unknown Publisher"} · {magazine.issue_number || ""}
             </p>
             
-            {/* Publisher Social Links */}
-            {(magazine.publisher?.instagram_handle || magazine.publisher?.website_url) && (
-              <div className="mb-6">
-                <SocialLinks
-                  instagramHandle={magazine.publisher?.instagram_handle || null}
-                  websiteUrl={magazine.publisher?.website_url || null}
-                  layout="inline"
-                  size="sm"
-                />
-              </div>
-            )}
 
             {/* Specs Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -261,12 +250,24 @@ export const RetailerTitleDetail = () => {
 
             {/* Description */}
             {magazine.description && (
-              <div className="mb-8">
+              <div className="mb-6">
                 {magazine.description.split('\n\n').map((para, index) => (
                   <p key={index} className="text-muted-foreground mb-4 last:mb-0">
                     {para}
                   </p>
                 ))}
+              </div>
+            )}
+
+            {/* Publisher Social Links */}
+            {(magazine.publisher?.instagram_handle || magazine.publisher?.website_url) && (
+              <div className="mb-6">
+                <SocialLinks
+                  instagramHandle={magazine.publisher?.instagram_handle || null}
+                  websiteUrl={magazine.publisher?.website_url || null}
+                  layout="inline"
+                  size="md"
+                />
               </div>
             )}
 
