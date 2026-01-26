@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, ExternalLink, AlertCircle } from "lucide-react";
+import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { ShareProfileModal } from "@/components/neesh/ShareProfileModal";
+import { slugify } from "@/lib/slugify";
 import { RetailerLayout } from "@/components/retailer";
 import { useWishlistContext } from "@/components/retailer/WishlistContext";
 import { BackNavigation, ButtonSecondary, InfoCard } from "@/components/neesh";
@@ -16,6 +18,7 @@ export const RetailerProfile = () => {
   const navigate = useNavigate();
   const [publishersExpanded, setPublishersExpanded] = useState(true);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   
   // Fetch real retailer data
   const { retailer, isLoading: profileLoading } = useRetailerProfile();
@@ -67,6 +70,9 @@ export const RetailerProfile = () => {
 
   // Format location
   const location = [retailer?.city, retailer?.state].filter(Boolean).join(', ');
+
+  // Generate slug for sharing
+  const shopSlug = retailer?.shop_name ? slugify(retailer.shop_name) : "";
 
   // Loading state
   if (profileLoading) {
@@ -245,7 +251,7 @@ export const RetailerProfile = () => {
                     <ButtonSecondary onClick={() => navigate('/retailer/profile/edit')}>
                       Edit Profile
                     </ButtonSecondary>
-                    <ButtonSecondary icon={<ExternalLink className="w-4 h-4" />} iconPosition="right">
+                    <ButtonSecondary onClick={() => setShareModalOpen(true)}>
                       Share Profile
                     </ButtonSecondary>
                   </div>
@@ -358,6 +364,14 @@ export const RetailerProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Share Profile Modal */}
+      <ShareProfileModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        publisherName={retailer?.shop_name || "Your Store"}
+        slug={`r/${shopSlug}`}
+      />
     </RetailerLayout>
   );
 };
