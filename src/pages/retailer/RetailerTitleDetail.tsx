@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Heart, Copy, MessageCircle, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Copy, AlertCircle } from "lucide-react";
 import { RetailerLayout, useCart, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
@@ -8,6 +8,7 @@ import { PublicationDate } from "@/components/ui/publication-date";
 import { CountryDisplay } from "@/components/ui/country-display";
 import { SocialLinks } from "@/components/ui/social-links";
 import { DynamicPricing } from "@/components/product/DynamicPricing";
+import { ContactPublisherButton } from "@/components/messaging";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -170,9 +171,16 @@ export const RetailerTitleDetail = () => {
               <ButtonSecondary icon={<Copy className="w-4 h-4" />} onClick={handleCopyInfo}>
                 Copy info
               </ButtonSecondary>
-              <ButtonSecondary icon={<MessageCircle className="w-4 h-4" />}>
-                Contact Publisher
-              </ButtonSecondary>
+              {magazine.publisher?.id && (
+                <ContactPublisherButton
+                  publisher={{
+                    id: magazine.publisher.id,
+                    name: magazine.publisher.company_name || 'Unknown Publisher',
+                    logo_url: null,
+                  }}
+                  useSecondaryStyle
+                />
+              )}
             </div>
           </div>
 

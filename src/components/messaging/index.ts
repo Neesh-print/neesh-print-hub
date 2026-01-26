@@ -9,3 +9,6 @@ export { MessageComposer } from './MessageComposer';
 export { MessageThreadView } from './MessageThreadView';
 export { UserSearch } from './UserSearch';
 export { NewConversationModal } from './NewConversationModal';
+export { ContactPublisherButton } from './ContactPublisherButton';
+export { ContactSupportButton } from './ContactSupportButton';
+export { ContactRetailerButton } from './ContactRetailerButton';

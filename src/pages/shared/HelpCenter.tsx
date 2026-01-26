@@ -5,6 +5,7 @@ import { PublisherLayout } from '@/components/publisher/PublisherLayout';
 import { RetailerLayout } from '@/components/retailer/RetailerLayout';
 import { CartProvider } from '@/components/retailer/CartContext';
 import { WishlistProvider } from '@/components/retailer/WishlistContext';
+import { ContactSupportButton } from '@/components/messaging';
 import {
   Accordion,
   AccordionContent,
@@ -322,15 +323,23 @@ const HelpCenterContent = ({ userRole }: { userRole: 'publisher' | 'retailer' })
         <Mail className="w-10 h-10 text-accent mx-auto mb-4" />
         <h2 className="text-heading font-display font-semibold mb-2">Still need help?</h2>
         <p className="text-muted-foreground mb-4">
-          Our team is here to help. Reach out and we'll get back to you within 24 hours.
+          Our team is here to help. Send us a message and we'll get back to you within 24 hours.
         </p>
-        <a
-          href="mailto:hi@neesh.art"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-lg font-medium hover:bg-foreground/90 transition-colors"
-        >
-          <Mail className="w-4 h-4" />
-          hi@neesh.art
-        </a>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <ContactSupportButton 
+            variant="default" 
+            size="lg" 
+            icon="message"
+            label="Message Support"
+          />
+          <a
+            href="mailto:hi@neesh.art"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-border bg-background text-foreground rounded-lg font-medium hover:bg-secondary transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            hi@neesh.art
+          </a>
+        </div>
       </div>
     </div>
   );
