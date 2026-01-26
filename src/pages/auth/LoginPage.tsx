@@ -11,19 +11,34 @@ const passwordSchema = z.string().min(1, 'Password is required');
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, signIn } = useAuth();
+  const { user, isLoading: authLoading, isRoleLoading, userRole, signIn } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in - go to /home for role-based routing
+  // Redirect if already logged in AND role is loaded
   useEffect(() => {
-    if (user && !authLoading) {
-      navigate('/home');
+    // Must wait for both auth AND role loading to complete
+    if (user && !authLoading && !isRoleLoading) {
+      // Role-based redirect
+      switch (userRole) {
+        case 'publisher':
+          navigate('/publisher');
+          break;
+        case 'retailer':
+          navigate('/retailer');
+          break;
+        case 'admin':
+          navigate('/admin');
+          break;
+        default:
+          // User exists but no valid role - redirect to pending
+          navigate('/pending');
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, isRoleLoading, userRole, navigate]);
 
   const validateForm = () => {
     setError('');
