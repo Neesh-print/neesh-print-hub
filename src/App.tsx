@@ -56,7 +56,7 @@ import {
   RetailerMessages,
 } from "./pages/retailer";
 import { RetailerSettings } from "./pages/retailer/RetailerSettings";
-import { RetailerShippingAddresses } from "./pages/retailer/RetailerShippingAddresses";
+// Shipping addresses now integrated into profile edit page
 
 // Admin pages
 // Public pages
@@ -419,18 +419,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/retailer/settings/shipping"
-        element={
-          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
-            <WishlistProvider>
-              <CartProvider>
-                <RetailerShippingAddresses />
-              </CartProvider>
-            </WishlistProvider>
-          </ProtectedRoute>
-        }
-      />
+      {/* Shipping addresses now integrated into /retailer/profile/edit */}
       <Route
         path="/retailer/help"
         element={
