@@ -1,36 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, ExternalLink, AlertCircle } from "lucide-react";
 import { RetailerLayout } from "@/components/retailer";
 import { useWishlistContext } from "@/components/retailer/WishlistContext";
 import { BackNavigation, ButtonSecondary, InfoCard } from "@/components/neesh";
 import { useMagazines } from "@/hooks/useMagazines";
-
-const mockProfile = {
-  avatar: "/placeholder.svg",
-  storeName: "Powell's City of Books",
-  website: "https://powells.com",
-  contactPerson: "Emily Richardson",
-  description: "Powell's City of Books is the largest independent new and used bookstore in the world. Founded in 1971, we occupy an entire city block in Portland, Oregon, and house more than a million books. Our curated magazine section features the finest independent publications from around the globe.",
-  location: "Portland, OR",
-  storeTypes: ["Independent Bookstore", "Magazine Retailer"],
-  stats: {
-    totalOrders: 47,
-    pendingOrders: 3,
-    thisMonth: 8,
-  },
-  favoritePublishers: [
-    { id: "1", name: "Weird Walk" },
-    { id: "2", name: "Apartamento" },
-    { id: "3", name: "MacGuffin" },
-    { id: "4", name: "Kinfolk" },
-  ],
-};
+import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { useOrders } from "@/hooks/useOrders";
+import { getStoreTypeLabels } from "@/lib/store-types";
+import { isProfileComplete } from "@/lib/profile-completion";
+import { MagazineCoverImage } from "@/components/neesh/MagazineCoverImage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const RetailerProfile = () => {
   const navigate = useNavigate();
   const [publishersExpanded, setPublishersExpanded] = useState(true);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+  
+  // Fetch real retailer data
+  const { retailer, isLoading: profileLoading } = useRetailerProfile();
+  const { orders } = useOrders();
   
   // Connect to real wishlist
   const { wishlistIds, wishlistCount } = useWishlistContext();
@@ -45,6 +34,68 @@ export const RetailerProfile = () => {
       coverImage: mag.cover_image_url || "/placeholder.svg",
     }));
 
+  // Calculate order stats
+  const totalOrders = orders.length;
+  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+  const thisMonthOrders = orders.filter(o => {
+    const orderDate = new Date(o.created_at);
+    const now = new Date();
+    return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+  }).length;
+
+  // Profile completion check
+  const profileData = retailer ? {
+    shop_name: retailer.shop_name,
+    contact_name: (retailer as any).contact_name || null,
+    contact_email: (retailer as any).contact_email || null,
+    city: retailer.city,
+    state: retailer.state,
+    shop_description: retailer.shop_description,
+    store_types: (retailer as any).store_types || [],
+    shop_url: retailer.shop_url,
+    instagram_handle: retailer.instagram_handle,
+    profile_image_url: (retailer as any).profile_image_url,
+    profile_completed_at: (retailer as any).profile_completed_at,
+  } : null;
+
+  const profileComplete = profileData ? isProfileComplete(profileData) : false;
+
+  // Get store type labels
+  const storeTypeLabels = profileData?.store_types 
+    ? getStoreTypeLabels(profileData.store_types) 
+    : [];
+
+  // Format location
+  const location = [retailer?.city, retailer?.state].filter(Boolean).join(', ');
+
+  // Loading state
+  if (profileLoading) {
+    return (
+      <RetailerLayout>
+        <BackNavigation
+          title="My Profile"
+          onBack={() => navigate("/retailer")}
+        />
+        <div className="px-4 md:px-6 pb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              <div className="card-neesh">
+                <div className="flex flex-col md:flex-row gap-6">
+                  <Skeleton className="w-24 h-24 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-3">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </RetailerLayout>
+    );
+  }
+
   return (
     <RetailerLayout>
       <BackNavigation
@@ -53,6 +104,27 @@ export const RetailerProfile = () => {
       />
 
       <div className="px-4 md:px-6 pb-12">
+        {/* Incomplete Profile Banner */}
+        {!profileComplete && (
+          <div className="flex items-start gap-3 p-4 bg-accent/10 border border-accent/30 rounded-lg mb-6">
+            <AlertCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-foreground">
+                Complete your profile
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Publishers use your profile to learn about your store. A complete profile helps you stand out.
+              </p>
+            </div>
+            <ButtonSecondary
+              onClick={() => navigate('/retailer/profile/edit', { state: { firstTime: true } })}
+              className="flex-shrink-0"
+            >
+              Complete Profile
+            </ButtonSecondary>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Profile Info */}
           <div className="lg:col-span-2">
@@ -60,67 +132,119 @@ export const RetailerProfile = () => {
               <div className="flex flex-col md:flex-row gap-6">
                 {/* Avatar */}
                 <div className="w-24 h-24 rounded-full bg-secondary flex-shrink-0 overflow-hidden">
-                  <img
-                    src={mockProfile.avatar}
-                    alt={mockProfile.storeName}
-                    className="w-full h-full object-cover"
-                  />
+                  {profileData?.profile_image_url ? (
+                    <img
+                      src={profileData.profile_image_url}
+                      alt={retailer?.shop_name || 'Store'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-2xl font-display">
+                      {retailer?.shop_name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Info */}
                 <div className="flex-1">
                   <h1 className="font-display font-bold text-2xl text-foreground mb-2">
-                    {mockProfile.storeName}
+                    {retailer?.shop_name || 'Your Store'}
                   </h1>
 
-                  <a
-                    href={mockProfile.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-accent hover:underline mb-2"
-                  >
-                    <Globe className="w-4 h-4" />
-                    {mockProfile.website.replace('https://', '')}
-                  </a>
+                  {retailer?.shop_url && (
+                    <a
+                      href={retailer.shop_url.startsWith('http') ? retailer.shop_url : `https://${retailer.shop_url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-accent hover:underline mb-2"
+                    >
+                      <Globe className="w-4 h-4" />
+                      {retailer.shop_url.replace(/^https?:\/\//, '')}
+                    </a>
+                  )}
 
-                  <p className="text-muted-foreground mb-2">
-                    Contact: {mockProfile.contactPerson}
-                  </p>
+                  {profileData?.contact_name && (
+                    <p className="text-muted-foreground mb-2">
+                      Contact: {profileData.contact_name}
+                    </p>
+                  )}
 
-                  <p className="text-muted-foreground mb-4">
-                    {mockProfile.description}
-                  </p>
+                  {retailer?.shop_description ? (
+                    <p className="text-muted-foreground mb-4">
+                      {retailer.shop_description}
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground mb-4 italic">
+                      No description yet.{' '}
+                      <button 
+                        onClick={() => navigate('/retailer/profile/edit')}
+                        className="text-accent hover:underline"
+                      >
+                        Add one
+                      </button>
+                    </p>
+                  )}
 
-                  <div className="flex items-center gap-2 text-muted-foreground mb-4">
-                    <MapPin className="w-4 h-4" />
-                    <span>{mockProfile.location}</span>
-                  </div>
+                  {location && (
+                    <div className="flex items-center gap-2 text-muted-foreground mb-4">
+                      <MapPin className="w-4 h-4" />
+                      <span>{location}</span>
+                    </div>
+                  )}
 
                   {/* Store Type Tags */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {mockProfile.storeTypes.map((type) => (
-                      <span
-                        key={type}
-                        className="px-3 py-1 bg-secondary text-foreground text-sm rounded-full"
+                  {storeTypeLabels.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {storeTypeLabels.map((type) => (
+                        <span
+                          key={type}
+                          className="px-3 py-1 bg-secondary text-foreground text-sm rounded-full"
+                        >
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mb-6 italic">
+                      No store types selected.{' '}
+                      <button 
+                        onClick={() => navigate('/retailer/profile/edit')}
+                        className="text-accent hover:underline"
                       >
-                        {type}
-                      </span>
-                    ))}
-                  </div>
+                        Add them
+                      </button>
+                    </p>
+                  )}
 
                   {/* Social Icons */}
                   <div className="flex gap-3 mb-6">
-                    <button className="p-2 rounded-lg border border-border hover:bg-secondary transition-colors">
-                      <Instagram className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 rounded-lg border border-border hover:bg-secondary transition-colors">
-                      <Globe className="w-5 h-5" />
-                    </button>
+                    {retailer?.instagram_handle && (
+                      <a
+                        href={`https://instagram.com/${retailer.instagram_handle.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg border border-border hover:bg-secondary transition-colors"
+                      >
+                        <Instagram className="w-5 h-5" />
+                      </a>
+                    )}
+                    {retailer?.shop_url && (
+                      <a
+                        href={retailer.shop_url.startsWith('http') ? retailer.shop_url : `https://${retailer.shop_url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg border border-border hover:bg-secondary transition-colors"
+                      >
+                        <Globe className="w-5 h-5" />
+                      </a>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
                   <div className="flex gap-3">
-                    <ButtonSecondary>Edit Profile</ButtonSecondary>
+                    <ButtonSecondary onClick={() => navigate('/retailer/profile/edit')}>
+                      Edit Profile
+                    </ButtonSecondary>
                     <ButtonSecondary icon={<ExternalLink className="w-4 h-4" />} iconPosition="right">
                       Share Profile
                     </ButtonSecondary>
@@ -137,20 +261,20 @@ export const RetailerProfile = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Orders</span>
-                  <span className="font-medium">{mockProfile.stats.totalOrders}</span>
+                  <span className="font-medium">{totalOrders}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Pending</span>
-                  <span className="font-medium">{mockProfile.stats.pendingOrders}</span>
+                  <span className="font-medium">{pendingOrders}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">This Month</span>
-                  <span className="font-medium">{mockProfile.stats.thisMonth}</span>
+                  <span className="font-medium">{thisMonthOrders}</span>
                 </div>
               </div>
             </InfoCard>
 
-            {/* Favorite Publishers */}
+            {/* Favorite Publishers - placeholder for now */}
             <div className="card-neesh">
               <button
                 onClick={() => setPublishersExpanded(!publishersExpanded)}
@@ -167,15 +291,10 @@ export const RetailerProfile = () => {
               </button>
               
               {publishersExpanded && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {mockProfile.favoritePublishers.map((pub) => (
-                    <span
-                      key={pub.id}
-                      className="px-3 py-1 bg-secondary text-foreground text-sm rounded-full cursor-pointer hover:bg-secondary/80"
-                    >
-                      {pub.name}
-                    </span>
-                  ))}
+                <div className="mt-4">
+                  <p className="text-sm text-muted-foreground italic">
+                    No favorite publishers yet. Browse the catalogue to discover publishers.
+                  </p>
                 </div>
               )}
             </div>
@@ -216,7 +335,7 @@ export const RetailerProfile = () => {
                           className="w-16 h-20 rounded overflow-hidden bg-secondary flex-shrink-0 cursor-pointer"
                           onClick={() => navigate(`/retailer/catalogue/${title.id}`)}
                         >
-                          <img
+                          <MagazineCoverImage
                             src={title.coverImage}
                             alt={title.title}
                             className="w-full h-full object-cover"
