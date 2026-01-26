@@ -1,5 +1,6 @@
-import { useFormContext } from 'react-hook-form';
-import { US_STATES, COUNTRIES } from '@/lib/geography';
+import { useFormContext, useWatch } from 'react-hook-form';
+import { useMemo, useEffect } from 'react';
+import { COUNTRIES, getRegionsForCountry, getRegionLabel } from '@/lib/geography';
 
 import {
   FormControl,
@@ -25,6 +26,18 @@ import {
  */
 export function ShippingAddressSection() {
   const form = useFormContext();
+  
+  const selectedCountry = useWatch({ control: form.control, name: 'shipping_country' });
+  const regions = useMemo(() => getRegionsForCountry(selectedCountry || 'US'), [selectedCountry]);
+  const regionLabel = getRegionLabel(selectedCountry || 'US');
+
+  // Clear state when country changes (if current state is not valid for new country)
+  useEffect(() => {
+    const currentState = form.getValues('shipping_state');
+    if (currentState && !regions.some(r => r.value === currentState)) {
+      form.setValue('shipping_state', '');
+    }
+  }, [selectedCountry, regions, form]);
 
   return (
     <div className="space-y-6">
@@ -129,17 +142,17 @@ export function ShippingAddressSection() {
             name="shipping_state"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>State *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <FormLabel>{regionLabel} *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value} key={selectedCountry}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select state" />
+                      <SelectValue placeholder={`Select ${regionLabel.toLowerCase()}`} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="bg-background">
-                    {US_STATES.map((state) => (
-                      <SelectItem key={state.value} value={state.value}>
-                        {state.label}
+                    {regions.map((region) => (
+                      <SelectItem key={region.value} value={region.value}>
+                        {region.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
