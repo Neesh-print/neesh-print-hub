@@ -114,6 +114,7 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
   // Pre-populate form when retailer data loads
   useEffect(() => {
     if (retailer) {
+      const existingImageUrl = (retailer as any).profile_image_url || null;
       form.reset({
         shop_name: retailer.shop_name || '',
         contact_name: (retailer as any).contact_name || '',
@@ -125,9 +126,9 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
         store_types: (retailer as any).store_types || [],
         shop_url: retailer.shop_url || '',
         instagram_handle: retailer.instagram_handle?.replace('@', '') || '',
-        profile_image_url: (retailer as any).profile_image_url || null,
+        profile_image_url: existingImageUrl,
       });
-      setProfileImageUrl((retailer as any).profile_image_url || null);
+      setProfileImageUrl(existingImageUrl);
     }
   }, [retailer, user, form]);
 
