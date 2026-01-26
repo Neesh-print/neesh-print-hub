@@ -7,6 +7,7 @@ export { RetailerOrdersList } from './RetailerOrdersList';
 export { RetailerOrderDetail } from './RetailerOrderDetail';
 export { RetailerOrderInvoice } from './RetailerOrderInvoice';
 export { RetailerProfile } from './RetailerProfile';
+export { RetailerEditProfile } from './RetailerEditProfile';
 export { RetailerSettings } from './RetailerSettings';
 export { RetailerWishlist } from './RetailerWishlist';
 export { RetailerMessages } from './RetailerMessages';

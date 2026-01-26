@@ -1132,16 +1132,22 @@ export type Database = {
           address: string | null
           average_rating: number | null
           city: string | null
+          contact_email: string | null
+          contact_name: string | null
           country: string | null
           created_at: string | null
+          favorite_publisher_ids: string[] | null
           id: string
           instagram_handle: string | null
           phone: string | null
           postal_code: string | null
+          profile_completed_at: string | null
+          profile_image_url: string | null
           shop_description: string | null
           shop_name: string | null
           shop_url: string | null
           state: string | null
+          store_types: string[] | null
           total_orders: number | null
           total_spent: number | null
           updated_at: string | null
@@ -1153,16 +1159,22 @@ export type Database = {
           address?: string | null
           average_rating?: number | null
           city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          favorite_publisher_ids?: string[] | null
           id?: string
           instagram_handle?: string | null
           phone?: string | null
           postal_code?: string | null
+          profile_completed_at?: string | null
+          profile_image_url?: string | null
           shop_description?: string | null
           shop_name?: string | null
           shop_url?: string | null
           state?: string | null
+          store_types?: string[] | null
           total_orders?: number | null
           total_spent?: number | null
           updated_at?: string | null
@@ -1174,16 +1186,22 @@ export type Database = {
           address?: string | null
           average_rating?: number | null
           city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          favorite_publisher_ids?: string[] | null
           id?: string
           instagram_handle?: string | null
           phone?: string | null
           postal_code?: string | null
+          profile_completed_at?: string | null
+          profile_image_url?: string | null
           shop_description?: string | null
           shop_name?: string | null
           shop_url?: string | null
           state?: string | null
+          store_types?: string[] | null
           total_orders?: number | null
           total_spent?: number | null
           updated_at?: string | null
