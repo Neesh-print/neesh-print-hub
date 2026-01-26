@@ -28,6 +28,7 @@ import {
   PublisherOrdersList,
   PublisherOrderDetail,
   PublisherProfile,
+  PublisherEditProfile,
   PublisherEditTitle,
   PublisherTransactionHistory,
   PublisherTransfers,
@@ -169,6 +170,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/profile/edit"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherEditProfile />
           </ProtectedRoute>
         }
       />
