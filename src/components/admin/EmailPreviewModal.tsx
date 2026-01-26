@@ -141,7 +141,7 @@ export const EmailPreviewModal = ({
                     srcDoc={htmlContent}
                     className="w-full h-[500px] border-0"
                     title="Email Preview"
-                    sandbox="allow-same-origin"
+                    sandbox="allow-same-origin allow-scripts"
                   />
                 </div>
               </div>
