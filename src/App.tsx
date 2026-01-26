@@ -239,18 +239,18 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/publisher/settings"
-        element={
-          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherSettings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/publisher/settings/payout"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherPayoutSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/settings"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherSettings />
           </ProtectedRoute>
         }
       />
