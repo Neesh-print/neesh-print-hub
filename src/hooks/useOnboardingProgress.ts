@@ -210,11 +210,11 @@ function getRetailerChecklist(
     {
       id: 'add_shipping',
       title: 'Add your shipping address',
-      description: 'Add your default shipping address for faster checkout',
+      description: 'Add your shipping address for faster checkout',
       completed: hasShippingAddress,
       action: {
         label: 'Add Address',
-        href: '/retailer/settings/shipping',
+        href: '/retailer/profile/edit',
       },
       icon: MapPin,
     },

@@ -1,9 +1,9 @@
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -15,17 +15,19 @@ import { ButtonSecondary } from "@/components/neesh";
 import { StoreTypeSelector } from "./StoreTypeSelector";
 import { ProfileImageUpload } from "./ProfileImageUpload";
 import { ProfileProgress } from "./ProfileProgress";
+import { ShippingAddressSection } from "./ShippingAddressSection";
 
 import { US_STATES } from "@/lib/us-states";
 import { COUNTRY_LIST } from "@/lib/countries";
 import { checkProfileCompletion } from "@/lib/profile-completion";
 import { normalizeInstagramHandle, normalizeWebsiteUrl } from "@/lib/social-links";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { useShippingAddress, useSaveShippingAddress } from "@/hooks/useShippingAddress";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-// Form validation schema
+// Form validation schema - now includes shipping address fields
 const profileFormSchema = z.object({
   shop_name: z
     .string()
@@ -79,6 +81,59 @@ const profileFormSchema = z.object({
     .string()
     .optional()
     .nullable(),
+
+  // Shipping address fields
+  shipping_recipient_name: z
+    .string()
+    .min(2, 'Recipient name is required')
+    .max(200, 'Name must be under 200 characters'),
+  
+  shipping_company_name: z
+    .string()
+    .max(200, 'Company name must be under 200 characters')
+    .optional()
+    .or(z.literal('')),
+  
+  shipping_address_line_1: z
+    .string()
+    .min(5, 'Street address is required')
+    .max(255, 'Address must be under 255 characters'),
+  
+  shipping_address_line_2: z
+    .string()
+    .max(255, 'Must be under 255 characters')
+    .optional()
+    .or(z.literal('')),
+  
+  shipping_city: z
+    .string()
+    .min(2, 'City is required'),
+  
+  shipping_state: z
+    .string()
+    .min(2, 'State is required'),
+  
+  shipping_postal_code: z
+    .string()
+    .min(5, 'ZIP code is required')
+    .max(20, 'ZIP code must be under 20 characters')
+    .regex(/^\d{5}(-\d{4})?$/, 'Enter a valid ZIP code (e.g., 12345 or 12345-6789)'),
+  
+  shipping_country: z
+    .string()
+    .default('US'),
+  
+  shipping_phone: z
+    .string()
+    .regex(/^[\d\s\-\(\)\+]*$/, 'Enter a valid phone number')
+    .optional()
+    .or(z.literal('')),
+  
+  shipping_delivery_instructions: z
+    .string()
+    .max(500, 'Instructions must be under 500 characters')
+    .optional()
+    .or(z.literal('')),
 });
 
 type ProfileFormData = z.infer<typeof profileFormSchema>;
@@ -91,6 +146,8 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { retailer, isLoading: profileLoading, refetch } = useRetailerProfile();
+  const { address: shippingAddress, isLoading: addressLoading } = useShippingAddress();
+  const saveShippingAddress = useSaveShippingAddress();
   const [isSaving, setIsSaving] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
@@ -108,6 +165,17 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
       shop_url: '',
       instagram_handle: '',
       profile_image_url: null,
+      // Shipping defaults
+      shipping_recipient_name: '',
+      shipping_company_name: '',
+      shipping_address_line_1: '',
+      shipping_address_line_2: '',
+      shipping_city: '',
+      shipping_state: '',
+      shipping_postal_code: '',
+      shipping_country: 'US',
+      shipping_phone: '',
+      shipping_delivery_instructions: '',
     },
   });
 
@@ -127,10 +195,21 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
         shop_url: retailer.shop_url || '',
         instagram_handle: retailer.instagram_handle?.replace('@', '') || '',
         profile_image_url: existingImageUrl,
+        // Shipping address - use existing or prefill from contact
+        shipping_recipient_name: shippingAddress?.recipient_name || (retailer as any).contact_name || '',
+        shipping_company_name: shippingAddress?.company_name || retailer.shop_name || '',
+        shipping_address_line_1: shippingAddress?.address_line_1 || '',
+        shipping_address_line_2: shippingAddress?.address_line_2 || '',
+        shipping_city: shippingAddress?.city || '',
+        shipping_state: shippingAddress?.state || '',
+        shipping_postal_code: shippingAddress?.postal_code || '',
+        shipping_country: shippingAddress?.country || 'US',
+        shipping_phone: shippingAddress?.phone || '',
+        shipping_delivery_instructions: shippingAddress?.delivery_instructions || '',
       });
       setProfileImageUrl(existingImageUrl);
     }
-  }, [retailer, user, form]);
+  }, [retailer, shippingAddress, user, form]);
 
   // Watch form values for progress indicator
   const watchedValues = form.watch();
@@ -193,6 +272,23 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
 
       if (error) throw error;
 
+      // Save shipping address
+      await saveShippingAddress.mutateAsync({
+        id: shippingAddress?.id,
+        recipient_name: data.shipping_recipient_name,
+        company_name: data.shipping_company_name || '',
+        address_line_1: data.shipping_address_line_1,
+        address_line_2: data.shipping_address_line_2 || '',
+        city: data.shipping_city,
+        state: data.shipping_state,
+        postal_code: data.shipping_postal_code,
+        country: data.shipping_country || 'US',
+        phone: data.shipping_phone || '',
+        delivery_instructions: data.shipping_delivery_instructions || '',
+        label: '',
+        is_default: true,
+      });
+
       // Refetch profile data
       await refetch();
 
@@ -218,7 +314,7 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
     }
   };
 
-  if (profileLoading) {
+  if (profileLoading || addressLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -244,47 +340,226 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
       {/* Progress indicator */}
       <ProfileProgress profile={profileData} />
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {/* Basic Information Section */}
-          <div className="card-neesh space-y-6">
-            <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
-              Basic Information
-            </h2>
+      <FormProvider {...form}>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {/* Basic Information Section */}
+            <div className="card-neesh space-y-6">
+              <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
+                Basic Information
+              </h2>
 
-            {/* Profile Image */}
-            <div className="flex justify-center py-4">
-              <ProfileImageUpload
-                currentImageUrl={profileImageUrl}
-                userId={user?.id || ''}
-                onUpload={handleImageUpload}
-                onRemove={handleImageRemove}
+              {/* Profile Image */}
+              <div className="flex justify-center py-4">
+                <ProfileImageUpload
+                  currentImageUrl={profileImageUrl}
+                  userId={user?.id || ''}
+                  onUpload={handleImageUpload}
+                  onRemove={handleImageRemove}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="shop_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Store Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Powell's City of Books" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="contact_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Emily Richardson" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contact_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Email *</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="emily@powells.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Location Section */}
+            <div className="card-neesh space-y-6">
+              <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
+                Store Location
+              </h2>
+
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Portland" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State / Province *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {US_STATES.map((state) => (
+                            <SelectItem key={state.value} value={state.value}>
+                              {state.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {COUNTRY_LIST.map((country) => (
+                            <SelectItem key={country.code} value={country.code}>
+                              {country.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* About Your Store Section */}
+            <div className="card-neesh space-y-6">
+              <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
+                About Your Store
+              </h2>
+
+              <FormField
+                control={form.control}
+                name="shop_description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Store Description *</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Tell publishers what makes your store unique..."
+                        className="min-h-[120px] resize-y"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Minimum 50 characters. What makes your store special? Who are your customers?
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="store_types"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Store Types * (select all that apply)</FormLabel>
+                    <FormControl>
+                      <StoreTypeSelector
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={form.formState.errors.store_types?.message}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="shop_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Store Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Powell's City of Books" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Shipping Address Section */}
+            <div className="card-neesh space-y-6">
+              <div className="flex items-center gap-2 border-b border-border pb-3">
+                <MapPin className="w-5 h-5 text-muted-foreground" />
+                <h2 className="font-display font-semibold text-lg text-foreground">
+                  Shipping Address
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground -mt-2">
+                Where should publishers send your orders?
+              </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ShippingAddressSection />
+            </div>
+
+            {/* Online Presence Section */}
+            <div className="card-neesh space-y-6">
+              <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
+                Online Presence
+              </h2>
+
               <FormField
                 control={form.control}
-                name="contact_name"
+                name="shop_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contact Name *</FormLabel>
+                    <FormLabel>Website</FormLabel>
                     <FormControl>
-                      <Input placeholder="Emily Richardson" {...field} />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          🌐
+                        </span>
+                        <Input 
+                          placeholder="https://yourstore.com" 
+                          className="pl-10"
+                          {...field} 
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -293,213 +568,51 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
 
               <FormField
                 control={form.control}
-                name="contact_email"
+                name="instagram_handle"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contact Email *</FormLabel>
+                    <FormLabel>Instagram</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="emily@powells.com" {...field} />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          @
+                        </span>
+                        <Input 
+                          placeholder="yourstorehandle" 
+                          className="pl-10"
+                          {...field} 
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-          </div>
 
-          {/* Location Section */}
-          <div className="card-neesh space-y-6">
-            <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
-              Location
-            </h2>
-
-            <FormField
-              control={form.control}
-              name="city"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>City *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Portland" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="state"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>State / Province *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select state" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {US_STATES.map((state) => (
-                          <SelectItem key={state.value} value={state.value}>
-                            {state.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+            {/* Form Actions */}
+            <div className="flex flex-col-reverse sm:flex-row gap-3 justify-end pt-4">
+              <ButtonSecondary
+                type="button"
+                onClick={() => navigate('/retailer/profile')}
+                disabled={isSaving}
+              >
+                Cancel
+              </ButtonSecondary>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Profile'
                 )}
-              />
-
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Country</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {COUNTRY_LIST.map((country) => (
-                          <SelectItem key={country.code} value={country.code}>
-                            {country.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              </Button>
             </div>
-          </div>
-
-          {/* About Your Store Section */}
-          <div className="card-neesh space-y-6">
-            <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
-              About Your Store
-            </h2>
-
-            <FormField
-              control={form.control}
-              name="shop_description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Store Description *</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Tell publishers what makes your store unique..."
-                      className="min-h-[120px] resize-y"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Minimum 50 characters. What makes your store special? Who are your customers?
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="store_types"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Store Types * (select all that apply)</FormLabel>
-                  <FormControl>
-                    <StoreTypeSelector
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={form.formState.errors.store_types?.message}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Online Presence Section */}
-          <div className="card-neesh space-y-6">
-            <h2 className="font-display font-semibold text-lg text-foreground border-b border-border pb-3">
-              Online Presence
-            </h2>
-
-            <FormField
-              control={form.control}
-              name="shop_url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Website</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        🌐
-                      </span>
-                      <Input 
-                        placeholder="https://yourstore.com" 
-                        className="pl-10"
-                        {...field} 
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="instagram_handle"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Instagram</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        @
-                      </span>
-                      <Input 
-                        placeholder="yourstorehandle" 
-                        className="pl-10"
-                        {...field} 
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex flex-col-reverse sm:flex-row gap-3 justify-end pt-4">
-            <ButtonSecondary
-              type="button"
-              onClick={() => navigate('/retailer/profile')}
-              disabled={isSaving}
-            >
-              Cancel
-            </ButtonSecondary>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Profile'
-              )}
-            </Button>
-          </div>
-        </form>
-      </Form>
+          </form>
+        </Form>
+      </FormProvider>
     </div>
   );
 }

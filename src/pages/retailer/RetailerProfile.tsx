@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { MapPin, Instagram, Globe, ChevronDown, ChevronUp, AlertCircle, Package } from "lucide-react";
 import { ShareProfileModal } from "@/components/neesh/ShareProfileModal";
 import { slugify } from "@/lib/slugify";
 import { RetailerLayout } from "@/components/retailer";
@@ -8,20 +8,22 @@ import { useWishlistContext } from "@/components/retailer/WishlistContext";
 import { BackNavigation, ButtonSecondary, InfoCard } from "@/components/neesh";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { useShippingAddress } from "@/hooks/useShippingAddress";
 import { useOrders } from "@/hooks/useOrders";
 import { getStoreTypeLabels } from "@/lib/store-types";
+import { getStateLabel } from "@/lib/geography";
 import { isProfileComplete } from "@/lib/profile-completion";
 import { MagazineCoverImage } from "@/components/neesh/MagazineCoverImage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const RetailerProfile = () => {
   const navigate = useNavigate();
-  const [publishersExpanded, setPublishersExpanded] = useState(true);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+  const [shippingExpanded, setShippingExpanded] = useState(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   
-  // Fetch real retailer data
   const { retailer, isLoading: profileLoading } = useRetailerProfile();
+  const { address: shippingAddress, isLoading: addressLoading } = useShippingAddress();
   const { orders } = useOrders();
   
   // Connect to real wishlist
@@ -75,7 +77,7 @@ export const RetailerProfile = () => {
   const shopSlug = retailer?.shop_name ? slugify(retailer.shop_name) : "";
 
   // Loading state
-  if (profileLoading) {
+  if (profileLoading || addressLoading) {
     return (
       <RetailerLayout>
         <BackNavigation
@@ -280,27 +282,56 @@ export const RetailerProfile = () => {
               </div>
             </InfoCard>
 
-            {/* Favorite Publishers - placeholder for now */}
+            {/* Shipping Address */}
             <div className="card-neesh">
               <button
-                onClick={() => setPublishersExpanded(!publishersExpanded)}
+                onClick={() => setShippingExpanded(!shippingExpanded)}
                 className="w-full flex items-center justify-between"
               >
-                <h3 className="font-display font-semibold text-foreground">
-                  Favorite Publishers
+                <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Shipping Address
                 </h3>
-                {publishersExpanded ? (
+                {shippingExpanded ? (
                   <ChevronUp className="w-5 h-5 text-muted-foreground" />
                 ) : (
                   <ChevronDown className="w-5 h-5 text-muted-foreground" />
                 )}
               </button>
               
-              {publishersExpanded && (
+              {shippingExpanded && (
                 <div className="mt-4">
-                  <p className="text-sm text-muted-foreground italic">
-                    No favorite publishers yet. Browse the catalogue to discover publishers.
-                  </p>
+                  {shippingAddress ? (
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium">{shippingAddress.recipient_name}</p>
+                      {shippingAddress.company_name && (
+                        <p className="text-muted-foreground">{shippingAddress.company_name}</p>
+                      )}
+                      <p className="text-muted-foreground">{shippingAddress.address_line_1}</p>
+                      {shippingAddress.address_line_2 && (
+                        <p className="text-muted-foreground">{shippingAddress.address_line_2}</p>
+                      )}
+                      <p className="text-muted-foreground">
+                        {shippingAddress.city}, {getStateLabel(shippingAddress.state) || shippingAddress.state} {shippingAddress.postal_code}
+                      </p>
+                      <button 
+                        onClick={() => navigate("/retailer/profile/edit")}
+                        className="mt-2 text-sm text-accent hover:underline"
+                      >
+                        Edit address →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      <p className="italic mb-2">No shipping address added yet.</p>
+                      <button 
+                        onClick={() => navigate("/retailer/profile/edit")}
+                        className="text-accent hover:underline"
+                      >
+                        Add shipping address
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
