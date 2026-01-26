@@ -3,3 +3,7 @@ export { ConversationListItem } from './ConversationListItem';
 export { ConversationListSkeleton } from './ConversationListSkeleton';
 export { MessagesHeader } from './MessagesHeader';
 export { EmptyConversationState } from './EmptyConversationState';
+export { MessageBubble } from './MessageBubble';
+export { MessageThread } from './MessageThread';
+export { MessageComposer } from './MessageComposer';
+export { MessageThreadView } from './MessageThreadView';
