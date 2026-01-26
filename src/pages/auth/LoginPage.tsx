@@ -22,6 +22,14 @@ const LoginPage = () => {
   useEffect(() => {
     // Must wait for both auth AND role loading to complete
     if (user && !authLoading && !isRoleLoading) {
+      // Debug logging
+      console.log('LoginPage redirect check:', {
+        user: !!user,
+        authLoading,
+        isRoleLoading,
+        userRole,
+      });
+      
       // Role-based redirect
       switch (userRole) {
         case 'publisher':
