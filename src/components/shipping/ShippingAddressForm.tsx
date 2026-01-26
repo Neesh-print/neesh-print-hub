@@ -1,7 +1,8 @@
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo } from 'react';
 import { shippingAddressSchema, type ShippingAddressSchemaType } from '@/lib/schemas/shipping-address';
-import { US_STATES, COUNTRIES } from '@/lib/geography';
+import { COUNTRIES, getRegionsForCountry, getRegionLabel } from '@/lib/geography';
 import type { ShippingAddress } from '@/types/shipping';
 
 import {
@@ -57,6 +58,18 @@ export function ShippingAddressForm({
       is_default: initialData?.is_default ?? true,
     },
   });
+
+  const selectedCountry = useWatch({ control: form.control, name: 'country' });
+  const regions = useMemo(() => getRegionsForCountry(selectedCountry), [selectedCountry]);
+  const regionLabel = getRegionLabel(selectedCountry);
+
+  // Clear state when country changes (if current state is not valid for new country)
+  useEffect(() => {
+    const currentState = form.getValues('state');
+    if (currentState && !regions.some(r => r.value === currentState)) {
+      form.setValue('state', '');
+    }
+  }, [selectedCountry, regions, form]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     await onSubmit(data);
@@ -192,17 +205,17 @@ export function ShippingAddressForm({
               name="state"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>State *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>{regionLabel} *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} key={selectedCountry}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select state" />
+                        <SelectValue placeholder={`Select ${regionLabel.toLowerCase()}`} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent className="bg-background">
-                      {US_STATES.map((state) => (
-                        <SelectItem key={state.value} value={state.value}>
-                          {state.label}
+                      {regions.map((region) => (
+                        <SelectItem key={region.value} value={region.value}>
+                          {region.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
