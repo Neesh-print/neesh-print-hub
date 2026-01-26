@@ -175,7 +175,7 @@ export const PublisherSettings = () => {
                 <p className="text-foreground">Monthly, on the 15th</p>
               </div>
 
-              <ButtonSecondary>
+              <ButtonSecondary onClick={() => navigate("/publisher/settings/payout")}>
                 Update Payout Method
               </ButtonSecondary>
 

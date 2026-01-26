@@ -36,6 +36,7 @@ import {
   PublisherMessages,
   PublisherAnalytics,
   PublisherOnboarding,
+  PublisherPayoutSettings,
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
@@ -242,6 +243,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/settings/payout"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherPayoutSettings />
           </ProtectedRoute>
         }
       />

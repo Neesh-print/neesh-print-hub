@@ -10,5 +10,6 @@ export { PublisherWithdraw } from "./PublisherWithdraw";
 export { PublisherMessages } from "./PublisherMessages";
 export { PublisherTitlesList } from "./PublisherTitlesList";
 export { PublisherSettings } from "./PublisherSettings";
+export { PublisherPayoutSettings } from "./PublisherPayoutSettings";
 export { PublisherAnalytics } from "./PublisherAnalytics";
 export { PublisherOnboarding } from "./PublisherOnboarding";
