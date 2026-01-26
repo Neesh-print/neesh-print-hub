@@ -5,8 +5,9 @@ import { BackNavigation, InfoCard, FormInput } from "@/components/neesh";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { ContactSupportButton } from "@/components/messaging";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Bell, Shield, Download, Trash2, Lock } from "lucide-react";
+import { Mail, Bell, Shield, Download, Trash2, Lock, HelpCircle } from "lucide-react";
 
 interface SettingsPageProps {
   userRole: 'publisher' | 'retailer' | 'admin';
@@ -179,6 +180,22 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
                 <Trash2 className="w-4 h-4 mr-2" />
                 Request Account Deletion
               </Button>
+            </div>
+          </div>
+        </InfoCard>
+
+        {/* Support Section */}
+        <InfoCard title="Need Help?">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Have questions or need assistance? Our support team is here to help.
+              </p>
+              <ContactSupportButton 
+                variant="outline" 
+                icon="help"
+                label="Contact Support"
+              />
             </div>
           </div>
         </InfoCard>
