@@ -20,6 +20,7 @@ export interface RetailerProfile {
   store_types: string[];
   profile_image_url: string | null;
   favorite_publisher_ids: string[];
+  has_shipping_address: boolean;
   total_spent: number;
   total_orders: number;
   average_rating: number;
@@ -88,6 +89,7 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           store_types: data.store_types || [],
           profile_image_url: data.profile_image_url,
           favorite_publisher_ids: data.favorite_publisher_ids || [],
+          has_shipping_address: data.has_shipping_address || false,
           total_spent: Number(data.total_spent) || 0,
           total_orders: data.total_orders || 0,
           average_rating: Number(data.average_rating) || 0,

@@ -214,7 +214,7 @@ function getRetailerChecklist(
       completed: hasShippingAddress,
       action: {
         label: 'Add Address',
-        href: '/retailer/settings#shipping',
+        href: '/retailer/settings/shipping',
       },
       icon: MapPin,
     },

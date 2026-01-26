@@ -56,6 +56,7 @@ import {
   RetailerMessages,
 } from "./pages/retailer";
 import { RetailerSettings } from "./pages/retailer/RetailerSettings";
+import { RetailerShippingAddresses } from "./pages/retailer/RetailerShippingAddresses";
 
 // Admin pages
 // Public pages
@@ -413,6 +414,18 @@ const AppRoutes = () => {
             <WishlistProvider>
               <CartProvider>
                 <RetailerMessages />
+              </CartProvider>
+            </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/retailer/settings/shipping"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerShippingAddresses />
               </CartProvider>
             </WishlistProvider>
           </ProtectedRoute>
