@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Search, Handshake, LayoutDashboard, Store } from 'lucide-react';
+import { Search, Handshake, LayoutDashboard } from 'lucide-react';
+import retailersHeroImage from '@/assets/retailers-hero.jpg';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 
@@ -30,13 +31,12 @@ export const RetailersPage = () => {
 
             {/* Hero Image */}
             <div className="order-1 lg:order-2">
-              <div className="aspect-[4/3] rounded-lg overflow-hidden bg-secondary">
-                <div className="w-full h-full bg-gradient-to-br from-muted to-secondary flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <Store className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm">Shop Interior Image</p>
-                  </div>
-                </div>
+              <div className="aspect-[3/4] rounded-lg overflow-hidden bg-secondary">
+                <img 
+                  src={retailersHeroImage} 
+                  alt="Beautiful independent magazine shop interior with curated displays" 
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
           </div>
