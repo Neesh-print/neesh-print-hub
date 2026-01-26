@@ -7,6 +7,7 @@ const allowedHosts = new Set([
   'cdn.shopify.com',
   'cdn.shopifycdn.net',
   'cdn.shopifycdn.com',
+  'shop.neesh.art',
 ]);
 
 const buildCandidateUrls = (rawUrl: string): string[] => {
