@@ -5,11 +5,18 @@ import { BackNavigation, FormInput, ButtonSecondary } from "@/components/neesh";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { useShippingAddresses } from "@/hooks/useShippingAddresses";
+import { MapPin, ChevronRight } from "lucide-react";
+import { getStateLabel } from "@/lib/geography";
 
 export const RetailerSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { retailer } = useRetailerProfile();
+  const { data: addresses } = useShippingAddresses();
 
   // Notification preferences state
   const [notifications, setNotifications] = useState({
@@ -33,6 +40,12 @@ export const RetailerSettings = () => {
   const handleUpdateAddress = () => {
     navigate("/retailer/profile");
   };
+
+  const handleManageShipping = () => {
+    navigate("/retailer/settings/shipping");
+  };
+
+  const defaultAddress = addresses?.find(a => a.is_default) || addresses?.[0];
 
   return (
     <RetailerLayout>
@@ -95,24 +108,69 @@ export const RetailerSettings = () => {
             </div>
           </div>
 
-          {/* Default Shipping Address */}
+          {/* Shipping Addresses */}
+          <div className="card-neesh">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-semibold text-lg text-foreground">
+                Shipping Addresses
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleManageShipping}
+                className="text-primary"
+              >
+                Manage
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+            
+            {defaultAddress ? (
+              <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-lg">
+                <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium">{defaultAddress.label || 'Default Address'}</p>
+                  <p className="text-muted-foreground">{defaultAddress.recipient_name}</p>
+                  <p className="text-muted-foreground">{defaultAddress.address_line_1}</p>
+                  <p className="text-muted-foreground">
+                    {defaultAddress.city}, {getStateLabel(defaultAddress.state) || defaultAddress.state} {defaultAddress.postal_code}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground text-sm mb-3">
+                  No shipping address added yet
+                </p>
+                <Button onClick={handleManageShipping}>
+                  Add Shipping Address
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Default Billing Address (from profile) */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-lg text-foreground mb-4">
-              Default Shipping Address
+              Store Address
             </h3>
             <div className="space-y-4">
-              <div className="text-foreground">
-                <p className="font-medium">Brooklyn Books</p>
-                <p>142 Smith Street</p>
-                <p>Brooklyn, NY 11201</p>
-              </div>
+              {retailer?.city && retailer?.state ? (
+                <div className="text-foreground">
+                  <p className="font-medium">{retailer.shop_name || 'Your Store'}</p>
+                  {retailer.address && <p>{retailer.address}</p>}
+                  <p>{retailer.city}, {getStateLabel(retailer.state) || retailer.state} {retailer.postal_code || ''}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No store address on file</p>
+              )}
 
-              <ButtonSecondary onClick={handleUpdateAddress}>
-                Update Address
-              </ButtonSecondary>
+              <Button variant="outline" onClick={handleUpdateAddress}>
+                Update Store Address
+              </Button>
 
               <p className="text-sm text-muted-foreground">
-                Your default shipping address is pulled from your profile
+                Your store address is pulled from your profile
               </p>
             </div>
           </div>
@@ -130,9 +188,9 @@ export const RetailerSettings = () => {
                 disabled
               />
 
-              <ButtonSecondary>
+              <Button variant="outline">
                 Change Password
-              </ButtonSecondary>
+              </Button>
 
               <Separator className="my-4" />
 
@@ -142,9 +200,9 @@ export const RetailerSettings = () => {
                 <p className="text-sm text-muted-foreground mb-3">
                   This will permanently delete your account and order history
                 </p>
-                <ButtonSecondary destructive>
+                <Button variant="destructive">
                   Delete Account
-                </ButtonSecondary>
+                </Button>
               </div>
             </div>
           </div>

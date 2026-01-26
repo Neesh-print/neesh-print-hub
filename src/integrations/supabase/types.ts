@@ -1137,6 +1137,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           favorite_publisher_ids: string[] | null
+          has_shipping_address: boolean | null
           id: string
           instagram_handle: string | null
           phone: string | null
@@ -1164,6 +1165,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           favorite_publisher_ids?: string[] | null
+          has_shipping_address?: boolean | null
           id?: string
           instagram_handle?: string | null
           phone?: string | null
@@ -1191,6 +1193,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           favorite_publisher_ids?: string[] | null
+          has_shipping_address?: boolean | null
           id?: string
           instagram_handle?: string | null
           phone?: string | null
@@ -1253,6 +1256,74 @@ export type Database = {
             columns: ["order_item_id"]
             isOneToOne: false
             referencedRelation: "order_item"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_addresses: {
+        Row: {
+          address_line_1: string
+          address_line_2: string | null
+          city: string
+          company_name: string | null
+          country: string
+          created_at: string | null
+          delivery_instructions: string | null
+          id: string
+          is_default: boolean | null
+          is_verified: boolean | null
+          label: string | null
+          phone: string | null
+          postal_code: string
+          recipient_name: string
+          retailer_id: string
+          state: string
+          updated_at: string | null
+        }
+        Insert: {
+          address_line_1: string
+          address_line_2?: string | null
+          city: string
+          company_name?: string | null
+          country?: string
+          created_at?: string | null
+          delivery_instructions?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_verified?: boolean | null
+          label?: string | null
+          phone?: string | null
+          postal_code: string
+          recipient_name: string
+          retailer_id: string
+          state: string
+          updated_at?: string | null
+        }
+        Update: {
+          address_line_1?: string
+          address_line_2?: string | null
+          city?: string
+          company_name?: string | null
+          country?: string
+          created_at?: string | null
+          delivery_instructions?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_verified?: boolean | null
+          label?: string | null
+          phone?: string | null
+          postal_code?: string
+          recipient_name?: string
+          retailer_id?: string
+          state?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_addresses_retailer_id_fkey"
+            columns: ["retailer_id"]
+            isOneToOne: false
+            referencedRelation: "retailers"
             referencedColumns: ["id"]
           },
         ]
