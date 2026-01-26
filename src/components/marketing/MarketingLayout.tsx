@@ -114,7 +114,7 @@ export const MarketingLayout = ({
               <a href="mailto:hi@neesh.art" className="hover:text-foreground transition-colors">
                 Contact
               </a>
-              <a href="https://casesensitive.studio" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors flex items-center gap-1">
+              <a target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors flex items-center gap-1" href="https://casesensitive.show/">
                 <span>✦✦</span> Casesensitive
               </a>
             </div>
