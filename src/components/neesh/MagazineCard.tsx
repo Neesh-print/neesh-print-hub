@@ -1,10 +1,13 @@
 import { useState, useMemo } from "react";
 import { Bookmark } from "lucide-react";
 import { PriceDisplay } from "@/components/ui/price-display";
+import { PublicationDate } from "@/components/ui/publication-date";
+import { Badge } from "@/components/ui/badge";
+import { StockIndicator } from "@/components/ui/stock-indicator";
+import { isCurrentMonth } from "@/lib/publication-date";
+import { getStockLevel } from "@/lib/inventory";
 
 const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
-
-export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { calculateRetailerPrice } from "@/utils/pricing";
@@ -19,31 +22,21 @@ export interface MagazineCardProps {
   price: number;
   /** Suggested retail price in dollars */
   retailPrice?: number;
-  stockStatus?: StockStatus;
+  /** Publication date as ISO string (e.g., "2025-12-01") */
+  publicationDate?: string | null;
   inventoryCount?: number;
   onClick: () => void;
   onBookmark?: () => void;
   isBookmarked?: boolean;
+  /** Show scarcity indicator on card (default: true) */
   showStockIndicator?: boolean;
 }
-
-const getStockStatus = (inventoryCount: number): StockStatus => {
-  if (inventoryCount <= 0) return 'out_of_stock';
-  if (inventoryCount <= 10) return 'low_stock';
-  return 'in_stock';
-};
-
-const stockStatusConfig: Record<StockStatus, { color: string; label: string }> = {
-  in_stock: { color: 'bg-status-success', label: 'In Stock' },
-  low_stock: { color: 'bg-status-warning', label: 'Low Stock' },
-  out_of_stock: { color: 'bg-status-error', label: 'Out of Stock' },
-};
 
 // Convert Shopify CDN URLs to use our proxy
 const getProxiedUrl = (url: string): string => {
   if (!url) return "/placeholder.svg";
   
-  if (url.includes("cdn.shopify.com")) {
+  if (url.includes("cdn.shopify.com") || url.includes("shop.neesh.art/cdn/")) {
     return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
   }
   
@@ -57,16 +50,16 @@ export const MagazineCard = ({
   region,
   price,
   retailPrice,
-  stockStatus,
+  publicationDate,
   inventoryCount,
   onClick,
   onBookmark,
   isBookmarked = false,
-  showStockIndicator = false,
+  showStockIndicator = true,
 }: MagazineCardProps) => {
-  // Determine stock status from inventory count if not explicitly provided
-  const resolvedStockStatus = stockStatus ?? (inventoryCount !== undefined ? getStockStatus(inventoryCount) : undefined);
-  const stockConfig = resolvedStockStatus ? stockStatusConfig[resolvedStockStatus] : null;
+  const stockLevel = getStockLevel(inventoryCount);
+  const isNew = isCurrentMonth(publicationDate);
+  const isOutOfStock = stockLevel === 'out';
 
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -79,8 +72,8 @@ export const MagazineCard = ({
   return (
     <article className="group cursor-pointer" onClick={onClick}>
       {/* Cover image */}
-      <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-secondary shadow-neesh transition-shadow duration-300 group-hover:shadow-neesh-md">
-        {/* Image / Placeholder */}
+      <div className={`relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-secondary shadow-neesh transition-shadow duration-300 group-hover:shadow-neesh-md ${isOutOfStock ? 'opacity-75' : ''}`}>
+        {/* Loading placeholder */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 bg-muted animate-pulse" />
         )}
@@ -104,11 +97,20 @@ export const MagazineCard = ({
           />
         )}
         
-        {/* Stock Indicator */}
-        {showStockIndicator && stockConfig && (
-          <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-background/90 backdrop-blur-sm px-2 py-1 rounded-full">
-            <span className={`w-2 h-2 rounded-full ${stockConfig.color}`} />
-            <span className="text-[10px] font-medium text-foreground">{stockConfig.label}</span>
+        {/* New Badge - top right corner on image */}
+        {isNew && (
+          <Badge 
+            className="absolute top-2 right-2 bg-status-success text-status-success-text text-[10px] px-1.5"
+            aria-label="New release"
+          >
+            New
+          </Badge>
+        )}
+        
+        {/* Stock Indicator - only show for low/critical/out */}
+        {showStockIndicator && stockLevel !== 'normal' && (
+          <div className="absolute top-2 left-2">
+            <StockIndicator quantity={inventoryCount} size="sm" />
           </div>
         )}
         
@@ -120,7 +122,7 @@ export const MagazineCard = ({
               onBookmark();
             }}
             className={`
-              absolute top-2 right-2 p-2 rounded-full
+              absolute ${isNew ? 'top-10' : 'top-2'} right-2 p-2 rounded-full
               backdrop-blur-sm transition-all
               ${isBookmarked 
                 ? 'bg-accent text-accent-foreground' 
@@ -144,6 +146,15 @@ export const MagazineCard = ({
           {publisher}
           {region && <span className="ml-1">· {region}</span>}
         </p>
+        
+        {/* Publication Date */}
+        {publicationDate && (
+          <PublicationDate 
+            date={publicationDate} 
+            format="short" 
+            size="sm"
+          />
+        )}
         
         <PriceDisplay
           wholesalePrice={calculateRetailerPrice(price)}

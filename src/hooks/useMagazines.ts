@@ -15,10 +15,12 @@ export interface Magazine {
   issue_number: string | null;
   issue_frequency: string | null;
   publication_type: string | null;
+  publication_date: string | null; // ISO date string (e.g., "2025-12-01")
   is_active: boolean;
   inventory_count: number;
   sold_count: number;
   created_at: string;
+  origin_country_code: string | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -64,10 +66,12 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
           issue_number,
           issue_frequency,
           publication_type,
+          publication_date,
           is_active,
           inventory_count,
           sold_count,
           created_at,
+          origin_country_code,
           publisher_id,
           publishers (
             id,
@@ -75,6 +79,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
             description
           )
         `)
+        .order('publication_date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
 
       if (options.publisherId) {
@@ -111,10 +116,12 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         issue_number: item.issue_number,
         issue_frequency: item.issue_frequency,
         publication_type: item.publication_type,
+        publication_date: item.publication_date,
         is_active: item.is_active ?? true,
         inventory_count: item.inventory_count || 0,
         sold_count: item.sold_count || 0,
         created_at: item.created_at,
+        origin_country_code: item.origin_country_code,
         publisher: item.publishers ? {
           id: item.publishers.id,
           company_name: item.publishers.company_name,

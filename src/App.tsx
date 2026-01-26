@@ -28,6 +28,7 @@ import {
   PublisherOrdersList,
   PublisherOrderDetail,
   PublisherProfile,
+  PublisherEditProfile,
   PublisherEditTitle,
   PublisherTransactionHistory,
   PublisherTransfers,
@@ -35,6 +36,7 @@ import {
   PublisherMessages,
   PublisherAnalytics,
   PublisherOnboarding,
+  PublisherPayoutSettings,
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
@@ -51,10 +53,12 @@ import {
   RetailerOrderDetail,
   RetailerOrderInvoice,
   RetailerProfile,
+  RetailerEditProfile,
   RetailerWishlist,
   RetailerMessages,
 } from "./pages/retailer";
 import { RetailerSettings } from "./pages/retailer/RetailerSettings";
+// Shipping addresses now integrated into profile edit page
 
 // Admin pages
 // Public pages
@@ -194,6 +198,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/publisher/profile/edit"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherEditProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/publisher/titles"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
@@ -246,6 +258,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherMessages />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/settings/payout"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherPayoutSettings />
           </ProtectedRoute>
         }
       />
@@ -405,6 +425,18 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/retailer/profile/edit"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerEditProfile />
+              </CartProvider>
+            </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/retailer/settings"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
@@ -428,6 +460,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      {/* Shipping addresses now integrated into /retailer/profile/edit */}
       <Route
         path="/retailer/help"
         element={

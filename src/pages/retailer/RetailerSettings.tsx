@@ -5,6 +5,7 @@ import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary, FormTextarea
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useToast } from "@/hooks/use-toast";
@@ -241,6 +242,7 @@ export const RetailerSettings = () => {
             </div>
           </div>
 
+
           {/* Account */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-lg text-foreground mb-4">
@@ -254,9 +256,9 @@ export const RetailerSettings = () => {
                 disabled
               />
 
-              <ButtonSecondary>
+              <Button variant="outline">
                 Change Password
-              </ButtonSecondary>
+              </Button>
 
               <Separator className="my-4" />
 
@@ -266,9 +268,9 @@ export const RetailerSettings = () => {
                 <p className="text-sm text-muted-foreground mb-3">
                   This will permanently delete your account and order history
                 </p>
-                <ButtonSecondary destructive>
+                <Button variant="destructive">
                   Delete Account
-                </ButtonSecondary>
+                </Button>
               </div>
             </div>
           </div>

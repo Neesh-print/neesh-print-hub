@@ -3,10 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, FormInput, FormTextarea, FileUploadZone, ButtonPrimary } from "@/components/neesh";
+import { FormSelect } from "@/components/neesh/FormSelect";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { CountrySelect } from "@/components/ui/country-select";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { supabase } from "@/integrations/supabase/client";
+import { getCategoryOptions } from "@/lib/categories";
 
 export const PublisherEditTitle = () => {
   const { id } = useParams();
@@ -20,7 +25,7 @@ export const PublisherEditTitle = () => {
     frequency: isNew ? "" : "Quarterly",
     isSingleIssue: true,
     isSeries: false,
-    genres: isNew ? "" : "Lifestyle, Design, Culture",
+    category: isNew ? "" : "Art",
     dimensions: isNew ? "" : "210 x 280mm, 350g",
     pageCount: isNew ? "" : "160",
     printRun: isNew ? "" : "25,000",
@@ -33,6 +38,8 @@ export const PublisherEditTitle = () => {
     retailPrice: isNew ? "" : "45.00",
     discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
     paymentTerms: isNew ? "" : "Net 30",
+    originCountryCode: isNew ? null as string | null : "US",
+    publicationDate: isNew ? null as string | null : "2025-01-01",
   });
 
   // Uploaded image URLs
@@ -123,7 +130,7 @@ export const PublisherEditTitle = () => {
         title: formData.title,
         issue_number: formData.issueNumber,
         issue_frequency: formData.frequency,
-        category: formData.genres,
+        category: formData.category,
         specs: formData.pageCount && formData.dimensions 
           ? `${formData.pageCount} pages, ${formData.dimensions}` 
           : formData.dimensions || formData.pageCount,
@@ -132,6 +139,10 @@ export const PublisherEditTitle = () => {
         wholesale_price: parseFloat(formData.wholesalePrice) || 0,
         suggested_retail_price: parseFloat(formData.retailPrice) || 0,
         cover_image_url: coverImageUrl,
+        sample_spread_url: sampleSpreadUrl,
+        logo_url: logoUrl,
+        origin_country_code: formData.originCountryCode,
+        publication_date: formData.publicationDate,
         // Using existing columns based on schema inference
         publication_type: formData.isSingleIssue ? 'Issue' : 'Journal',
         is_active: true,
@@ -216,11 +227,12 @@ export const PublisherEditTitle = () => {
                     <span className="text-body text-foreground">Series</span>
                   </label>
                 </div>
-                <FormInput
-                  label="Genre(s)"
-                  value={formData.genres}
-                  onChange={handleInputChange("genres")}
-                  placeholder="e.g., Lifestyle, Design, Culture"
+                <FormSelect
+                  label="Category"
+                  value={formData.category}
+                  onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                  options={getCategoryOptions()}
+                  placeholder="Select a category"
                 />
                 <FormInput
                   label="Dimensions"
@@ -235,6 +247,30 @@ export const PublisherEditTitle = () => {
                   onChange={handleInputChange("pageCount")}
                   placeholder="e.g., 160"
                 />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Origin Country</Label>
+                  <CountrySelect
+                    value={formData.originCountryCode}
+                    onChange={(value) => setFormData(prev => ({ ...prev, originCountryCode: value }))}
+                    allowClear={true}
+                    placeholder="Select country"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Where is this publication based? This helps retailers answer customer questions.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Publication Date</Label>
+                  <MonthYearPicker
+                    value={formData.publicationDate}
+                    onChange={(value) => setFormData(prev => ({ ...prev, publicationDate: value }))}
+                    allowClear={true}
+                    allowFuture={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When was this issue released? This helps retailers find the newest titles.
+                  </p>
+                </div>
               </div>
             </div>
 

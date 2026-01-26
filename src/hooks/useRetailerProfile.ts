@@ -6,6 +6,8 @@ export interface RetailerProfile {
   id: string;
   user_id: string;
   shop_name: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
   shop_description: string | null;
   shop_url: string | null;
   address: string | null;
@@ -15,11 +17,16 @@ export interface RetailerProfile {
   country: string | null;
   phone: string | null;
   instagram_handle: string | null;
+  store_types: string[];
+  profile_image_url: string | null;
+  favorite_publisher_ids: string[];
+  has_shipping_address: boolean;
   total_spent: number;
   total_orders: number;
   average_rating: number;
   verified: boolean;
   verified_at: string | null;
+  profile_completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +75,8 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           id: data.id,
           user_id: data.user_id,
           shop_name: data.shop_name,
+          contact_name: data.contact_name,
+          contact_email: data.contact_email,
           shop_description: data.shop_description,
           shop_url: data.shop_url,
           address: data.address,
@@ -77,11 +86,16 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           country: data.country,
           phone: data.phone,
           instagram_handle: data.instagram_handle,
+          store_types: data.store_types || [],
+          profile_image_url: data.profile_image_url,
+          favorite_publisher_ids: data.favorite_publisher_ids || [],
+          has_shipping_address: data.has_shipping_address || false,
           total_spent: Number(data.total_spent) || 0,
           total_orders: data.total_orders || 0,
           average_rating: Number(data.average_rating) || 0,
           verified: data.verified || false,
           verified_at: data.verified_at,
+          profile_completed_at: data.profile_completed_at,
           created_at: data.created_at || '',
           updated_at: data.updated_at || '',
         };
@@ -103,6 +117,8 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
         .from('retailers')
         .update({
           shop_name: updates.shop_name,
+          contact_name: updates.contact_name,
+          contact_email: updates.contact_email,
           shop_description: updates.shop_description,
           shop_url: updates.shop_url,
           address: updates.address,
@@ -112,6 +128,8 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           country: updates.country,
           phone: updates.phone,
           instagram_handle: updates.instagram_handle,
+          store_types: updates.store_types,
+          profile_image_url: updates.profile_image_url,
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id);

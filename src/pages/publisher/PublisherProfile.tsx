@@ -1,15 +1,14 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ChevronDown, ChevronUp, Instagram, Globe, Share2, Camera, Loader2 } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, Share2, Camera, Loader2, Instagram } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, WalletDisplay, ButtonSecondary, ShareProfileModal } from "@/components/neesh";
+import { SocialLinks } from "@/components/ui/social-links";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { toast } from "sonner";
 import { slugify } from "@/lib/slugify";
-import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
-
-
 
 export const PublisherProfile = () => {
   const navigate = useNavigate();
@@ -24,8 +23,7 @@ export const PublisherProfile = () => {
     publisherId: publisher?.id 
   });
 
-  // Generate slug from publisher name
-  const publisherSlug = publisher?.company_name ? slugify(publisher.company_name) : "";
+  const publisherSlug = slugify(publisher?.company_name || "");
 
   const avatarUpload = useFileUpload({
     bucket: 'magazine-assets',
@@ -144,19 +142,15 @@ export const PublisherProfile = () => {
                 <span className="text-body">Global</span>
               </div>
 
-              {/* Social Icons */}
-              {publisher?.instagram_handle && (
-                <div className="flex items-center gap-4 mb-6">
-                  <a 
-                    href={`https://instagram.com/${publisher.instagram_handle.replace('@', '')}`} 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                  >
-                    <Instagram className="w-5 h-5 text-foreground" />
-                  </a>
-                </div>
-              )}
+              {/* Social Links */}
+              <SocialLinks
+                instagramHandle={publisher?.instagram_handle || ""}
+                websiteUrl={publisher?.website_url || ""}
+                layout="inline"
+                showLabels={true}
+                size="md"
+                className="mb-6"
+              />
 
               {/* Action Buttons */}
               <div className="flex gap-3 w-full max-w-sm">

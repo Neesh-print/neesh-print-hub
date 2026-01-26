@@ -5,35 +5,38 @@ import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary, FormTextarea
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { SocialLinkInput } from "@/components/ui/social-link-input";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export const PublisherSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { publisher, isLoading, updateProfile } = usePublisherProfile();
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
     company_name: "",
     description: "",
-    website_url: "",
-    instagram_handle: "",
   });
 
-  // Sync form data when publisher data loads
+  // Social links state
+  const [instagramHandle, setInstagramHandle] = useState<string | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState<string | null>(null);
+  const [isSavingSocial, setIsSavingSocial] = useState(false);
+
+  // Sync with publisher data
   useEffect(() => {
     if (publisher) {
       setFormData({
         company_name: publisher.company_name || "",
         description: publisher.description || "",
-        website_url: publisher.website_url || "",
-        instagram_handle: publisher.instagram_handle || "",
       });
+      setInstagramHandle(publisher.instagram_handle);
+      setWebsiteUrl(publisher.website_url);
     }
   }, [publisher]);
 
@@ -58,10 +61,7 @@ export const PublisherSettings = () => {
     try {
       const success = await updateProfile(formData);
       if (success) {
-        toast({
-          title: "Settings saved",
-          description: "Your profile has been updated successfully.",
-        });
+        toast.success("Profile saved successfully");
       }
     } finally {
       setIsSaving(false);
@@ -120,21 +120,6 @@ export const PublisherSettings = () => {
                 value={formData.description}
                 onChange={(value) => handleChange('description', value)}
               />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <FormInput
-                    label="Website"
-                    placeholder="https://..."
-                    value={formData.website_url}
-                    onChange={(value) => handleChange('website_url', value)}
-                  />
-                  <FormInput
-                    label="Instagram"
-                    placeholder="@..."
-                    value={formData.instagram_handle}
-                    onChange={(value) => handleChange('instagram_handle', value)}
-                  />
-              </div>
             </div>
           </div>
 
@@ -186,8 +171,59 @@ export const PublisherSettings = () => {
                   checked={notifications.messagesFromNeesh}
                   onCheckedChange={() => handleNotificationChange('messagesFromNeesh')}
                 />
-              </div>
             </div>
+          </div>
+
+          {/* Social & Web */}
+          <div className="card-neesh">
+            <h3 className="font-display font-semibold text-lg text-foreground mb-4">
+              Social & Web
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-2 block">Instagram</Label>
+                <SocialLinkInput
+                  type="instagram"
+                  value={instagramHandle}
+                  onChange={setInstagramHandle}
+                />
+                <p className="mt-1.5 text-caption text-muted-foreground">
+                  Your Instagram handle helps retailers gauge your audience reach
+                </p>
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Website</Label>
+                <SocialLinkInput
+                  type="website"
+                  value={websiteUrl}
+                  onChange={setWebsiteUrl}
+                />
+                <p className="mt-1.5 text-caption text-muted-foreground">
+                  Link to your publication's website or online store
+                </p>
+              </div>
+
+              <ButtonPrimary
+                onClick={async () => {
+                  setIsSavingSocial(true);
+                  const success = await updateProfile({
+                    instagram_handle: instagramHandle,
+                    website_url: websiteUrl,
+                  });
+                  setIsSavingSocial(false);
+                  if (success) {
+                    toast.success("Social links updated");
+                  } else {
+                    toast.error("Failed to update social links");
+                  }
+                }}
+                disabled={isSavingSocial}
+              >
+                {isSavingSocial ? "Saving..." : "Save Social Links"}
+              </ButtonPrimary>
+            </div>
+          </div>
           </div>
 
           {/* Payout Settings */}
@@ -224,6 +260,10 @@ export const PublisherSettings = () => {
                 <p className="text-sm text-muted-foreground">Payout schedule</p>
                 <p className="text-foreground">Monthly, on the 15th</p>
               </div>
+
+              <ButtonSecondary onClick={() => navigate("/publisher/settings/payout")}>
+                Update Payout Method
+              </ButtonSecondary>
 
               <p className="text-sm text-muted-foreground">
                 To update your bank account details, please visit your Stripe Express dashboard.

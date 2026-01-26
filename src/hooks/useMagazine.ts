@@ -17,8 +17,10 @@ export interface MagazineDetail {
   sold_count: number;
   created_at: string;
   publication_type: string | null;
+  publication_date: string | null; // ISO date string (e.g., "2025-12-01")
   issue_frequency: string | null;
   volume_pricing_tiers: any | null;
+  origin_country_code: string | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -67,8 +69,10 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           sold_count,
           created_at,
           publication_type,
+          publication_date,
           issue_frequency,
           volume_pricing_tiers,
+          origin_country_code,
           publisher_id,
           publishers (
             id,
@@ -100,8 +104,10 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           sold_count: data.sold_count || 0,
           created_at: data.created_at || '',
           publication_type: data.publication_type,
+          publication_date: (data as any).publication_date,
           issue_frequency: data.issue_frequency,
           volume_pricing_tiers: data.volume_pricing_tiers,
+          origin_country_code: (data as any).origin_country_code,
           publisher: (data as any).publishers ? {
             id: (data as any).publishers.id,
             company_name: (data as any).publishers.company_name,

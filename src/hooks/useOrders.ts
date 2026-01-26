@@ -116,6 +116,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
           cover_image_url: item.cover_image_url,
           publisher_id: item.publisher_id,
         } : null,
+
         quantity: item.quantity,
         unit_price: Number(item.unit_price) || 0,
       }));

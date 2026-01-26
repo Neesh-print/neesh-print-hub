@@ -173,16 +173,20 @@ function getPublisherChecklist(
 function getRetailerChecklist(
   contextData?: {
     hasProfile?: boolean;
+    hasProfileDescription?: boolean;
     hasProfileWebsite?: boolean;
     hasProfileInstagram?: boolean;
+    hasStoreTypes?: boolean;
     hasShippingAddress?: boolean;
     orderCount?: number;
     wishlistCount?: number;
+    profileCompletedAt?: string | null;
   },
   viewedItems?: Set<string>
 ): ChecklistItem[] {
-  const hasProfile = contextData?.hasProfile && 
-    (contextData?.hasProfileWebsite || contextData?.hasProfileInstagram);
+  // Profile is complete if profile_completed_at is set OR has description + store types
+  const hasProfileComplete = contextData?.profileCompletedAt || 
+    (contextData?.hasProfileDescription && contextData?.hasStoreTypes);
   const hasShippingAddress = contextData?.hasShippingAddress ?? false;
   const hasOrder = (contextData?.orderCount ?? 0) > 0;
   const hasWishlistItem = (contextData?.wishlistCount ?? 0) > 0;
@@ -196,21 +200,21 @@ function getRetailerChecklist(
       id: 'complete_profile',
       title: 'Complete your store profile',
       description: 'Tell publishers about your store',
-      completed: hasProfile ?? false,
+      completed: !!hasProfileComplete,
       action: {
         label: 'Complete Profile',
-        href: '/retailer/profile',
+        href: '/retailer/profile/edit',
       },
       icon: Store,
     },
     {
       id: 'add_shipping',
       title: 'Add your shipping address',
-      description: 'Add your default shipping address for faster checkout',
+      description: 'Add your shipping address for faster checkout',
       completed: hasShippingAddress,
       action: {
         label: 'Add Address',
-        href: '/retailer/settings#shipping',
+        href: '/retailer/profile/edit',
       },
       icon: MapPin,
     },

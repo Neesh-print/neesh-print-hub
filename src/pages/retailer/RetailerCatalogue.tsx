@@ -17,14 +17,13 @@ import {
   type SortOption,
 } from "@/components/retailer/CatalogueFilters";
 import { toast } from "sonner";
-
 const DEFAULT_FILTERS: CatalogueFilters = {
   priceRange: [0, 100],
   categories: [],
   publishers: [],
   inStock: false,
+  country: null
 };
-
 export const RetailerCatalogue = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -57,30 +56,38 @@ export const RetailerCatalogue = () => {
   });
 
   // Extract unique categories and publishers from magazines
-  const { availableCategories, availablePublishers, maxPrice } = useMemo(() => {
+  const {
+    availableCategories,
+    availablePublishers,
+    maxPrice
+  } = useMemo(() => {
     const categories = new Set<string>();
     const publisherMap = new Map<string, string>();
     let max = 100;
-
-    magazines.forEach((mag) => {
+    magazines.forEach(mag => {
       if (mag.category) categories.add(mag.category);
       if (mag.publisher?.id && mag.publisher?.company_name) {
         publisherMap.set(mag.publisher.id, mag.publisher.company_name);
       }
       if (mag.wholesale_price > max) max = Math.ceil(mag.wholesale_price);
     });
-
     return {
       availableCategories: Array.from(categories).sort(),
-      availablePublishers: Array.from(publisherMap.entries()).map(([id, name]) => ({ id, name })),
-      maxPrice: max,
+      availablePublishers: Array.from(publisherMap.entries()).map(([id, name]) => ({
+        id,
+        name
+      })),
+      maxPrice: max
     };
   }, [magazines]);
 
   // Update default price range when maxPrice changes
   useMemo(() => {
     if (filters.priceRange[1] === 100 && maxPrice > 100) {
-      setFilters((f) => ({ ...f, priceRange: [f.priceRange[0], maxPrice] }));
+      setFilters(f => ({
+        ...f,
+        priceRange: [f.priceRange[0], maxPrice]
+      }));
     }
   }, [maxPrice, filters.priceRange]);
 
@@ -89,38 +96,46 @@ export const RetailerCatalogue = () => {
     let result = [...magazines];
 
     // Price filter
-    result = result.filter(
-      (mag) =>
-        mag.wholesale_price >= filters.priceRange[0] &&
-        mag.wholesale_price <= filters.priceRange[1]
-    );
+    result = result.filter(mag => mag.wholesale_price >= filters.priceRange[0] && mag.wholesale_price <= filters.priceRange[1]);
 
     // Category filter
     if (filters.categories.length > 0) {
-      result = result.filter(
-        (mag) => mag.category && filters.categories.includes(mag.category)
-      );
+      result = result.filter(mag => mag.category && filters.categories.includes(mag.category));
     }
 
     // Publisher filter
     if (filters.publishers.length > 0) {
-      result = result.filter(
-        (mag) => mag.publisher?.id && filters.publishers.includes(mag.publisher.id)
-      );
+      result = result.filter(mag => mag.publisher?.id && filters.publishers.includes(mag.publisher.id));
     }
 
     // In stock filter
     if (filters.inStock) {
-      result = result.filter((mag) => mag.inventory_count > 0);
+      result = result.filter(mag => mag.inventory_count > 0);
+    }
+
+    // Country filter
+    if (filters.country) {
+      result = result.filter(mag => mag.origin_country_code === filters.country);
     }
 
     // Sort
     switch (sortBy) {
       case "newest":
-        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        result.sort((a, b) => {
+          // Sort by publication_date first (nulls last), then created_at
+          const dateA = a.publication_date ? new Date(a.publication_date).getTime() : 0;
+          const dateB = b.publication_date ? new Date(b.publication_date).getTime() : 0;
+          if (dateA !== dateB) return dateB - dateA;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
         break;
       case "oldest":
-        result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        result.sort((a, b) => {
+          const dateA = a.publication_date ? new Date(a.publication_date).getTime() : Infinity;
+          const dateB = b.publication_date ? new Date(b.publication_date).getTime() : Infinity;
+          if (dateA !== dateB) return dateA - dateB;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
         break;
       case "price-asc":
         result.sort((a, b) => a.wholesale_price - b.wholesale_price);
@@ -135,7 +150,6 @@ export const RetailerCatalogue = () => {
         result.sort((a, b) => b.title.localeCompare(a.title));
         break;
     }
-
     return result;
   }, [magazines, filters, sortBy]);
 
@@ -146,9 +160,9 @@ export const RetailerCatalogue = () => {
     count += filters.categories.length;
     count += filters.publishers.length;
     if (filters.inStock) count++;
+    if (filters.country) count++;
     return count;
   }, [filters, maxPrice]);
-
   const handleToggleBookmark = (id: string) => {
     const wasInWishlist = isInWishlist(id);
     toggleWishlist(id);
@@ -157,113 +171,66 @@ export const RetailerCatalogue = () => {
 
   // Get featured magazines (first 6 for the carousel)
   const featuredMagazines = magazines.slice(0, 6);
-
   if (isLoading) {
-    return (
-      <RetailerLayout>
+    return <RetailerLayout>
         <LoadingScreen message="Loading catalogue..." />
-      </RetailerLayout>
-    );
+      </RetailerLayout>;
   }
-
   if (error) {
-    return (
-      <RetailerLayout>
+    return <RetailerLayout>
         <div className="p-6">
-          <EmptyState
-            icon={<AlertCircle className="w-12 h-12" />}
-            title="Something went wrong"
-            description={error}
-            action={<ButtonPrimary onClick={refetch}>Try Again</ButtonPrimary>}
-          />
+          <EmptyState icon={<AlertCircle className="w-12 h-12" />} title="Something went wrong" description={error} action={<ButtonPrimary onClick={refetch}>Try Again</ButtonPrimary>} />
         </div>
-      </RetailerLayout>
-    );
+      </RetailerLayout>;
   }
-
   if (magazines.length === 0) {
-    return (
-      <RetailerLayout>
+    return <RetailerLayout>
         <div className="px-4 md:px-6 pt-4 pb-2">
           <h1 className="text-display-sm md:text-display-md font-display font-bold">Browse Titles</h1>
           <p className="text-body text-muted-foreground mt-1">Wholesale pricing on independent magazines</p>
         </div>
         <div className="p-6">
-          <EmptyState
-            icon={<BookOpen className="w-12 h-12" />}
-            title="New titles coming soon"
-            description="Check back shortly for our curated magazine selection"
-          />
+          <EmptyState icon={<BookOpen className="w-12 h-12" />} title="New titles coming soon" description="Check back shortly for our curated magazine selection" />
         </div>
-      </RetailerLayout>
-    );
+      </RetailerLayout>;
   }
-
-  return (
-    <RetailerLayout>
+  return <RetailerLayout>
       {/* Header Section */}
       <div className="px-4 md:px-6 pt-4 pb-2">
         <h1 className="text-display-sm md:text-display-md font-display font-bold">Browse Titles</h1>
-        <p className="text-body text-muted-foreground mt-1">Wholesale pricing on independent magazines</p>
+        <p className="text-body text-muted-foreground mt-1">A collection of independent magazines  </p>
       </div>
 
       {/* Onboarding Checklist for new retailers */}
-      {!onboarding.dismissed && !onboarding.allComplete && (
-        <div className="px-4 md:px-6">
-          <OnboardingChecklist
-            items={onboarding.items}
-            welcomeTitle="Welcome to Neesh!"
-            welcomeSubtitle="You now have access to our curated catalog. Here's how to get started."
-            onDismiss={onboarding.markDismissed}
-            onItemClick={onboarding.markItemViewed}
-          />
-        </div>
-      )}
+      {!onboarding.dismissed && !onboarding.allComplete && <div className="px-4 md:px-6">
+          <OnboardingChecklist items={onboarding.items} welcomeTitle="Welcome to Neesh!" welcomeSubtitle="You now have access to our curated catalog. Here's how to get started." onDismiss={onboarding.markDismissed} onItemClick={onboarding.markItemViewed} />
+        </div>}
 
       {/* Hero Carousel Section */}
-      {featuredMagazines.length > 0 && (
-        <section className="px-4 md:px-6 py-8 overflow-hidden">
+      {featuredMagazines.length > 0 && <section className="px-4 md:px-6 py-8 overflow-hidden">
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
-            {featuredMagazines.map((mag, index) => (
-              <div
-                key={mag.id}
-                className={`
+            {featuredMagazines.map((mag, index) => <div key={mag.id} className={`
                   relative flex-shrink-0 w-48 md:w-56 snap-center
                   ${index % 2 === 0 ? 'rotate-[-2deg]' : 'rotate-[2deg]'}
                   ${index > 0 ? '-ml-8' : ''}
-                `}
-                style={{ zIndex: featuredMagazines.length - index }}
-              >
-                <div 
-                  className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary shadow-neesh-md cursor-pointer group"
-                  onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
-                >
-                  <img
-                    src={mag.cover_image_url || "/placeholder.svg"}
-                    alt={mag.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleBookmark(mag.id);
-                    }}
-                    className={`
+                `} style={{
+          zIndex: featuredMagazines.length - index
+        }}>
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary shadow-neesh-md cursor-pointer group" onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}>
+                  <img src={mag.cover_image_url || "/placeholder.svg"} alt={mag.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <button onClick={e => {
+              e.stopPropagation();
+              handleToggleBookmark(mag.id);
+            }} className={`
                       absolute top-2 right-2 p-2 rounded-full backdrop-blur-sm transition-all
-                      ${isInWishlist(mag.id)
-                        ? 'bg-accent text-accent-foreground'
-                        : 'bg-background/80 text-foreground hover:bg-background'
-                      }
-                    `}
-                  >
+                      ${isInWishlist(mag.id) ? 'bg-accent text-accent-foreground' : 'bg-background/80 text-foreground hover:bg-background'}
+                    `}>
                     <Bookmark className={`w-4 h-4 ${isInWishlist(mag.id) ? 'fill-current' : ''}`} />
                   </button>
                 </div>
-              </div>
-            ))}
+              </div>)}
           </div>
-        </section>
-      )}
+        </section>}
 
       {/* Full Catalogue Section */}
       <section className="px-4 md:px-6 pb-12">
@@ -279,16 +246,10 @@ export const RetailerCatalogue = () => {
           <div className="flex items-center gap-2">
             {/* View Toggle */}
             <div className="flex items-center border border-border rounded-lg overflow-hidden">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`p-2 transition-colors ${viewMode === "grid" ? "bg-secondary" : "hover:bg-secondary/50"}`}
-              >
+              <button onClick={() => setViewMode("grid")} className={`p-2 transition-colors ${viewMode === "grid" ? "bg-secondary" : "hover:bg-secondary/50"}`}>
                 <Grid3X3 className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`p-2 transition-colors ${viewMode === "list" ? "bg-secondary" : "hover:bg-secondary/50"}`}
-              >
+              <button onClick={() => setViewMode("list")} className={`p-2 transition-colors ${viewMode === "list" ? "bg-secondary" : "hover:bg-secondary/50"}`}>
                 <List className="w-4 h-4" />
               </button>
             </div>
@@ -296,130 +257,53 @@ export const RetailerCatalogue = () => {
             {/* Search */}
             <div className="relative hidden sm:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm w-48"
-              />
+              <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm w-48" />
             </div>
 
             {/* Mobile Filter Button */}
-            {isMobile && (
-              <MobileFilterSheet
-                filters={filters}
-                onFiltersChange={setFilters}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                availableCategories={availableCategories}
-                availablePublishers={availablePublishers}
-                maxPrice={maxPrice}
-                activeFilterCount={activeFilterCount}
-                trigger={
-                  <button className="p-2 border border-border rounded-lg hover:bg-secondary transition-colors relative">
+            {isMobile && <MobileFilterSheet filters={filters} onFiltersChange={setFilters} sortBy={sortBy} onSortChange={setSortBy} availableCategories={availableCategories} availablePublishers={availablePublishers} maxPrice={maxPrice} activeFilterCount={activeFilterCount} trigger={<button className="p-2 border border-border rounded-lg hover:bg-secondary transition-colors relative">
                     <SlidersHorizontal className="w-4 h-4" />
-                    {activeFilterCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
+                    {activeFilterCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center">
                         {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
-                }
-              />
-            )}
+                      </span>}
+                  </button>} />}
           </div>
         </div>
 
         {/* Mobile Search */}
-        {isMobile && (
-          <div className="relative mb-4">
+        {isMobile && <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search magazines..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm"
-            />
-          </div>
-        )}
+            <input type="text" placeholder="Search magazines..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 border border-border rounded-lg bg-background text-sm" />
+          </div>}
 
         {/* Desktop Filters */}
-        {!isMobile && (
-          <div className="mb-6">
-            <DesktopFilterBar
-              filters={filters}
-              onFiltersChange={setFilters}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              availableCategories={availableCategories}
-              availablePublishers={availablePublishers}
-              maxPrice={maxPrice}
-              activeFilterCount={activeFilterCount}
-            />
-          </div>
-        )}
+        {!isMobile && <div className="mb-6">
+            <DesktopFilterBar filters={filters} onFiltersChange={setFilters} sortBy={sortBy} onSortChange={setSortBy} availableCategories={availableCategories} availablePublishers={availablePublishers} maxPrice={maxPrice} activeFilterCount={activeFilterCount} />
+          </div>}
 
         {/* Active Filter Tags */}
-        {activeFilterCount > 0 && (
-          <div className="mb-4">
-            <ActiveFilterTags
-              filters={filters}
-              onFiltersChange={setFilters}
-              maxPrice={maxPrice}
-              publishers={availablePublishers}
-            />
-          </div>
-        )}
+        {activeFilterCount > 0 && <div className="mb-4">
+            <ActiveFilterTags filters={filters} onFiltersChange={setFilters} maxPrice={maxPrice} publishers={availablePublishers} />
+          </div>}
 
         {/* No Results */}
-        {filteredMagazines.length === 0 && (
-          <EmptyState
-            icon={<Search className="w-12 h-12" />}
-            title="No matching magazines"
-            description="Try adjusting your filters or search query"
-            action={
-              <ButtonPrimary
-                onClick={() => {
-                  setFilters({ ...DEFAULT_FILTERS, priceRange: [0, maxPrice] });
-                  setSearchQuery("");
-                }}
-              >
+        {filteredMagazines.length === 0 && <EmptyState icon={<Search className="w-12 h-12" />} title="No matching magazines" description="Try adjusting your filters or search query" action={<ButtonPrimary onClick={() => {
+        setFilters({
+          ...DEFAULT_FILTERS,
+          priceRange: [0, maxPrice]
+        });
+        setSearchQuery("");
+      }}>
                 Clear Filters
-              </ButtonPrimary>
-            }
-          />
-        )}
+              </ButtonPrimary>} />}
 
         {/* Magazine Grid */}
-        {filteredMagazines.length > 0 && (
-          <div className={`
+        {filteredMagazines.length > 0 && <div className={`
             grid gap-6
-            ${viewMode === "grid" 
-              ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" 
-              : "grid-cols-1"
-            }
+            ${viewMode === "grid" ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" : "grid-cols-1"}
           `}>
-            {filteredMagazines.map((mag) => (
-              <MagazineCard
-                key={mag.id}
-                coverImage={mag.cover_image_url || "/placeholder.svg"}
-                title={mag.title}
-                publisher={mag.publisher?.company_name || "Unknown Publisher"}
-                region={mag.category || undefined}
-                price={mag.wholesale_price}
-                retailPrice={mag.suggested_retail_price}
-                inventoryCount={mag.inventory_count}
-                showStockIndicator={true}
-                onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
-                onBookmark={() => handleToggleBookmark(mag.id)}
-                isBookmarked={isInWishlist(mag.id)}
-              />
-            ))}
-          </div>
-        )}
+            {filteredMagazines.map(mag => <MagazineCard key={mag.id} coverImage={mag.cover_image_url || "/placeholder.svg"} title={mag.title} publisher={mag.publisher?.company_name || "Unknown Publisher"} region={mag.category || undefined} price={mag.wholesale_price} retailPrice={mag.suggested_retail_price} publicationDate={mag.publication_date} inventoryCount={mag.inventory_count} showStockIndicator={true} onClick={() => navigate(`/retailer/catalogue/${mag.id}`)} onBookmark={() => handleToggleBookmark(mag.id)} isBookmarked={isInWishlist(mag.id)} />)}
+          </div>}
       </section>
-    </RetailerLayout>
-  );
+    </RetailerLayout>;
 };

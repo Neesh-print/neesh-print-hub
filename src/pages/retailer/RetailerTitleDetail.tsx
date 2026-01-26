@@ -1,12 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Heart, Copy, MessageCircle, AlertCircle, Minus, Plus } from "lucide-react";
-import { RetailerLayout, QuantitySelector, useCart, useWishlistContext } from "@/components/retailer";
+import { ChevronLeft, ChevronRight, Heart, Copy, AlertCircle } from "lucide-react";
+import { RetailerLayout, useCart, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
-import { PriceDisplay } from "@/components/ui/price-display";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PublicationDate } from "@/components/ui/publication-date";
+import { CountryDisplay } from "@/components/ui/country-display";
+import { SocialLinks } from "@/components/ui/social-links";
+import { DynamicPricing } from "@/components/product/DynamicPricing";
+import { ContactPublisherButton } from "@/components/messaging";
+import { StockIndicator } from "@/components/ui/stock-indicator";
+import { getStockLevel, isInStock, STOCK_THRESHOLDS } from "@/lib/inventory";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -33,46 +37,22 @@ export const RetailerTitleDetail = () => {
   const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
 
   // Quantity handlers with stock validation
-  const maxQuantity = magazine?.inventory_count || 999;
+  const maxQuantity = magazine?.inventory_count || 0;
+  const stockLevel = getStockLevel(maxQuantity);
+  const outOfStock = !isInStock(maxQuantity);
 
-  const handleQuantityChange = useCallback((value: string) => {
-    const parsed = parseInt(value, 10);
-    if (value === '') {
-      // Allow empty during typing
-      setQuantity(0);
-      return;
-    }
-    if (isNaN(parsed) || parsed < 1) {
-      setQuantity(1);
-      return;
-    }
-    if (parsed > maxQuantity) {
-      setQuantity(maxQuantity);
-      toast.info(`Only ${maxQuantity} copies available`);
-      return;
-    }
-    setQuantity(parsed);
-  }, [maxQuantity]);
+  // Reset quantity when magazine changes
+  useEffect(() => {
+    setQuantity(1);
+  }, [id]);
 
-  const handleQuantityBlur = useCallback(() => {
-    if (quantity < 1) {
-      setQuantity(1);
-    }
-  }, [quantity]);
+  const handleQuantityChange = useCallback((newQuantity: number) => {
+    setQuantity(newQuantity);
+  }, []);
 
-  const incrementQuantity = useCallback(() => {
-    if (quantity < maxQuantity) {
-      setQuantity(q => q + 1);
-    } else {
-      toast.info(`Only ${maxQuantity} copies available`);
-    }
-  }, [quantity, maxQuantity]);
-
-  const decrementQuantity = useCallback(() => {
-    if (quantity > 1) {
-      setQuantity(q => q - 1);
-    }
-  }, [quantity]);
+  const handleMaxExceeded = useCallback((max: number) => {
+    toast.info(`Only ${max} copies available`);
+  }, []);
 
   if (isLoading) {
     return (
@@ -202,9 +182,16 @@ export const RetailerTitleDetail = () => {
               <ButtonSecondary icon={<Copy className="w-4 h-4" />} onClick={handleCopyInfo}>
                 Copy info
               </ButtonSecondary>
-              <ButtonSecondary icon={<MessageCircle className="w-4 h-4" />}>
-                Contact Publisher
-              </ButtonSecondary>
+              {magazine.publisher?.id && (
+                <ContactPublisherButton
+                  publisher={{
+                    id: magazine.publisher.id,
+                    name: magazine.publisher.company_name || 'Unknown Publisher',
+                    logo_url: null,
+                  }}
+                  useSecondaryStyle
+                />
+              )}
             </div>
           </div>
 
@@ -213,12 +200,37 @@ export const RetailerTitleDetail = () => {
             <h1 className="font-display font-bold text-3xl text-foreground mb-2">
               {magazine.title}
             </h1>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground mb-2">
               {magazine.publisher?.company_name || "Unknown Publisher"} · {magazine.issue_number || ""}
             </p>
+            
 
             {/* Specs Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
+              {magazine.origin_country_code && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Origin</span>
+                  <p className="font-medium">
+                    <CountryDisplay 
+                      countryCode={magazine.origin_country_code} 
+                      showFlag={false}
+                      size="md"
+                    />
+                  </p>
+                </div>
+              )}
+              {magazine.publication_date && (
+                <div>
+                  <span className="text-caption text-muted-foreground">Published</span>
+                  <p className="font-medium">
+                    <PublicationDate 
+                      date={magazine.publication_date} 
+                      format="long"
+                      showNewBadge={true}
+                    />
+                  </p>
+                </div>
+              )}
               {magazine.issue_frequency && (
                 <div>
                   <span className="text-caption text-muted-foreground">Frequency</span>
@@ -250,14 +262,21 @@ export const RetailerTitleDetail = () => {
                 </div>
               )}
               <div>
-                <span className="text-caption text-muted-foreground">In Stock</span>
-                <p className="font-medium">{magazine.inventory_count || 0} copies</p>
+                <span className="text-caption text-muted-foreground">Availability</span>
+                {stockLevel === 'normal' ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-status-success" aria-hidden="true" />
+                    <span className="font-medium">In stock</span>
+                  </div>
+                ) : (
+                  <StockIndicator quantity={maxQuantity} size="md" />
+                )}
               </div>
             </div>
 
             {/* Description */}
             {magazine.description && (
-              <div className="mb-8">
+              <div className="mb-6">
                 {magazine.description.split('\n\n').map((para, index) => (
                   <p key={index} className="text-muted-foreground mb-4 last:mb-0">
                     {para}
@@ -266,64 +285,48 @@ export const RetailerTitleDetail = () => {
               </div>
             )}
 
-            {/* Price Section with Quantity */}
-            <div className="card-neesh mb-6 space-y-4">
-              <p className="text-caption text-muted-foreground">Pricing</p>
-              
-              <PriceDisplay
+            {/* Publisher Social Links */}
+            {(magazine.publisher?.instagram_handle || magazine.publisher?.website_url) && (
+              <div className="mb-6">
+                <SocialLinks
+                  instagramHandle={magazine.publisher?.instagram_handle || null}
+                  websiteUrl={magazine.publisher?.website_url || null}
+                  layout="inline"
+                  size="md"
+                />
+              </div>
+            )}
+
+            {/* Dynamic Pricing with Quantity */}
+            {/* Warning when ordering all available stock */}
+            {quantity >= maxQuantity && maxQuantity > 0 && maxQuantity <= STOCK_THRESHOLDS.LOW && (
+              <p className="text-xs text-status-warning-text mb-2">
+                You're ordering all available copies
+              </p>
+            )}
+
+            <div className="card-neesh mb-6">
+              <DynamicPricing
                 wholesalePrice={wspPrice}
                 retailPrice={msrpPrice}
                 quantity={quantity}
-                showMargin={true}
-                showTotal={true}
-                layout="stacked"
-                size="lg"
+                onQuantityChange={handleQuantityChange}
+                maxQuantity={maxQuantity}
+                disabled={maxQuantity <= 0}
+                onMaxExceeded={handleMaxExceeded}
               />
-
-              {/* Quantity Controls */}
-              <div className="pt-4 border-t border-border">
-                <label className="text-caption text-muted-foreground block mb-2">Quantity</label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={decrementQuantity}
-                    disabled={quantity <= 1}
-                    aria-label="Decrease quantity"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  
-                  <Input
-                    type="number"
-                    min={1}
-                    max={maxQuantity}
-                    value={quantity === 0 ? '' : quantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                    onBlur={handleQuantityBlur}
-                    className="w-20 text-center"
-                    aria-label="Quantity"
-                  />
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={incrementQuantity}
-                    disabled={quantity >= maxQuantity}
-                    aria-label="Increase quantity"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
             </div>
 
             {/* Add to Cart */}
-            <ButtonPrimary fullWidth onClick={handleAddToCart}>
-              Add To Cart
+            <ButtonPrimary fullWidth onClick={handleAddToCart} disabled={outOfStock}>
+              {outOfStock ? 'Out of Stock' : 'Add To Cart'}
             </ButtonPrimary>
+
+            {outOfStock && (
+              <p className="text-sm text-muted-foreground text-center mt-2">
+                Check back soon or contact the publisher
+              </p>
+            )}
           </div>
         </div>
 

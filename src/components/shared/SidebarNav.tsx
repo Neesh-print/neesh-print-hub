@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -37,6 +38,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, profile } = useAuth();
+  const unreadMessageCount = useUnreadMessageCount();
 
   const publisherNavItems: NavItem[] = [
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
@@ -122,13 +124,16 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
         <ul className="space-y-1">
           {navItems.map((item) => {
             const active = isActive(item.path);
+            const isMessagesItem = item.label === 'Messages';
+            const showBadge = isMessagesItem && unreadMessageCount > 0;
+            
             return (
               <li key={item.path}>
                 <button
                   onClick={() => navigate(item.path)}
                   className={`
                     w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                    transition-colors text-left
+                    transition-colors text-left relative
                     ${active 
                       ? 'bg-secondary text-accent' 
                       : 'text-foreground hover:bg-secondary/50'
@@ -140,6 +145,11 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
                   </span>
                   {item.label}
                   {item.path === '/retailer/cart' && <CartSidebarBadge />}
+                  {showBadge && (
+                    <span className="absolute right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                      {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                    </span>
+                  )}
                 </button>
               </li>
             );
