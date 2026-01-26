@@ -15,7 +15,7 @@ const getProxiedUrl = (url: string | null | undefined): string => {
   if (!url) return "/placeholder.svg";
   
   // Check if it's a Shopify CDN URL that needs proxying
-  if (url.includes("cdn.shopify.com")) {
+  if (url.includes("cdn.shopify.com") || url.includes("shop.neesh.art/cdn/")) {
     return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
   }
   

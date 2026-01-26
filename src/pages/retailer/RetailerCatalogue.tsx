@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Grid3X3, List, Search, SlidersHorizontal, Bookmark, BookOpen, AlertCircle } from "lucide-react";
 import { RetailerLayout, useWishlistContext } from "@/components/retailer";
-import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { MagazineCard, EmptyState, ButtonPrimary, MagazineCoverImage } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
@@ -249,10 +249,10 @@ export const RetailerCatalogue = () => {
                   className="relative aspect-[3/4] rounded-lg overflow-hidden bg-secondary shadow-neesh-md cursor-pointer group"
                   onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
                 >
-                  <img
-                    src={mag.cover_image_url || "/placeholder.svg"}
+                  <MagazineCoverImage
+                    src={mag.cover_image_url}
                     alt={mag.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="transition-transform duration-300 group-hover:scale-105"
                   />
                   <button
                     onClick={(e) => {
