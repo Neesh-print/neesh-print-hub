@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { PublisherLayout } from '@/components/publisher/PublisherLayout';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -13,9 +13,11 @@ import {
   useConversationsQuery,
   useCurrentMessagingUser,
 } from '@/hooks/useConversationsQuery';
+import type { MessageableUser } from '@/types/messaging';
 
 export const PublisherMessages = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useCurrentMessagingUser();
@@ -26,6 +28,23 @@ export const PublisherMessages = () => {
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
+  const [preselectedUser, setPreselectedUser] = useState<MessageableUser | null>(null);
+
+  // Handle incoming navigation state (from Contact buttons)
+  const incomingState = location.state as {
+    newMessage?: boolean;
+    recipient?: MessageableUser;
+  } | null;
+
+  useEffect(() => {
+    if (incomingState?.newMessage) {
+      setPreselectedUser(incomingState.recipient || null);
+      setIsNewMessageOpen(true);
+
+      // Clear the state so refreshing doesn't reopen modal
+      navigate('/publisher/messages', { replace: true, state: null });
+    }
+  }, [incomingState, navigate]);
 
   // Filter conversations by other participant's name
   const filteredConversations = useMemo(() => {
@@ -51,7 +70,20 @@ export const PublisherMessages = () => {
 
   const handleNewConversation = (conversationId: string) => {
     setIsNewMessageOpen(false);
+    setPreselectedUser(null);
     handleSelectConversation(conversationId);
+  };
+
+  const handleNewMessageClick = () => {
+    setPreselectedUser(null);
+    setIsNewMessageOpen(true);
+  };
+
+  const handleModalClose = (open: boolean) => {
+    setIsNewMessageOpen(open);
+    if (!open) {
+      setPreselectedUser(null);
+    }
   };
 
   // On mobile, show either list or conversation
@@ -74,7 +106,7 @@ export const PublisherMessages = () => {
               subtitle="Conversations with your retailers"
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              onNewMessage={() => setIsNewMessageOpen(true)}
+              onNewMessage={handleNewMessageClick}
               searchPlaceholder="Search conversations..."
             />
 
@@ -108,8 +140,9 @@ export const PublisherMessages = () => {
       {/* New Message Modal */}
       <NewConversationModal
         open={isNewMessageOpen}
-        onOpenChange={setIsNewMessageOpen}
+        onOpenChange={handleModalClose}
         onConversationCreated={handleNewConversation}
+        preselectedUser={preselectedUser}
       />
     </PublisherLayout>
   );
