@@ -74,6 +74,41 @@ export const AdminApplications = () => {
     refetch
   } = useApplications();
 
+  // Keep selectedApplication in sync with live data
+  useMemo(() => {
+    if (selectedApplication && isSlideOverOpen) {
+      const liveApp = applications.find(a => a.id === selectedApplication.id);
+      if (liveApp) {
+        // Only update if status or metadata changed to avoid infinite loops
+        if (liveApp.status !== selectedApplication.status || 
+            JSON.stringify(liveApp.data) !== JSON.stringify(selectedApplication.data) ||
+            JSON.stringify(liveApp.data?.notes) !== JSON.stringify(selectedApplication.notes)) {
+          
+          const appData: ApplicationData = {
+            id: liveApp.id,
+            type: liveApp.type === 'publisher' ? 'publisher' : 'retailer',
+            status: liveApp.status as any,
+            name: liveApp.name,
+            email: liveApp.email,
+            phone: liveApp.data?.phone,
+            website: liveApp.data?.social_website_link || liveApp.data?.shop_url,
+            instagram: liveApp.data?.instagram_handle,
+            location: liveApp.data?.city 
+              ? `${liveApp.data.city}${liveApp.data.state ? `, ${liveApp.data.state}` : ''}${liveApp.data.country ? `, ${liveApp.data.country}` : ''}`
+              : liveApp.data?.shipping_city 
+                ? `${liveApp.data.shipping_city}${liveApp.data.shipping_state ? `, ${liveApp.data.shipping_state}` : ''}`
+                : undefined,
+            submitted_at: liveApp.data?.created_at || liveApp.data?.submitted_at || liveApp.submitted_at,
+            reviewed_at: liveApp.data?.reviewed_at,
+            notes: (liveApp.data?.notes as ApplicationNote[]) || [],
+            data: liveApp.data || {},
+          };
+          setSelectedApplication(appData);
+        }
+      }
+    }
+  }, [applications, selectedApplication, isSlideOverOpen]);
+
   // Calculate stats
   const stats = useMemo(() => {
     const pending = applications.filter(a => a.status === 'pending').length;

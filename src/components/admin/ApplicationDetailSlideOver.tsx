@@ -69,9 +69,9 @@ export const ApplicationDetailSlideOver = ({
     setIsProcessing(true);
     const success = await onApprove(application.id, application.type);
     setIsProcessing(false);
+    setShowApproveModal(false); // Always close confirmation to allow next step (e.g. Email Preview)
     if (success) {
       toast.success("Application approved");
-      setShowApproveModal(false);
     }
   };
 
@@ -79,9 +79,9 @@ export const ApplicationDetailSlideOver = ({
     setIsProcessing(true);
     const success = await onReject(application.id, application.type, rejectReason);
     setIsProcessing(false);
+    setShowRejectModal(false); // Always close confirmation
     if (success) {
       toast.success("Application rejected");
-      setShowRejectModal(false);
       setRejectReason("");
     }
   };
