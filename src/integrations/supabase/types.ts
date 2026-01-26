@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      conversation_participants: {
+        Row: {
+          avatar_url: string | null
+          conversation_id: string
+          display_name: string | null
+          id: string
+          is_archived: boolean | null
+          is_muted: boolean | null
+          joined_at: string | null
+          last_read_at: string | null
+          user_id: string
+          user_type: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          conversation_id: string
+          display_name?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_muted?: boolean | null
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id: string
+          user_type: string
+        }
+        Update: {
+          avatar_url?: string | null
+          conversation_id?: string
+          display_name?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_muted?: boolean | null
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id?: string
+          user_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       countries: {
         Row: {
           code: string
@@ -247,82 +318,49 @@ export type Database = {
         }
         Relationships: []
       }
-      message_threads: {
-        Row: {
-          created_at: string
-          created_by: string
-          id: string
-          last_message_at: string | null
-          participants: string[]
-          subject: string
-          thread_type: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          id?: string
-          last_message_at?: string | null
-          participants: string[]
-          subject: string
-          thread_type?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          id?: string
-          last_message_at?: string | null
-          participants?: string[]
-          subject?: string
-          thread_type?: string | null
-        }
-        Relationships: []
-      }
       messages: {
         Row: {
           content: string
-          created_at: string
+          conversation_id: string
+          created_at: string | null
+          edited_at: string | null
           id: string
-          is_read: boolean | null
-          message_type: string | null
-          recipient_id: string
+          is_deleted: boolean | null
           related_order_id: string | null
           related_product_id: string | null
           sender_id: string
-          thread_id: string
-          updated_at: string
+          sender_type: string
         }
         Insert: {
           content: string
-          created_at?: string
+          conversation_id: string
+          created_at?: string | null
+          edited_at?: string | null
           id?: string
-          is_read?: boolean | null
-          message_type?: string | null
-          recipient_id: string
+          is_deleted?: boolean | null
           related_order_id?: string | null
           related_product_id?: string | null
           sender_id: string
-          thread_id: string
-          updated_at?: string
+          sender_type: string
         }
         Update: {
           content?: string
-          created_at?: string
+          conversation_id?: string
+          created_at?: string | null
+          edited_at?: string | null
           id?: string
-          is_read?: boolean | null
-          message_type?: string | null
-          recipient_id?: string
+          is_deleted?: boolean | null
           related_order_id?: string | null
           related_product_id?: string | null
           sender_id?: string
-          thread_id?: string
-          updated_at?: string
+          sender_type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "messages_related_product_id_fkey"
-            columns: ["related_product_id"]
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -1439,6 +1477,18 @@ export type Database = {
       }
     }
     Views: {
+      messageable_users: {
+        Row: {
+          avatar_url: string | null
+          city: string | null
+          display_name: string | null
+          id: string | null
+          state: string | null
+          user_id: string | null
+          user_type: string | null
+        }
+        Relationships: []
+      }
       order_details_with_pricing: {
         Row: {
           cover_image_url: string | null
@@ -1488,6 +1538,15 @@ export type Database = {
           access_token: string
           id: string
         }[]
+      }
+      find_conversation: {
+        Args: {
+          user1_id: string
+          user1_type: string
+          user2_id: string
+          user2_type: string
+        }
+        Returns: string
       }
       get_current_user_role: {
         Args: never
@@ -1628,6 +1687,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_conversation_participant: {
+        Args: { check_user_id: string; conv_id: string }
+        Returns: boolean
+      }
       publisher_has_active_magazines: {
         Args: { _publisher_id: string }
         Returns: boolean
