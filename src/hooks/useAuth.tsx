@@ -126,7 +126,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, role: UserRole) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { data, error } = await supabase.auth.signUp({
+    // SECURITY: Role is passed via user_metadata and validated server-side
+    // by the handle_new_user() trigger which blocks admin self-assignment
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -141,34 +143,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: error as Error };
     }
 
-    // Create user and profile entries if signup successful
-    if (data.user) {
-      // Insert into users table
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: data.user.id,
-          email: email,
-          username: email.split('@')[0],
-          role: role,
-          password_hash: 'managed_by_supabase_auth', // Placeholder - actual hash is in auth.users
-        });
-
-      if (userError) {
-        console.error('Error creating user record:', userError);
-      }
-
-      // Insert into profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: data.user.id,
-        });
-
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-      }
-    }
+    // User and profile records are created automatically by the 
+    // on_auth_user_created trigger which calls handle_new_user()
+    // This ensures role validation happens server-side
 
     return { error: null };
   };

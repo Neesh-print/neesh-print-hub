@@ -253,6 +253,13 @@ export type Database = {
             foreignKeyName: "magazines_publisher_id_fkey"
             columns: ["publisher_id"]
             isOneToOne: false
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["publisher_id"]
+          },
+          {
+            foreignKeyName: "magazines_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
             referencedRelation: "publishers"
             referencedColumns: ["id"]
           },
@@ -1361,6 +1368,13 @@ export type Database = {
             foreignKeyName: "shipping_addresses_retailer_id_fkey"
             columns: ["retailer_id"]
             isOneToOne: false
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["retailer_id"]
+          },
+          {
+            foreignKeyName: "shipping_addresses_retailer_id_fkey"
+            columns: ["retailer_id"]
+            isOneToOne: false
             referencedRelation: "retailers"
             referencedColumns: ["id"]
           },
@@ -1508,22 +1522,7 @@ export type Database = {
           unit_price: number | null
           wholesale_price: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "magazines_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "publishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "orders_retailer_id_fkey"
-            columns: ["retailer_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
