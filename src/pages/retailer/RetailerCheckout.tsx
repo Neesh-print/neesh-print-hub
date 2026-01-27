@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { RetailerLayout, useCart } from "@/components/retailer";
 import { BackNavigation, FormInput, FormSelect, ButtonPrimary } from "@/components/neesh";
 import { toast } from "@/hooks/use-toast";
-import { CreditCard, Lock, AlertTriangle } from "lucide-react";
+import { CreditCard, Lock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const countries = [
   { value: "us", label: "United States" },
@@ -59,13 +60,54 @@ export const RetailerCheckout = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // This is a placeholder - real payment would use Stripe Elements
-    // Simulate API call for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Construct payload for Edge Function
+      const cart_items = cartItems.map((item) => ({
+        magazine_id: item.magazineId,
+        quantity: item.quantity,
+      }));
 
-    clearCart();
-    toast({ title: "Order placed successfully!" });
-    navigate("/retailer/order-confirmation/ORD-001");
+      // Invoke the create-checkout Edge Function
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { cart_items },
+      });
+
+      if (error) {
+        console.error('Checkout error:', error);
+        toast({
+          title: "Checkout failed",
+          description: error.message || "Unable to create checkout session. Please try again.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Check for business logic errors from the Edge Function
+      if (!data?.success || !data?.checkout_url) {
+        const errorMessage = data?.error || "Invalid response from checkout service";
+        toast({
+          title: "Checkout failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Success! Redirect to Stripe Checkout
+      // Note: We do NOT clearCart() here - we'll do that on the order success page
+      window.location.href = data.checkout_url;
+
+    } catch (err) {
+      console.error('Unexpected checkout error:', err);
+      toast({
+        title: "Checkout failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
   };
 
   if (cartItems.length === 0) {
@@ -222,14 +264,6 @@ export const RetailerCheckout = () => {
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Lock className="w-3 h-3" />
                   <span>256-bit SSL encryption</span>
-                </div>
-
-                {/* Demo Mode Notice */}
-                <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg">
-                  <div className="flex items-center gap-2 text-warning text-xs">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span>Demo Mode: Real Stripe integration coming soon. Orders will be simulated.</span>
-                  </div>
                 </div>
               </div>
             </section>

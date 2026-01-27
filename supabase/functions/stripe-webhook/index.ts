@@ -125,6 +125,19 @@ Deno.serve(async (req) => {
           const retailerUnitPrice = Math.round(wholesalePrice * 1.10 * 100) / 100 // Add 10%
           const totalPrice = retailerUnitPrice * item.quantity
 
+          // Extract shipping address from Stripe session
+          const shippingAddress = session.shipping_details ? {
+            name: session.shipping_details.name,
+            address: {
+              line1: session.shipping_details.address?.line1,
+              line2: session.shipping_details.address?.line2,
+              city: session.shipping_details.address?.city,
+              state: session.shipping_details.address?.state,
+              postal_code: session.shipping_details.address?.postal_code,
+              country: session.shipping_details.address?.country,
+            }
+          } : null
+
           // Create order
           const { data: order, error: orderError } = await supabaseAdmin
             .from('orders')
@@ -137,6 +150,7 @@ Deno.serve(async (req) => {
               status: 'paid',
               stripe_session_id: session.id,
               payment_intent_id: session.payment_intent as string,
+              shipping_address: shippingAddress, // Save shipping address
               stripe_payment_metadata: {
                 customer_email: session.customer_email,
                 payment_status: session.payment_status,

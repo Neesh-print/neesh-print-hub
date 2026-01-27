@@ -46,8 +46,7 @@ export const useUpdateOrderStatus = (): UseUpdateOrderStatusReturn => {
         .update({
           status: 'shipped',
           tracking_number: trackingNumber,
-          // Note: carrier field not in current schema, storing in notes as workaround
-          notes: `Carrier: ${carrier}`,
+          carrier: carrier, // Save to proper carrier column
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);

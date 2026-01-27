@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Copy, MessageCircle, User, RefreshCw, FileText } from "lucide-react";
+import { Copy, MessageCircle, User, RefreshCw, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { RetailerLayout } from "@/components/retailer";
-import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary } from "@/components/neesh";
+import { RetailerLayout, useCart } from "@/components/retailer";
+import { BackNavigation, StatusBadge, ButtonSecondary } from "@/components/neesh";
 import { OrderStatusTimeline, OrderStatus } from "@/components/retailer/OrderStatusTimeline";
-import { useCart } from "@/components/retailer/CartContext";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,75 +18,84 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Mock data demonstrating "shipped" state
-const mockOrder = {
-  id: "#0001",
-  status: "shipped" as OrderStatus,
-  timestamps: {
-    pending: "Jan 15, 2:30 PM",
-    confirmed: "Jan 15, 4:45 PM",
-    shipped: "Jan 16, 9:00 AM",
-  },
-  estimatedDelivery: "Jan 18-20",
-  trackingNumber: "1Z999AA10123456784",
-  carrier: "USPS",
-  lastUpdated: "Jan 16, 2:30 PM",
-  subtotal: 26.43,
-  shipping: 12.50,
-  tax: 2.35,
-  total: 41.28,
-  paymentMethod: "Visa ending in 4242",
-  shippingAddress: {
-    name: "Brooklyn Books",
-    street: "142 Smith Street",
-    apt: "",
-    city: "Brooklyn",
-    state: "NY",
-    postalCode: "11201",
-    country: "United States",
-  },
-  items: [
-    { 
-      id: "1", 
-      magazineId: "mag-1",
-      title: "Weird Walk Issue 8", 
-      issue: "Issue 8", 
-      coverImage: "/placeholder.svg", 
-      quantity: 3, 
-      price: 8.81,
-      publisher: "Weird Walk Press"
-    },
-  ],
-};
+interface OrderDetail {
+  id: string;
+  status: string;
+  created_at: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  tracking_number: string | null;
+  shipping_address: string | null;
+  stripe_payment_metadata: any;
+  magazine: {
+    id: string;
+    title: string;
+    cover_image_url: string | null;
+  } | null;
+}
 
 export const RetailerOrderDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { addToCart } = useCart();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const formatAddress = (addr: typeof mockOrder.shippingAddress) => {
-    const lines = [
-      addr.name,
-      addr.street,
-      addr.apt,
-      `${addr.city}, ${addr.state} ${addr.postalCode}`,
-      addr.country,
-    ].filter(Boolean);
-    return lines.join("\n");
-  };
+  // Fetch order details
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchOrder = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            status,
+            created_at,
+            quantity,
+            unit_price,
+            total_price,
+            tracking_number,
+            shipping_address,
+            stripe_payment_metadata,
+            magazines (
+              id,
+              title,
+              cover_image_url
+            )
+          `)
+          .eq('id', id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!data) {
+          setError("Order not found");
+          return;
+        }
+
+        setOrder(data as OrderDetail);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch order');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrder();
+  }, [id]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(price);
-  };
-
-  const copyAddress = () => {
-    const addressText = formatAddress(mockOrder.shippingAddress);
-    navigator.clipboard.writeText(addressText.replace(/\n/g, ", "));
-    toast.success("Address copied to clipboard");
   };
 
   const handleCancelOrder = () => {
@@ -95,16 +105,15 @@ export const RetailerOrderDetail = () => {
   };
 
   const handleReorder = () => {
-    mockOrder.items.forEach((item) => {
-      addToCart({
-        magazineId: item.magazineId,
-        title: item.title,
-        coverImage: item.coverImage,
-        publisher: item.publisher,
-        issue: item.issue,
-        quantity: item.quantity,
-        price: item.price,
-      });
+    if (!order?.magazine) return;
+
+    addToCart({
+      magazineId: order.magazine.id,
+      title: order.magazine.title,
+      coverImage: order.magazine.cover_image_url || '',
+      publisher: "Publisher", // We don't have publisher info in this query
+      quantity: order.quantity,
+      price: order.unit_price,
     });
     toast.success("Items added to cart");
     navigate("/retailer/cart");
@@ -114,49 +123,104 @@ export const RetailerOrderDetail = () => {
     toast.info("Report issue feature coming soon");
   };
 
+  // Map database status to timeline status
+  const getTimelineStatus = (status: string): OrderStatus => {
+    const statusMap: Record<string, OrderStatus> = {
+      'pending': 'pending',
+      'paid': 'confirmed',
+      'packed': 'confirmed',
+      'shipped': 'shipped',
+      'delivered': 'delivered',
+    };
+    return statusMap[status] || 'pending';
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <RetailerLayout>
+        <BackNavigation
+          title="Order Details"
+          onBack={() => navigate("/retailer/orders")}
+        />
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  // Error or not found state
+  if (error || !order) {
+    return (
+      <RetailerLayout>
+        <BackNavigation
+          title="Order Details"
+          onBack={() => navigate("/retailer/orders")}
+        />
+        <div className="px-4 md:px-6 py-12 text-center">
+          <p className="text-destructive mb-4">{error || "Order not found"}</p>
+          <ButtonSecondary onClick={() => navigate("/retailer/orders")}>
+            Back to Orders
+          </ButtonSecondary>
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  // Prepare timeline timestamps (simplified for MVP)
+  const timelineStatus = getTimelineStatus(order.status);
+  const createdDate = format(new Date(order.created_at), 'MMM d, h:mm a');
+  const timestamps = {
+    pending: createdDate,
+    confirmed: order.status !== 'pending' ? createdDate : undefined,
+    shipped: order.status === 'shipped' || order.status === 'delivered' ? createdDate : undefined,
+  };
+
+  const displayOrderNumber = `#${order.id.slice(0, 8).toUpperCase()}`;
+
   return (
     <RetailerLayout>
       <BackNavigation
-        title={`Order ${mockOrder.id}`}
+        title={`Order ${displayOrderNumber}`}
         onBack={() => navigate("/retailer/orders")}
       />
 
       <div className="px-4 md:px-6 pb-24 md:pb-12 space-y-6">
         {/* Order Status Timeline */}
         <OrderStatusTimeline
-          status={mockOrder.status}
-          timestamps={mockOrder.timestamps}
-          trackingNumber={mockOrder.trackingNumber}
-          carrier={mockOrder.carrier}
-          estimatedDelivery={mockOrder.estimatedDelivery}
-          lastUpdated={mockOrder.lastUpdated}
+          status={timelineStatus}
+          timestamps={timestamps}
+          trackingNumber={order.tracking_number || undefined}
+          carrier={order.tracking_number ? "USPS" : undefined}
+          estimatedDelivery="5-7 business days"
+          lastUpdated={format(new Date(order.created_at), 'MMM d, h:mm a')}
         />
 
         {/* Order Items */}
         <div className="card-neesh">
           <h3 className="font-display font-semibold text-lg mb-4">Items</h3>
           <div className="space-y-4">
-            {mockOrder.items.map((item) => (
-              <div key={item.id} className="flex gap-4">
+            <div className="flex gap-4">
+              {order.magazine?.cover_image_url && (
                 <div className="w-16 h-22 rounded overflow-hidden bg-secondary flex-shrink-0">
                   <img
-                    src={item.coverImage}
-                    alt={item.title}
+                    src={order.magazine.cover_image_url}
+                    alt={order.magazine.title}
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium truncate">{item.title}</h4>
-                  <p className="text-sm text-muted-foreground">{item.issue}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Qty: {item.quantity} × {formatPrice(item.price)}
-                  </p>
-                </div>
-                <p className="font-medium flex-shrink-0">
-                  {formatPrice(item.price * item.quantity)}
+              )}
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium truncate">{order.magazine?.title || "Unknown Magazine"}</h4>
+                <p className="text-sm text-muted-foreground">
+                  Qty: {order.quantity} × {formatPrice(order.unit_price)}
                 </p>
               </div>
-            ))}
+              <p className="font-medium flex-shrink-0">
+                {formatPrice(order.total_price)}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -164,16 +228,9 @@ export const RetailerOrderDetail = () => {
         <div className="card-neesh">
           <div className="flex items-start justify-between mb-4">
             <h3 className="font-display font-semibold text-lg">Shipping Address</h3>
-            <button
-              onClick={copyAddress}
-              className="p-2 hover:bg-secondary rounded-md transition-colors"
-              aria-label="Copy address"
-            >
-              <Copy className="w-4 h-4 text-muted-foreground" />
-            </button>
           </div>
-          <p className="text-muted-foreground whitespace-pre-line">
-            {formatAddress(mockOrder.shippingAddress)}
+          <p className="text-muted-foreground">
+            {order.shipping_address || "Address provided during checkout"}
           </p>
         </div>
 
@@ -183,30 +240,24 @@ export const RetailerOrderDetail = () => {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(mockOrder.subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Shipping</span>
-              <span>{formatPrice(mockOrder.shipping)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tax</span>
-              <span>{formatPrice(mockOrder.tax)}</span>
+              <span>{formatPrice(order.total_price)}</span>
             </div>
             <div className="h-px bg-border my-3" />
             <div className="flex justify-between font-semibold text-base">
               <span>Total</span>
-              <span>{formatPrice(mockOrder.total)}</span>
+              <span>{formatPrice(order.total_price)}</span>
             </div>
-            <p className="text-muted-foreground pt-2">
-              Paid with {mockOrder.paymentMethod}
-            </p>
+            {order.stripe_payment_metadata?.customer_email && (
+              <p className="text-muted-foreground pt-2">
+                Confirmation sent to {order.stripe_payment_metadata.customer_email}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Action Buttons - Conditional based on status */}
         <div className="space-y-3">
-          {mockOrder.status === "pending" && (
+          {order.status === "pending" && (
             <ButtonSecondary
               fullWidth
               destructive
@@ -216,13 +267,13 @@ export const RetailerOrderDetail = () => {
             </ButtonSecondary>
           )}
 
-          {mockOrder.status === "shipped" && (
+          {order.status === "shipped" && (
             <ButtonSecondary fullWidth onClick={handleReportIssue}>
               Report Issue
             </ButtonSecondary>
           )}
 
-          {mockOrder.status === "delivered" && (
+          {order.status === "delivered" && (
             <>
               <ButtonSecondary
                 fullWidth
@@ -238,7 +289,7 @@ export const RetailerOrderDetail = () => {
           )}
 
           {/* View Invoice - Only for confirmed/shipped/delivered orders */}
-          {['confirmed', 'shipped', 'delivered'].includes(mockOrder.status) && (
+          {['paid', 'packed', 'shipped', 'delivered'].includes(order.status) && (
             <ButtonSecondary
               fullWidth
               icon={<FileText className="w-4 h-4" />}

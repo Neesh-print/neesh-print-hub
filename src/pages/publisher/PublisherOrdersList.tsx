@@ -37,10 +37,15 @@ export const PublisherOrdersList = () => {
   const columns = [
     { key: "order_number", header: "Order" },
     { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    {
+      key: "retailer",
+      header: "Retailer",
+      render: (value: any) => value?.shop_name || "Unknown Retailer"
+    },
     { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
-    { 
-      key: "created_at", 
-      header: "Time", 
+    {
+      key: "created_at",
+      header: "Time",
       render: (value: string) => {
         const date = new Date(value);
         const now = new Date();

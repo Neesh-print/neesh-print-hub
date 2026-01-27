@@ -1,68 +1,237 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MapPin, Package, Check } from "lucide-react";
+import { MapPin, Package, MessageCircle, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, InfoCard, StatusBadge, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { AddTrackingModal } from "@/components/admin/AddTrackingModal";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
-const mockOrder = {
-  id: "0001",
-  date: "December 15, 2024",
-  time: "2:30 PM",
-  volume: 15,
-  subtotal: 420.00,
-  shipping: 30.00,
-  total: 450.00,
-  type: "Wholesale",
-  fulfillmentStatus: "received" as const,
-  paymentStatus: "payment-received" as const,
-  wsp: 28.00,
-  msrp: 45.00,
-  revenue: 420.00,
-  retailerMargin: "38%",
-  billingAddress: {
-    name: "Brooklyn Books",
-    street: "123 Atlantic Ave",
-    city: "Brooklyn, NY 11201",
-    country: "United States"
-  },
-  shippingAddress: {
-    name: "Brooklyn Books",
-    street: "123 Atlantic Ave",
-    city: "Brooklyn, NY 11201",
-    country: "United States"
-  },
-  lineItem: {
-    image: "/placeholder.svg",
-    title: "Kinfolk Magazine",
-    issue: "Issue 45",
-    region: "North America",
-    quantity: 15
-  },
-  tracking: {
-    number: "1Z999AA10123456784",
-    timeline: [
-      { status: "Ordered", date: "Dec 12", completed: true },
-      { status: "Order Ready", date: "Dec 13", completed: true },
-      { status: "In Transit", date: "Dec 14", completed: true },
-      { status: "Out for Delivery", date: "Dec 15", completed: false },
-      { status: "Delivered", date: "—", completed: false },
-    ],
-    updates: [
-      { location: "Brooklyn, NY", time: "Dec 15, 10:30 AM", status: "Out for delivery" },
-      { location: "Queens Distribution Center", time: "Dec 15, 6:00 AM", status: "Arrived at local facility" },
-      { location: "Newark, NJ", time: "Dec 14, 8:00 PM", status: "In transit" },
-      { location: "Los Angeles, CA", time: "Dec 13, 2:00 PM", status: "Shipped" },
-    ]
-  }
-};
+interface ShippingAddress {
+  name?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
+}
+
+interface OrderDetail {
+  id: string;
+  status: string;
+  created_at: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  tracking_number: string | null;
+  carrier: string | null;
+  shipping_address: ShippingAddress | null;
+  magazines: {
+    id: string;
+    title: string;
+    cover_image_url: string | null;
+    publisher_id: string;
+  } | null;
+  retailers: {
+    shop_name: string | null;
+    user_id: string;
+  } | null;
+}
 
 export const PublisherOrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { publisher } = usePublisherProfile();
+  const { addTracking, isUpdating } = useUpdateOrderStatus();
+
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+
+  // Fetch order details
+  useEffect(() => {
+    if (!id || !publisher?.id) return;
+
+    const fetchOrder = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            status,
+            created_at,
+            quantity,
+            unit_price,
+            total_price,
+            tracking_number,
+            carrier,
+            shipping_address,
+            magazines (
+              id,
+              title,
+              cover_image_url,
+              publisher_id
+            ),
+            retailers (
+              shop_name,
+              user_id
+            )
+          `)
+          .eq('id', id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!data) {
+          setError("Order not found");
+          return;
+        }
+
+        // Security check: Ensure this order belongs to the current publisher
+        if (data.magazines?.publisher_id !== publisher.id) {
+          setError("Unauthorized - This order does not belong to your publications");
+          toast.error("You can only view orders for your own magazines");
+          setTimeout(() => navigate('/publisher/orders'), 2000);
+          return;
+        }
+
+        setOrder(data as OrderDetail);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch order');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrder();
+  }, [id, publisher?.id, navigate]);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(price);
+  };
+
+  const handleMarkAsShipped = async (trackingData: { carrier: string; trackingNumber: string }) => {
+    if (!order) return;
+
+    const success = await addTracking(order.id, trackingData.carrier, trackingData.trackingNumber);
+    
+    if (success) {
+      toast.success("Order marked as shipped!");
+      setIsTrackingModalOpen(false);
+      
+      // Refresh order data
+      const { data } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          status,
+          created_at,
+          quantity,
+          unit_price,
+          total_price,
+          tracking_number,
+          carrier,
+          shipping_address,
+          magazines (
+            id,
+            title,
+            cover_image_url,
+            publisher_id
+          ),
+          retailers (
+            shop_name,
+            user_id
+          )
+        `)
+        .eq('id', order.id)
+        .single();
+      
+      if (data) setOrder(data as OrderDetail);
+    } else {
+      toast.error("Failed to update order");
+    }
+  };
+
+  // Format shipping address for display
+  const formatShippingAddress = (address: ShippingAddress | null) => {
+    if (!address) {
+      return <p className="text-muted-foreground">Address provided during checkout</p>;
+    }
+
+    const { name, address: addr } = address;
+    return (
+      <div className="space-y-1 text-caption">
+        {name && <p className="font-medium text-foreground">{name}</p>}
+        {addr?.line1 && <p className="text-muted-foreground">{addr.line1}</p>}
+        {addr?.line2 && <p className="text-muted-foreground">{addr.line2}</p>}
+        {(addr?.city || addr?.state || addr?.postal_code) && (
+          <p className="text-muted-foreground">
+            {[addr.city, addr.state, addr.postal_code].filter(Boolean).join(', ')}
+          </p>
+        )}
+        {addr?.country && <p className="text-muted-foreground">{addr.country}</p>}
+      </div>
+    );
+  };
+
+  // Extract carrier from order object
+  const getCarrier = () => {
+    return order?.carrier;
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+        <BackNavigation
+          title="Order Details"
+          onBack={() => navigate("/publisher/orders")}
+        />
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+        </div>
+      </PublisherLayout>
+    );
+  }
+
+  // Error or unauthorized state
+  if (error || !order) {
+    return (
+      <PublisherLayout>
+        <BackNavigation
+          title="Order Details"
+          onBack={() => navigate("/publisher/orders")}
+        />
+        <div className="px-4 md:px-6 py-12 text-center">
+          <p className="text-destructive mb-4">{error || "Order not found"}</p>
+          <ButtonSecondary onClick={() => navigate("/publisher/orders")}>
+            Back to Orders
+          </ButtonSecondary>
+        </div>
+      </PublisherLayout>
+    );
+  }
+
+  const displayOrderNumber = `#${order.id.slice(0, 8).toUpperCase()}`;
+  const isShipped = order.status === 'shipped' || order.status === 'delivered';
+  const canShip = order.status === 'paid' || order.status === 'pending';
 
   return (
     <PublisherLayout>
       <BackNavigation
-        title={`Order #${id || mockOrder.id}`}
+        title={`Order ${displayOrderNumber}`}
         onBack={() => navigate("/publisher/orders")}
       />
 
@@ -71,163 +240,110 @@ export const PublisherOrderDetail = () => {
         <div className="grid md:grid-cols-4 gap-4">
           <InfoCard title="Order Info">
             <div className="space-y-2 text-caption">
-              <p><span className="text-muted-foreground">Order:</span> <span className="text-foreground">#{mockOrder.id}</span></p>
-              <p><span className="text-muted-foreground">Date:</span> <span className="text-foreground">{mockOrder.date}</span></p>
-              <p><span className="text-muted-foreground">Time:</span> <span className="text-foreground">{mockOrder.time}</span></p>
-              <p><span className="text-muted-foreground">Volume:</span> <span className="text-foreground">{mockOrder.volume} units</span></p>
+              <p><span className="text-muted-foreground">Order:</span> <span className="text-foreground">{displayOrderNumber}</span></p>
+              <p><span className="text-muted-foreground">Date:</span> <span className="text-foreground">{format(new Date(order.created_at), 'MMMM d, yyyy')}</span></p>
+              <p><span className="text-muted-foreground">Time:</span> <span className="text-foreground">{format(new Date(order.created_at), 'h:mm a')}</span></p>
+              <p><span className="text-muted-foreground">Volume:</span> <span className="text-foreground">{order.quantity} units</span></p>
             </div>
           </InfoCard>
 
           <InfoCard title="Pricing">
             <div className="space-y-2 text-caption">
-              <p><span className="text-muted-foreground">Subtotal:</span> <span className="text-foreground">${mockOrder.subtotal.toFixed(2)}</span></p>
-              <p><span className="text-muted-foreground">Shipping:</span> <span className="text-foreground">${mockOrder.shipping.toFixed(2)}</span></p>
-              <p className="font-medium"><span className="text-muted-foreground">Total:</span> <span className="text-foreground">${mockOrder.total.toFixed(2)}</span></p>
+              <p><span className="text-muted-foreground">Wholesale Price:</span> <span className="text-foreground">{formatPrice(order.unit_price)}</span></p>
+              <p><span className="text-muted-foreground">Quantity:</span> <span className="text-foreground">{order.quantity}</span></p>
+              <p className="font-medium"><span className="text-muted-foreground">Total Revenue:</span> <span className="text-foreground">{formatPrice(order.total_price)}</span></p>
             </div>
           </InfoCard>
 
           <InfoCard title="Status">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-caption text-muted-foreground">Type:</span>
-                <StatusBadge status="pending" label={mockOrder.type} />
+                <span className="text-caption text-muted-foreground">Payment:</span>
+                <StatusBadge 
+                  status={order.status === 'paid' || order.status === 'shipped' ? 'payment-received' : 'payment-pending'} 
+                />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-caption text-muted-foreground">Fulfillment:</span>
-                <StatusBadge status={mockOrder.fulfillmentStatus} />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-caption text-muted-foreground">Payment:</span>
-                <StatusBadge status={mockOrder.paymentStatus} />
+                <StatusBadge status={order.status as any} />
               </div>
             </div>
           </InfoCard>
 
-          <InfoCard title="Margins">
+          <InfoCard title="Retailer">
             <div className="space-y-2 text-caption">
-              <p><span className="text-muted-foreground">WSP:</span> <span className="text-foreground">${mockOrder.wsp.toFixed(2)}</span></p>
-              <p><span className="text-muted-foreground">MSRP:</span> <span className="text-foreground">${mockOrder.msrp.toFixed(2)}</span></p>
-              <p><span className="text-muted-foreground">Revenue:</span> <span className="text-foreground">${mockOrder.revenue.toFixed(2)}</span></p>
-              <p><span className="text-muted-foreground">Retailer Margin:</span> <span className="text-foreground">{mockOrder.retailerMargin}</span></p>
+              <p><span className="text-muted-foreground">Shop:</span> <span className="text-foreground">{order.retailers?.shop_name || 'Unknown Retailer'}</span></p>
+            </div>
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-caption text-muted-foreground mb-2">Shipping Address:</p>
+              {formatShippingAddress(order.shipping_address)}
             </div>
           </InfoCard>
         </div>
 
-        {/* Second Row */}
-        <div className="grid md:grid-cols-4 gap-4">
-          <InfoCard title="Billing Address">
-            <div className="space-y-1 text-caption text-foreground">
-              <p className="font-medium">{mockOrder.billingAddress.name}</p>
-              <p className="text-muted-foreground">{mockOrder.billingAddress.street}</p>
-              <p className="text-muted-foreground">{mockOrder.billingAddress.city}</p>
-              <p className="text-muted-foreground">{mockOrder.billingAddress.country}</p>
-            </div>
-          </InfoCard>
-
-          <InfoCard title="Shipping Address">
-            <div className="space-y-1 text-caption text-foreground">
-              <p className="font-medium">{mockOrder.shippingAddress.name}</p>
-              <p className="text-muted-foreground">{mockOrder.shippingAddress.street}</p>
-              <p className="text-muted-foreground">{mockOrder.shippingAddress.city}</p>
-              <p className="text-muted-foreground">{mockOrder.shippingAddress.country}</p>
-            </div>
-          </InfoCard>
-
-          <div className="space-y-3">
-            <ButtonSecondary fullWidth>Edit Order</ButtonSecondary>
-            <ButtonSecondary fullWidth destructive>Cancel Order</ButtonSecondary>
-          </div>
-
-          <div className="space-y-3">
-            <ButtonSecondary fullWidth onClick={() => navigate("/publisher/messages")}>
-              Contact Retailer
-            </ButtonSecondary>
-            <ButtonSecondary fullWidth>Retailer Profile</ButtonSecondary>
-          </div>
-        </div>
-
-        {/* Line Item Card */}
+        {/* Magazine Line Item Card */}
         <div className="card-neesh">
+          <h3 className="font-display font-semibold text-lg mb-4">Order Item</h3>
           <div className="flex items-center gap-4">
-            <img
-              src={mockOrder.lineItem.image}
-              alt={mockOrder.lineItem.title}
-              className="w-20 h-28 object-cover rounded bg-secondary"
-            />
+            {order.magazines?.cover_image_url && (
+              <img
+                src={order.magazines.cover_image_url}
+                alt={order.magazines.title}
+                className="w-20 h-28 object-cover rounded bg-secondary"
+              />
+            )}
             <div>
-              <h4 className="font-display font-semibold text-body text-foreground">{mockOrder.lineItem.title}</h4>
-              <p className="text-caption text-muted-foreground">{mockOrder.lineItem.issue}</p>
-              <p className="text-caption text-muted-foreground">{mockOrder.lineItem.region}</p>
-              <p className="text-caption text-foreground mt-1">Qty: {mockOrder.lineItem.quantity}</p>
+              <h4 className="font-display font-semibold text-body text-foreground">{order.magazines?.title || 'Unknown Magazine'}</h4>
+              <p className="text-caption text-muted-foreground mt-1">Qty: {order.quantity} units</p>
+              <p className="text-caption text-foreground mt-1">{formatPrice(order.unit_price)} per unit</p>
             </div>
           </div>
         </div>
 
-        {/* Track Shipment Section */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-heading text-foreground mb-4">Track Shipment</h3>
-          
-          <p className="text-caption text-muted-foreground mb-4">
-            Tracking Number: <span className="text-foreground font-medium">{mockOrder.tracking.number}</span>
-          </p>
-
-          {/* Timeline */}
-          <div className="flex items-center justify-between mb-6">
-            {mockOrder.tracking.timeline.map((step, index) => (
-              <div key={step.status} className="flex flex-col items-center flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  step.completed ? "bg-chart-green" : "bg-secondary"
-                }`}>
-                  {step.completed && <Check className="w-4 h-4 text-primary-foreground" />}
-                </div>
-                <p className={`text-caption mt-2 text-center ${step.completed ? "text-foreground" : "text-muted-foreground"}`}>
-                  {step.status}
-                </p>
-                <p className="text-caption text-muted-foreground">{step.date}</p>
-                {index < mockOrder.tracking.timeline.length - 1 && (
-                  <div className={`absolute h-0.5 w-full top-4 left-1/2 ${
-                    step.completed ? "bg-chart-green" : "bg-border"
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <p className="text-caption text-muted-foreground">
-              Order #{mockOrder.id} · {mockOrder.date}
-            </p>
-          </div>
-        </div>
-
-        {/* Latest Update Section */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-heading text-foreground mb-4">Latest Update</h3>
-          <div className="space-y-4">
-            {mockOrder.tracking.updates.map((update, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-accent mt-2" />
-                <div>
-                  <p className="text-body text-foreground">{update.status}</p>
-                  <p className="text-caption text-muted-foreground">{update.location} · {update.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Current Location Section */}
-        <div className="card-neesh">
-          <h3 className="font-display font-semibold text-heading text-foreground mb-4">Current Location</h3>
-          <div className="aspect-video bg-secondary rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <MapPin className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-caption text-muted-foreground">Map placeholder</p>
-              <p className="text-body text-foreground mt-1">Brooklyn, NY</p>
+        {/* Tracking Info (if shipped) */}
+        {isShipped && order.tracking_number && (
+          <div className="card-neesh">
+            <h3 className="font-display font-semibold text-heading text-foreground mb-4">Shipping Information</h3>
+            <div className="space-y-2 text-caption">
+              <p><span className="text-muted-foreground">Tracking Number:</span> <span className="text-foreground font-medium">{order.tracking_number}</span></p>
+              {getCarrier() && (
+                <p><span className="text-muted-foreground">Carrier:</span> <span className="text-foreground">{getCarrier()}</span></p>
+              )}
+              <p><span className="text-muted-foreground">Status:</span> <span className="text-foreground">Shipped</span></p>
             </div>
           </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {canShip && (
+            <ButtonPrimary
+              fullWidth
+              onClick={() => setIsTrackingModalOpen(true)}
+              icon={<Package className="w-4 h-4" />}
+            >
+              Mark as Shipped
+            </ButtonPrimary>
+          )}
+
+          <ButtonSecondary
+            fullWidth
+            onClick={() => navigate('/publisher/messages')}
+            icon={<MessageCircle className="w-4 h-4" />}
+          >
+            Contact Retailer
+          </ButtonSecondary>
         </div>
       </div>
+
+      {/* Add Tracking Modal */}
+      <AddTrackingModal
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+        onSubmit={handleMarkAsShipped}
+        orderNumber={displayOrderNumber}
+        isLoading={isUpdating}
+      />
     </PublisherLayout>
   );
 };
