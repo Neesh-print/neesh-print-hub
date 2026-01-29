@@ -11,11 +11,14 @@ import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+import { supabase } from "@/integrations/supabase/client";
+
 export const PublisherSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { publisher, isLoading, updateProfile } = usePublisherProfile();
   const [isSaving, setIsSaving] = useState(false);
+  const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -250,8 +253,34 @@ export const PublisherSettings = () => {
                     <p className="font-medium text-foreground">Stripe Connect Status</p>
                     <p className="text-sm text-muted-foreground">Account active and ready for payouts</p>
                   </div>
-                  <ButtonSecondary onClick={() => window.open('https://dashboard.stripe.com/', '_blank')}>
-                    View Dashboard
+                  <ButtonSecondary 
+                    onClick={async () => {
+                      try {
+                        setIsOpeningDashboard(true);
+                        const { data, error } = await supabase.functions.invoke('create-connect-login-link');
+                        if (error) throw error;
+                        if (data?.url) {
+                          window.open(data.url, '_blank');
+                        } else {
+                          toast.error("Could not generate dashboard link");
+                        }
+                      } catch (error) {
+                        console.error('Error opening dashboard:', error);
+                        toast.error("Failed to open Stripe Dashboard");
+                      } finally {
+                        setIsOpeningDashboard(false);
+                      }
+                    }}
+                    disabled={isOpeningDashboard}
+                  >
+                    {isOpeningDashboard ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Opening...
+                      </>
+                    ) : (
+                      "View Dashboard"
+                    )}
                   </ButtonSecondary>
                 </div>
               </div>

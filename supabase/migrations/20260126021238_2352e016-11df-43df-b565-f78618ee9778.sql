@@ -3,17 +3,18 @@
 -- =============================================
 
 -- Drop existing messaging tables if they exist (to start fresh)
+-- NOTE: This is destructive but seems intended for this specific migration iteration
 DROP TABLE IF EXISTS public.messages CASCADE;
 DROP TABLE IF EXISTS public.message_threads CASCADE;
 DROP TABLE IF EXISTS public.conversation_participants CASCADE;
 DROP TABLE IF EXISTS public.conversations CASCADE;
-DROP VIEW IF EXISTS public.messageable_users CASCADE;
+-- DROP VIEW IF EXISTS public.messageable_users CASCADE; 
 
 -- =============================================
 -- 1. MESSAGEABLE USERS VIEW
 -- Unified view of all users who can participate in messaging
 -- =============================================
-CREATE VIEW public.messageable_users AS
+CREATE OR REPLACE VIEW public.messageable_users AS
 SELECT 
   id,
   user_id,
@@ -60,7 +61,7 @@ CREATE TABLE public.conversations (
   last_message_preview TEXT
 );
 
-CREATE INDEX idx_conversations_last_message ON public.conversations(last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_last_message ON public.conversations(last_message_at DESC);
 
 -- Enable RLS
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
@@ -83,8 +84,8 @@ CREATE TABLE public.conversation_participants (
   UNIQUE(conversation_id, user_id, user_type)
 );
 
-CREATE INDEX idx_participants_user ON public.conversation_participants(user_id, user_type);
-CREATE INDEX idx_participants_conversation ON public.conversation_participants(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user ON public.conversation_participants(user_id, user_type);
+CREATE INDEX IF NOT EXISTS idx_participants_conversation ON public.conversation_participants(conversation_id);
 
 -- Enable RLS
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
@@ -105,8 +106,8 @@ CREATE TABLE public.messages (
   related_order_id UUID
 );
 
-CREATE INDEX idx_messages_conversation ON public.messages(conversation_id, created_at DESC);
-CREATE INDEX idx_messages_sender ON public.messages(sender_id, sender_type);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON public.messages(sender_id, sender_type);
 
 -- Enable RLS
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
@@ -127,6 +128,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP TRIGGER IF EXISTS message_insert_trigger ON public.messages;
 CREATE TRIGGER message_insert_trigger
   AFTER INSERT ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.update_conversation_on_message();
@@ -175,41 +177,49 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- =============================================
 
 -- Conversations: Users can view conversations they participate in
+DROP POLICY IF EXISTS "Users can view their conversations" ON public.conversations;
 CREATE POLICY "Users can view their conversations"
   ON public.conversations FOR SELECT
   USING (public.is_conversation_participant(id, auth.uid()));
 
 -- Conversations: Any authenticated user can create a conversation
+DROP POLICY IF EXISTS "Authenticated users can create conversations" ON public.conversations;
 CREATE POLICY "Authenticated users can create conversations"
   ON public.conversations FOR INSERT
   WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Conversations: Participants can update conversation
+DROP POLICY IF EXISTS "Participants can update conversations" ON public.conversations;
 CREATE POLICY "Participants can update conversations"
   ON public.conversations FOR UPDATE
   USING (public.is_conversation_participant(id, auth.uid()));
 
 -- Conversation Participants: Users can view participants of their conversations
+DROP POLICY IF EXISTS "Users can view participants of their conversations" ON public.conversation_participants;
 CREATE POLICY "Users can view participants of their conversations"
   ON public.conversation_participants FOR SELECT
   USING (public.is_conversation_participant(conversation_id, auth.uid()));
 
 -- Conversation Participants: Users can add themselves as participants
+DROP POLICY IF EXISTS "Users can add themselves as participants" ON public.conversation_participants;
 CREATE POLICY "Users can add themselves as participants"
   ON public.conversation_participants FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
 -- Conversation Participants: Users can update their own participant record
+DROP POLICY IF EXISTS "Users can update their own participant record" ON public.conversation_participants;
 CREATE POLICY "Users can update their own participant record"
   ON public.conversation_participants FOR UPDATE
   USING (user_id = auth.uid());
 
 -- Messages: Users can view messages in their conversations
+DROP POLICY IF EXISTS "Users can view messages in their conversations" ON public.messages;
 CREATE POLICY "Users can view messages in their conversations"
   ON public.messages FOR SELECT
   USING (public.is_conversation_participant(conversation_id, auth.uid()));
 
 -- Messages: Users can send messages to their conversations
+DROP POLICY IF EXISTS "Users can send messages to their conversations" ON public.messages;
 CREATE POLICY "Users can send messages to their conversations"
   ON public.messages FOR INSERT
   WITH CHECK (
@@ -218,21 +228,25 @@ CREATE POLICY "Users can send messages to their conversations"
   );
 
 -- Messages: Users can update their own messages (for editing)
+DROP POLICY IF EXISTS "Users can update their own messages" ON public.messages;
 CREATE POLICY "Users can update their own messages"
   ON public.messages FOR UPDATE
   USING (sender_id = auth.uid());
 
 -- Admin policies
+DROP POLICY IF EXISTS "Admins can manage all conversations" ON public.conversations;
 CREATE POLICY "Admins can manage all conversations"
   ON public.conversations FOR ALL
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS "Admins can manage all participants" ON public.conversation_participants;
 CREATE POLICY "Admins can manage all participants"
   ON public.conversation_participants FOR ALL
   USING (is_admin())
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS "Admins can manage all messages" ON public.messages;
 CREATE POLICY "Admins can manage all messages"
   ON public.messages FOR ALL
   USING (is_admin())

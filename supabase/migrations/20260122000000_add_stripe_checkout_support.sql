@@ -58,13 +58,14 @@ COMMENT ON FUNCTION public.calculate_retailer_price IS 'Calculates the retailer 
 DROP POLICY IF EXISTS "Retailers can view their own orders" ON public.orders;
 DROP POLICY IF EXISTS "Retailers can create their own orders" ON public.orders;
 DROP POLICY IF EXISTS "Publishers can view orders for their magazines" ON public.orders;
+DROP POLICY IF EXISTS "Admins can update orders" ON public.orders;
 
 -- Retailers can view their own orders
 CREATE POLICY "Retailers can view their own orders"
 ON public.orders FOR SELECT
 USING (
   retailer_id = auth.uid()
-  OR auth.uid() IN (SELECT user_id FROM public.users WHERE role = 'admin')
+  OR auth.uid() IN (SELECT id FROM public.users WHERE role = 'admin')
 );
 
 -- Retailers can create orders (via Stripe checkout)
@@ -83,19 +84,21 @@ USING (
     JOIN public.publishers p ON m.publisher_id = p.id
     WHERE p.user_id = auth.uid()
   )
-  OR auth.uid() IN (SELECT user_id FROM public.users WHERE role = 'admin')
+  OR auth.uid() IN (SELECT id FROM public.users WHERE role = 'admin')
 );
 
 -- Admins can update order status
 CREATE POLICY "Admins can update orders"
 ON public.orders FOR UPDATE
 USING (
-  auth.uid() IN (SELECT user_id FROM public.users WHERE role = 'admin')
+  auth.uid() IN (SELECT id FROM public.users WHERE role = 'admin')
 );
 
 -- =============================================================
 -- Helper view for order details with pricing
 -- =============================================================
+
+DROP VIEW IF EXISTS public.order_details_with_pricing CASCADE;
 
 CREATE OR REPLACE VIEW public.order_details_with_pricing AS
 SELECT

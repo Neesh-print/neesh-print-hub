@@ -1,11 +1,11 @@
 -- Add origin country code to magazines table
-ALTER TABLE magazines ADD COLUMN origin_country_code VARCHAR(2) DEFAULT NULL;
+ALTER TABLE magazines ADD COLUMN IF NOT EXISTS origin_country_code VARCHAR(2) DEFAULT NULL;
 
 -- Create index for filtering performance
-CREATE INDEX idx_magazines_origin_country ON magazines(origin_country_code);
+CREATE INDEX IF NOT EXISTS idx_magazines_origin_country ON magazines(origin_country_code);
 
 -- Create countries reference table
-CREATE TABLE countries (
+CREATE TABLE IF NOT EXISTS countries (
   code VARCHAR(2) PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   display_order INT DEFAULT 999
@@ -15,6 +15,7 @@ CREATE TABLE countries (
 ALTER TABLE countries ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access to countries
+DROP POLICY IF EXISTS "Anyone can view countries" ON countries;
 CREATE POLICY "Anyone can view countries"
 ON countries FOR SELECT
 USING (true);
@@ -65,4 +66,5 @@ INSERT INTO countries (code, name, display_order) VALUES
   ('EG', 'Egypt', 42),
   ('IL', 'Israel', 43),
   ('AE', 'United Arab Emirates', 44),
-  ('SA', 'Saudi Arabia', 45);
+  ('SA', 'Saudi Arabia', 45)
+ON CONFLICT (code) DO NOTHING;

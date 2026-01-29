@@ -17,35 +17,80 @@ export const PublisherEditTitle = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isNew = !id || id === "new";
+  
+  // Generate a unique storage key for this form
+  const storageKey = `publisher-edit-title-${id || 'new'}`;
 
-  // Form state
-  const [formData, setFormData] = useState({
-    title: isNew ? "" : "Kinfolk Magazine",
-    issueNumber: isNew ? "" : "Issue 45",
-    frequency: isNew ? "" : "Quarterly",
-    isSingleIssue: true,
-    isSeries: false,
-    category: isNew ? "" : "Art",
-    dimensions: isNew ? "" : "210 x 280mm, 350g",
-    pageCount: isNew ? "" : "160",
-    printRun: isNew ? "" : "25,000",
-    warehouseLocation: isNew ? "" : "Portland, OR",
-    availableQuantities: isNew ? "" : "2,500",
-    restockTimeline: isNew ? "" : "8 weeks",
-    promotionalText: isNew ? "" : "A slow lifestyle magazine celebrating the simple things.",
-    metadata: isNew ? "" : "ISSN 2325-1654, kinfolk, lifestyle, design",
-    wholesalePrice: isNew ? "" : "28.00",
-    retailPrice: isNew ? "" : "45.00",
-    discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
-    paymentTerms: isNew ? "" : "Net 30",
-    originCountryCode: isNew ? null as string | null : "US",
-    publicationDate: isNew ? null as string | null : "2025-01-01",
-  });
+  // Form state with localStorage persistence
+  const getInitialFormData = () => {
+    // Try to load from localStorage first
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved form data:', e);
+      }
+    }
+    
+    // Default form data
+    return {
+      title: isNew ? "" : "Kinfolk Magazine",
+      issueNumber: isNew ? "" : "Issue 45",
+      frequency: isNew ? "" : "Quarterly",
+      isSingleIssue: true,
+      isSeries: false,
+      category: isNew ? "" : "Art",
+      dimensions: isNew ? "" : "210 x 280mm, 350g",
+      pageCount: isNew ? "" : "160",
+      printRun: isNew ? "" : "25,000",
+      warehouseLocation: isNew ? "" : "Portland, OR",
+      availableQuantities: isNew ? "" : "2,500",
+      restockTimeline: isNew ? "" : "8 weeks",
+      promotionalText: isNew ? "" : "A slow lifestyle magazine celebrating the simple things.",
+      metadata: isNew ? "" : "ISSN 2325-1654, kinfolk, lifestyle, design",
+      wholesalePrice: isNew ? "" : "28.00",
+      retailPrice: isNew ? "" : "45.00",
+      discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
+      paymentTerms: isNew ? "" : "Net 30",
+      originCountryCode: isNew ? null as string | null : "US",
+      publicationDate: isNew ? null as string | null : "2025-01-01",
+    };
+  };
+  
+  const [formData, setFormData] = useState(getInitialFormData);
+  
+  // Auto-save form data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(formData));
+  }, [formData, storageKey]);
 
-  // Uploaded image URLs
-  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
-  const [sampleSpreadUrl, setSampleSpreadUrl] = useState<string | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  // Uploaded image URLs (also persisted)
+  const getInitialImageUrls = () => {
+    const saved = localStorage.getItem(`${storageKey}-images`);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { cover: null, spread: null, logo: null };
+      }
+    }
+    return { cover: null, spread: null, logo: null };
+  };
+  
+  const initialImages = getInitialImageUrls();
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(initialImages.cover);
+  const [sampleSpreadUrl, setSampleSpreadUrl] = useState<string | null>(initialImages.spread);
+  const [logoUrl, setLogoUrl] = useState<string | null>(initialImages.logo);
+  
+  // Auto-save image URLs
+  useEffect(() => {
+    localStorage.setItem(`${storageKey}-images`, JSON.stringify({
+      cover: coverImageUrl,
+      spread: sampleSpreadUrl,
+      logo: logoUrl,
+    }));
+  }, [coverImageUrl, sampleSpreadUrl, logoUrl, storageKey]);
 
   // File upload hooks
   const coverUpload = useFileUpload({
@@ -137,6 +182,9 @@ export const PublisherEditTitle = () => {
         inventory_count: parseInt(formData.availableQuantities.replace(/,/g, '')) || 0,
         description: formData.promotionalText,
         wholesale_price: parseFloat(formData.wholesalePrice) || 0,
+        // LEGACY: The 'price' column is required by the database but deprecated in favor of 'wholesale_price'.
+        // We mirror 'wholesale_price' to satisfy the constraint until a migration can make it nullable.
+        price: parseFloat(formData.wholesalePrice) || 0, 
         suggested_retail_price: parseFloat(formData.retailPrice) || 0,
         cover_image_url: coverImageUrl,
         sample_spread_url: sampleSpreadUrl,
@@ -165,9 +213,13 @@ export const PublisherEditTitle = () => {
         toast.success("Magazine updated successfully");
       }
 
+      // Clear saved form data after successful save
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(`${storageKey}-images`);
+
       navigate("/publisher/titles");
     } catch (error) {
-      console.error('Error saving magazine:', error);
+      // Error is already logged by Supabase client or handled by toast
       toast.error("Failed to save magazine. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -265,7 +317,7 @@ export const PublisherEditTitle = () => {
                     value={formData.publicationDate}
                     onChange={(value) => setFormData(prev => ({ ...prev, publicationDate: value }))}
                     allowClear={true}
-                    allowFuture={false}
+                    allowFuture={true}
                   />
                   <p className="text-xs text-muted-foreground">
                     When was this issue released? This helps retailers find the newest titles.

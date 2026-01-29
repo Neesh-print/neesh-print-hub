@@ -66,26 +66,27 @@ export function MonthYearPicker({
   const handleMonthChange = useCallback((monthStr: string) => {
     const month = parseInt(monthStr, 10);
     
-    if (selectedYear) {
-      // Check if this would create a future date
-      if (!allowFuture && selectedYear === currentYear && month > currentMonth) {
-        return; // Don't allow future months in current year
-      }
-      onChange(createPublicationDate(month, selectedYear));
+    // If no year is selected yet, default to current year
+    const year = selectedYear || currentYear;
+    
+    // Check if this would create a future date
+    if (!allowFuture && year === currentYear && month > currentMonth) {
+      return; // Don't allow future months in current year
     }
+    onChange(createPublicationDate(month, year));
   }, [selectedYear, onChange, allowFuture, currentYear, currentMonth]);
   
   const handleYearChange = useCallback((yearStr: string) => {
     const year = parseInt(yearStr, 10);
     
-    if (selectedMonth) {
-      // Adjust month if it would create a future date
-      let month = selectedMonth;
-      if (!allowFuture && year === currentYear && month > currentMonth) {
-        month = currentMonth;
-      }
-      onChange(createPublicationDate(month, year));
+    // If no month is selected yet, default to January
+    let month = selectedMonth || 1;
+    
+    // Adjust month if it would create a future date
+    if (!allowFuture && year === currentYear && month > currentMonth) {
+      month = currentMonth;
     }
+    onChange(createPublicationDate(month, year));
   }, [selectedMonth, onChange, allowFuture, currentYear, currentMonth]);
   
   const handleClear = useCallback(() => {
