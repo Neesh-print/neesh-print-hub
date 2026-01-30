@@ -10,6 +10,7 @@ export type StatusType =
   | 'new-order'
   | 'shipped'
   | 'delivered'
+  | 'paid'
   | 'cancelled';
 
 export interface StatusBadgeProps {
@@ -66,10 +67,14 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
     label: 'CANCELLED',
     className: 'bg-status-error text-status-error-text',
   },
+  'paid': {
+    label: 'PAID',
+    className: 'bg-status-success text-status-success-text',
+  },
 };
 
 export const StatusBadge = ({ status, label }: StatusBadgeProps) => {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig['pending'];
   const displayLabel = label || config.label;
 
   return (

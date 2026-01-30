@@ -47,6 +47,8 @@ export const RetailerCatalogue = () => {
   // Onboarding progress for retailers
   const onboarding = useOnboardingProgress('retailer', {
     hasProfile: !!retailer?.shop_name,
+    hasProfileDescription: !!retailer?.shop_description, // Added
+    hasStoreTypes: (retailer?.store_types?.length ?? 0) > 0, // Added
     hasProfileWebsite: !!retailer?.shop_url,
     hasProfileInstagram: !!retailer?.instagram_handle,
     hasShippingAddress: !!retailer?.address,

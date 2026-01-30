@@ -71,6 +71,12 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
       }
 
       if (data) {
+        // Fetch real order count
+        const { count: realOrderCount, error: countError } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('retailer_id', user.id);
+
         const transformed: RetailerProfile = {
           id: data.id,
           user_id: data.user_id,
@@ -91,7 +97,7 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           favorite_publisher_ids: data.favorite_publisher_ids || [],
           has_shipping_address: data.has_shipping_address || false,
           total_spent: Number(data.total_spent) || 0,
-          total_orders: data.total_orders || 0,
+          total_orders: countError ? (data.total_orders || 0) : (realOrderCount || 0), // Use real count
           average_rating: Number(data.average_rating) || 0,
           verified: data.verified || false,
           verified_at: data.verified_at,

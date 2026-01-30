@@ -35,11 +35,10 @@ export const PublisherOrdersList = () => {
   };
 
   const columns = [
-    { key: "order_number", header: "Order" },
     { 
       key: "magazine", 
       header: "Title", 
-      render: (value: Order['magazine']) => value?.title || "Unknown" 
+      render: (value: Order['magazine']) => value?.title || "Unknown Title" 
     },
     {
       key: "retailer",

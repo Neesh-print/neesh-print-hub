@@ -26,10 +26,10 @@ SELECT
   u_ret.email as retailer_email
 FROM public.orders o
 JOIN public.magazines m ON o.magazine_id = m.id
-JOIN public.publishers p ON m.publisher_id = p.id
-JOIN public.users u_pub ON p.user_id = u_pub.id
+LEFT JOIN public.publishers p ON m.publisher_id = p.id
+LEFT JOIN public.users u_pub ON p.user_id = u_pub.id
 LEFT JOIN public.retailers r ON o.retailer_id = r.user_id
-JOIN public.users u_ret ON o.retailer_id = u_ret.id;
+LEFT JOIN public.users u_ret ON o.retailer_id = u_ret.id;
 
 COMMENT ON VIEW public.order_details_with_pricing IS 'Comprehensive view of orders with magazine, publisher, and retailer details, including shipping info';
 

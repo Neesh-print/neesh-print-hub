@@ -33,6 +33,8 @@ export function useOnboardingProgress(
   contextData?: {
     hasProfile?: boolean;
     hasProfileBio?: boolean;
+    hasProfileDescription?: boolean;
+    hasStoreTypes?: boolean;
     hasProfileWebsite?: boolean;
     hasProfileInstagram?: boolean;
     hasShippingAddress?: boolean;
@@ -41,6 +43,7 @@ export function useOnboardingProgress(
     wishlistCount?: number;
     publisherName?: string;
     storeName?: string;
+    profileCompletedAt?: string | null;
   }
 ): OnboardingState {
   const [dismissed, setDismissed] = useState(false);
