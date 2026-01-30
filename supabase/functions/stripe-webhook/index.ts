@@ -4,6 +4,7 @@ import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
   'https://www.neesh.art',
+  'https://neesh-experimental.vercel.app',
   'http://localhost:8081',
 ];
 

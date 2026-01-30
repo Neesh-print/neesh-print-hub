@@ -131,7 +131,7 @@ function useOrdersBySessionId(sessionId: string | undefined) {
      }
   }, [query.isFetchedAfterMount, query.dataUpdatedAt, query.data]);
 
-  return query;
+  return { ...query, hasTimedOut: pollCount >= MAX_POLL_COUNT };
 }
 
 export const RetailerOrderConfirmation = () => {
@@ -141,7 +141,7 @@ export const RetailerOrderConfirmation = () => {
   const [isVisible, setIsVisible] = useState(false);
   const hasCleared = useRef(false);
 
-  const { data: orders, isLoading, error, refetch } = useOrdersBySessionId(sessionId);
+  const { data: orders, isLoading, error, refetch, hasTimedOut } = useOrdersBySessionId(sessionId);
 
   // Animation trigger on mount
   useEffect(() => {
@@ -169,7 +169,8 @@ export const RetailerOrderConfirmation = () => {
   };
 
   // Loading state - still waiting for webhook to create orders
-  if (isLoading || (!orders || orders.length === 0)) {
+  // Only show loading if we are still polling/loading and haven't timed out
+  if ((isLoading || (!orders || orders.length === 0)) && !hasTimedOut) {
     return (
       <RetailerLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
@@ -183,7 +184,7 @@ export const RetailerOrderConfirmation = () => {
     );
   }
 
-  // Timeout state - webhook took too long
+  // Timeout state - webhook took too long or error
   if (error || (orders && orders.length === 0)) {
     return (
       <RetailerLayout>
@@ -211,7 +212,8 @@ export const RetailerOrderConfirmation = () => {
 
   // Success! We have orders - aggregate the data
   const firstOrder = orders[0];
-  const metadata = firstOrder?.stripe_payment_metadata as unknown as StripeMetadata;
+  // @ts-ignore: metadata exists in DB but might be missing in generated types
+  const metadata = (firstOrder as any)?.stripe_payment_metadata as unknown as StripeMetadata;
   const customerEmail = metadata?.customer_email || 'your email';
   const amountTotal = metadata?.amount_total;
   

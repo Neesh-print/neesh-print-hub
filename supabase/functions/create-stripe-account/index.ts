@@ -131,7 +131,8 @@ Deno.serve(async (req) => {
       }
 
       // Get site URL for return/refresh URLs
-      const siteUrl = Deno.env.get('SITE_URL') || 'http://localhost:5173'
+      const origin = req.headers.get('origin')
+      const siteUrl = origin || Deno.env.get('SITE_URL') || 'http://localhost:5173'
 
       // Create account link for onboarding
       const accountLink = await stripe.accountLinks.create({
