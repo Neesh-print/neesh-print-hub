@@ -5,7 +5,7 @@ import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, WalletDisplay, TabNavigation, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
-import { useOrders } from "@/hooks/useOrders";
+import { Order, useOrders } from "@/hooks/useOrders";
 
 const tabs = [
   { id: "orders", label: "My Orders" },
@@ -18,7 +18,7 @@ export const PublisherOrdersList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-
+  
   const { publisher, isLoading: publisherLoading } = usePublisherProfile();
   const { orders, isLoading: ordersLoading, error, refetch } = useOrders({
     publisherId: publisher?.id,
@@ -36,11 +36,15 @@ export const PublisherOrdersList = () => {
 
   const columns = [
     { key: "order_number", header: "Order" },
-    { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    { 
+      key: "magazine", 
+      header: "Title", 
+      render: (value: Order['magazine']) => value?.title || "Unknown" 
+    },
     {
       key: "retailer",
       header: "Retailer",
-      render: (value: any) => value?.shop_name || "Unknown Retailer"
+      render: (value: Order['retailer']) => value?.shop_name || "Unknown Retailer"
     },
     { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
     {
@@ -68,12 +72,16 @@ export const PublisherOrdersList = () => {
       header: "Payment Status", 
       render: (value: string) => (
         <div className="flex items-center gap-2">
-          <StatusBadge status={value as any} />
+          <StatusBadge status={value as 'pending' | 'received' | 'payment-pending' | 'payment-received'} />
           {value === "paid" && <Check className="w-4 h-4 text-chart-green" />}
         </div>
       )
     },
-    { key: "fulfillment_status", header: "Fulfillment Status", render: (value: string) => <StatusBadge status={value as any} /> },
+    { 
+      key: "fulfillment_status", 
+      header: "Fulfillment Status", 
+      render: (value: string) => <StatusBadge status={value as 'pending' | 'shipped' | 'delivered' | 'cancelled'} /> 
+    },
   ];
 
   const filteredOrders = orders.filter(order => 
@@ -168,7 +176,7 @@ export const PublisherOrdersList = () => {
           ) : (
             <DataTable
               columns={columns}
-              data={filteredOrders as any}
+              data={filteredOrders}
               selectable
               selectedRows={selectedOrders}
               onSelectionChange={handleSelectionChange}

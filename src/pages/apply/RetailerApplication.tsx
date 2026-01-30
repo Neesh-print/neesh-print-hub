@@ -141,7 +141,7 @@ export const RetailerApplication = () => {
 
   const validateStep = async (step: number): Promise<boolean> => {
     switch (step) {
-      case 2:
+      case 2: {
         const contactValid = await trigger(["firstName", "lastName", "email", "phone"]);
         if (!watchedValues.firstName || !watchedValues.lastName || !watchedValues.email || !watchedValues.phone) {
           return false;
@@ -153,6 +153,7 @@ export const RetailerApplication = () => {
           return false;
         }
         return contactValid;
+      }
       case 3:
         if (!watchedValues.storeName) {
           toast.error("Please enter your store name");
@@ -183,7 +184,7 @@ export const RetailerApplication = () => {
         }
         // URL validation if provided
         if (watchedValues.websiteUrl) {
-          const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/i;
+          const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
           if (!urlRegex.test(watchedValues.websiteUrl)) {
             toast.error("Please enter a valid website URL");
             return false;

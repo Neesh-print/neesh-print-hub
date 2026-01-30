@@ -58,8 +58,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     try {
       // Use the order_details_with_pricing view which already joins orders with
       // retailers, magazines, and publishers correctly
-      // Note: Cast to 'any' since views aren't included in generated types
-      let query = (supabase.from as any)('order_details_with_pricing')
+      let query = supabase.from('order_details_with_pricing')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -91,33 +90,31 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
       if (fetchError) throw fetchError;
 
       // Transform view data to match Order interface
-      // The view returns flat fields, not nested objects
-      const transformedOrders: Order[] = (data || []).map((item: any, index: number) => ({
-        id: item.id,
+      const transformedOrders: Order[] = (data || []).map((item, index) => ({
+        id: item.id || `temp-${index}`,
         order_number: `#${String(index + 1).padStart(4, '0')}`,
-        status: item.status,
-        fulfillment_status: item.status,
+        status: item.status || 'pending',
+        fulfillment_status: item.status || 'pending',
         payment_status: item.status === 'pending' ? 'pending' : 'paid',
         total_amount: Number(item.total_price) || 0,
         shipping_amount: 0,
-        created_at: item.created_at,
+        created_at: item.created_at || new Date().toISOString(),
         shipped_at: null,
-        tracking_number: null, // Not in view
+        tracking_number: null,
         carrier: null,
-        shipping_address: null, // Not in view
+        shipping_address: null,
         retailer: item.retailer_id ? {
-          id: item.retailer_id, // View doesn't have retailer.id, use retailer_id
+          id: item.retailer_id,
           shop_name: item.retailer_shop_name,
           user_id: item.retailer_id,
         } : null,
-        magazine: item.magazine_id ? {
+        magazine: item.magazine_id && item.magazine_title && item.publisher_id ? {
           id: item.magazine_id,
           title: item.magazine_title,
           cover_image_url: item.cover_image_url,
           publisher_id: item.publisher_id,
         } : null,
-
-        quantity: item.quantity,
+        quantity: item.quantity || 0,
         unit_price: Number(item.unit_price) || 0,
       }));
 
@@ -138,7 +135,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [options.publisherId, options.retailerId, options.status, options.fulfillmentStatus, options.limit, options.dateRange?.start, options.dateRange?.end]);
+  }, [options.publisherId, options.retailerId, options.status, options.fulfillmentStatus, options.limit, options.dateRange]);
 
   useEffect(() => {
     fetchOrders();

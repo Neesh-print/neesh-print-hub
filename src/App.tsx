@@ -76,6 +76,7 @@ import {
   AdminOrderDetail,
   AdminAnalytics,
   AdminFulfillmentQueue,
+  AdminMagazines,
   PrintSlipsPage,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
@@ -572,6 +573,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <PrintSlipsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/magazines"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminMagazines />
           </ProtectedRoute>
         }
       />

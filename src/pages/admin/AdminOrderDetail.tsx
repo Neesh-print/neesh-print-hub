@@ -8,6 +8,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { format } from "date-fns";
 
+import { Tables } from "@/integrations/supabase/types";
+
+// Define the query result type matches the select query structure
+type OrderWithRelations = Pick<Tables<"orders">, 
+  "id" | "status" | "total_price" | "unit_price" | "quantity" | 
+  "created_at" | "tracking_number" | "shipping_address" | "notes"
+> & {
+  retailers: Pick<Tables<"retailers">, "id" | "shop_name" | "user_id"> | null;
+  magazines: (Pick<Tables<"magazines">, "id" | "title" | "cover_image_url" | "price"> & {
+    publishers: Pick<Tables<"publishers">, "id" | "company_name"> | null;
+  }) | null;
+};
+
+// Flattened interface for UI consumption
 interface OrderDetail {
   id: string;
   status: string;
@@ -64,6 +78,7 @@ export const AdminOrderDetail = () => {
     setError(null);
 
     try {
+      // Use typed query
       const { data, error: fetchError } = await supabase
         .from('orders')
         .select(`
@@ -98,29 +113,36 @@ export const AdminOrderDetail = () => {
       if (fetchError) throw fetchError;
       if (!data) throw new Error('Order not found');
 
+      // Safe cast because our select matches the OrderWithRelations structure
+      // Note: Supabase types might be slightly different for join arrays vs objects, but .single() usually returns object or null.
+      // However, data from select is typed by Supabase client based on schema string, which is powerful but imperfect.
+      // We'll trust the runtime data matches the schema we asked for.
+      
+      const rawData = data as unknown as OrderWithRelations;
+
       const orderData: OrderDetail = {
-        id: data.id,
-        status: data.status,
-        total_price: Number(data.total_price) || 0,
-        unit_price: Number(data.unit_price) || 0,
-        quantity: data.quantity,
-        created_at: data.created_at || '',
-        tracking_number: data.tracking_number,
-        shipping_address: data.shipping_address,
-        notes: data.notes,
-        retailer: data.retailers ? {
-          id: (data.retailers as any).id,
-          shop_name: (data.retailers as any).shop_name,
-          user_id: (data.retailers as any).user_id,
+        id: rawData.id,
+        status: rawData.status,
+        total_price: Number(rawData.total_price) || 0,
+        unit_price: Number(rawData.unit_price) || 0,
+        quantity: rawData.quantity,
+        created_at: rawData.created_at || '',
+        tracking_number: rawData.tracking_number,
+        shipping_address: rawData.shipping_address,
+        notes: rawData.notes,
+        retailer: rawData.retailers ? {
+          id: rawData.retailers.id,
+          shop_name: rawData.retailers.shop_name,
+          user_id: rawData.retailers.user_id,
         } : null,
-        magazine: data.magazines ? {
-          id: (data.magazines as any).id,
-          title: (data.magazines as any).title,
-          cover_image_url: (data.magazines as any).cover_image_url,
-          price: (data.magazines as any).price,
-          publisher: (data.magazines as any).publishers ? {
-            id: (data.magazines as any).publishers.id,
-            company_name: (data.magazines as any).publishers.company_name,
+        magazine: rawData.magazines ? {
+          id: rawData.magazines.id,
+          title: rawData.magazines.title,
+          cover_image_url: rawData.magazines.cover_image_url,
+          price: rawData.magazines.price,
+          publisher: rawData.magazines.publishers ? {
+            id: rawData.magazines.publishers.id,
+            company_name: rawData.magazines.publishers.company_name,
           } : null,
         } : null,
       };

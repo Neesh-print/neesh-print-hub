@@ -55,6 +55,8 @@ export const PublisherEditTitle = () => {
       paymentTerms: isNew ? "" : "Net 30",
       originCountryCode: isNew ? null as string | null : "US",
       publicationDate: isNew ? null as string | null : "2025-01-01",
+      fulfillmentMethod: isNew ? "publisher_handled" : "publisher_handled",
+      minimumOrderQuantity: isNew ? "1" : "1",
     };
   };
   
@@ -179,7 +181,9 @@ export const PublisherEditTitle = () => {
         specs: formData.pageCount && formData.dimensions 
           ? `${formData.pageCount} pages, ${formData.dimensions}` 
           : formData.dimensions || formData.pageCount,
-        inventory_count: parseInt(formData.availableQuantities.replace(/,/g, '')) || 0,
+        inventory_count: formData.fulfillmentMethod === 'publisher_handled' 
+          ? (parseInt(formData.availableQuantities.replace(/,/g, '')) || 0)
+          : 0, // Neesh-handled magazines don't track publisher inventory
         description: formData.promotionalText,
         wholesale_price: parseFloat(formData.wholesalePrice) || 0,
         // LEGACY: The 'price' column is required by the database but deprecated in favor of 'wholesale_price'.
@@ -194,6 +198,8 @@ export const PublisherEditTitle = () => {
         // Using existing columns based on schema inference
         publication_type: formData.isSingleIssue ? 'Issue' : 'Journal',
         is_active: true,
+        fulfillment_method: formData.fulfillmentMethod,
+        minimum_order_quantity: parseInt(formData.minimumOrderQuantity) || 1,
       };
 
       if (isNew) {
@@ -330,30 +336,94 @@ export const PublisherEditTitle = () => {
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">Inventory & Logistics</h3>
               <div className="space-y-4">
+                {/* Fulfillment Method */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Fulfillment Method</Label>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-secondary transition-colors">
+                      <input
+                        type="radio"
+                        name="fulfillmentMethod"
+                        value="publisher_handled"
+                        checked={formData.fulfillmentMethod === 'publisher_handled'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, fulfillmentMethod: e.target.value }))}
+                        className="mt-0.5 w-4 h-4"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground">I handle shipping & storage</div>
+                        <p className="text-sm text-muted-foreground">You manage your own inventory and ship orders directly to retailers</p>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-secondary transition-colors">
+                      <input
+                        type="radio"
+                        name="fulfillmentMethod"
+                        value="neesh_handled"
+                        checked={formData.fulfillmentMethod === 'neesh_handled'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, fulfillmentMethod: e.target.value }))}
+                        className="mt-0.5 w-4 h-4"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground">Neesh handles shipping & storage</div>
+                        <p className="text-sm text-muted-foreground">Send stock to our warehouse and we'll handle fulfillment (coming soon)</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Conditional Fields for Publisher-Handled */}
+                {formData.fulfillmentMethod === 'publisher_handled' && (
+                  <>
+                    <FormInput
+                      label="Current Inventory"
+                      value={formData.availableQuantities}
+                      onChange={handleInputChange("availableQuantities")}
+                      placeholder="How many copies do you have in stock?"
+                      type="number"
+                      helperText="This will be deducted automatically when orders are placed"
+                    />
+                    <FormInput
+                      label="Warehouse Location"
+                      value={formData.warehouseLocation}
+                      onChange={handleInputChange("warehouseLocation")}
+                      placeholder="e.g., Portland, OR"
+                      helperText="Where are you shipping from?"
+                    />
+                    <FormInput
+                      label="Restock Timeline"
+                      value={formData.restockTimeline}
+                      onChange={handleInputChange("restockTimeline")}
+                      placeholder="e.g., 8 weeks"
+                      helperText="How long until you can restock?"
+                    />
+                  </>
+                )}
+
+                {/* Neesh-Handled Info */}
+                {formData.fulfillmentMethod === 'neesh_handled' && (
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <p className="text-sm text-foreground">
+                      <strong>Neesh Fulfillment:</strong> Once you send inventory to our warehouse, 
+                      we'll update your stock levels and handle all shipping to retailers.
+                    </p>
+                  </div>
+                )}
+
+                {/* Common Fields */}
                 <FormInput
                   label="Print Run"
                   value={formData.printRun}
                   onChange={handleInputChange("printRun")}
                   placeholder="Total copies printed"
-                  helperText="Total copies printed"
+                  helperText="Total number of copies produced"
                 />
                 <FormInput
-                  label="Warehouse Location"
-                  value={formData.warehouseLocation}
-                  onChange={handleInputChange("warehouseLocation")}
-                  placeholder="e.g., Portland, OR"
-                />
-                <FormInput
-                  label="Available Quantities"
-                  value={formData.availableQuantities}
-                  onChange={handleInputChange("availableQuantities")}
-                  placeholder="Current stock available"
-                />
-                <FormInput
-                  label="Restock Timeline"
-                  value={formData.restockTimeline}
-                  onChange={handleInputChange("restockTimeline")}
-                  placeholder="e.g., 8 weeks"
+                  label="Minimum Order Quantity"
+                  value={formData.minimumOrderQuantity}
+                  onChange={handleInputChange("minimumOrderQuantity")}
+                  placeholder="e.g., 1"
+                  type="number"
+                  helperText="Minimum copies retailers must purchase in a single order"
                 />
               </div>
             </div>

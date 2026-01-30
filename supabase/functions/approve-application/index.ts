@@ -248,6 +248,7 @@ Deno.serve(async (req) => {
         const { error: insertError } = await supabaseAdmin
           .from('publishers')
           .insert({
+            id: userId, // Explicitly set id to match user_id for frontend queries
             user_id: userId,
             company_name: application.business_name || application.magazine_title,
             description: application.description,

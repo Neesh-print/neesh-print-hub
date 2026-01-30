@@ -27,7 +27,10 @@ interface OrderDetail {
   total_price: number;
   tracking_number: string | null;
   shipping_address: string | null;
-  stripe_payment_metadata: any;
+  stripe_payment_metadata: {
+    customer_email?: string;
+    amount_total?: number;
+  } | null;
   magazine: {
     id: string;
     title: string;

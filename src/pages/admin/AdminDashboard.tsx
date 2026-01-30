@@ -148,7 +148,7 @@ export const AdminDashboard = () => {
 
   // Activity feed derived from real data
   const activityFeed = useMemo(() => {
-    const items: { id: string; icon: any; description: string; timestamp: Date; link: string; type: string }[] = [];
+    const items: { id: string; icon: React.ElementType; description: string; timestamp: Date; link: string; type: string }[] = [];
 
     // Add recent applications
     applications.slice(0, 4).forEach(app => {

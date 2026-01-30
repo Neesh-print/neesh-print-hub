@@ -1,9 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
+const ALLOWED_ORIGINS = [
+  'https://neesh.art',
+  'https://www.neesh.art',
+  'http://localhost:8081',
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin || '') ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin || '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
+    'Access-Control-Allow-Credentials': 'true',
+  };
 }
 
 interface CartItem {
@@ -12,22 +22,28 @@ interface CartItem {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const signature = req.headers.get('Stripe-Signature')
+
+  if (!signature) {
+    return new Response('No signature', { status: 400, headers: corsHeaders })
+  }
+
   try {
-    // Get Stripe keys from environment
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!stripeKey || !webhookSecret) {
-      console.error('Stripe keys not configured')
-      return new Response(
-        JSON.stringify({ error: 'Stripe not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!stripeKey || !webhookSecret || !supabaseUrl || !supabaseServiceKey) {
+      console.error('Configuration missing')
+      return new Response('Configuration Error', { status: 500, headers: corsHeaders })
     }
 
     const stripe = new Stripe(stripeKey, {
@@ -35,46 +51,24 @@ Deno.serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    // Get the Stripe signature from headers
-    const signature = req.headers.get('stripe-signature')
-    if (!signature) {
-      console.error('Missing stripe-signature header')
-      return new Response(
-        JSON.stringify({ error: 'Missing stripe-signature' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Get the raw body for signature verification
     const body = await req.text()
+    let event
 
-    // Verify the webhook signature
-    let event: Stripe.Event
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err) {
-      console.error('Webhook signature verification failed:', err)
-      return new Response(
-        JSON.stringify({ error: 'Invalid signature' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.warn(`Webhook signature verification failed: ${err.message}`)
+      return new Response(`Webhook Error: ${err.message}`, { status: 400, headers: corsHeaders })
     }
 
-    console.log(`Received webhook event: ${event.type}`)
+    // Initialize Supabase Admin client
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    )
-
-    // Handle different event types
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
@@ -99,7 +93,7 @@ Deno.serve(async (req) => {
         const magazineIds = cartItems.map(item => item.magazine_id)
         const { data: magazines, error: magazinesError } = await supabaseAdmin
           .from('magazines')
-          .select('id, title, wholesale_price, publisher_id, cover_image_url')
+          .select('id, title, wholesale_price, publisher_id, cover_image_url, fulfillment_method')
           .in('id', magazineIds)
 
         if (magazinesError || !magazines) {
@@ -108,15 +102,26 @@ Deno.serve(async (req) => {
         }
 
         const magazineMap = new Map(magazines.map(m => [m.id, m]))
+        const missingMagazines = cartItems.filter(item => !magazineMap.has(item.magazine_id));
+        
+        if (missingMagazines.length > 0) {
+            console.error(`Critical Error: Magazines not found for items: ${missingMagazines.map(m => m.magazine_id).join(', ')}`);
+        }
+
+interface OrderNotificationItem {
+  order_id: string;
+  magazine_title: string;
+  quantity: number;
+  total_price: number;
+}
 
         // Create orders for each cart item
         const createdOrders: string[] = []
-        const publisherEmails: Map<string, any[]> = new Map() // Group orders by publisher
+        const publisherEmails: Map<string, OrderNotificationItem[]> = new Map() // Group orders by publisher
 
         for (const item of cartItems) {
           const magazine = magazineMap.get(item.magazine_id)
           if (!magazine) {
-            console.error(`Magazine ${item.magazine_id} not found`)
             continue
           }
 
@@ -135,6 +140,7 @@ Deno.serve(async (req) => {
               state: session.shipping_details.address?.state,
               postal_code: session.shipping_details.address?.postal_code,
               country: session.shipping_details.address?.country,
+              // country: session.shipping_details.address?.country, // Removed duplicate
             }
           } : null
 
@@ -180,16 +186,19 @@ Deno.serve(async (req) => {
             total_price: totalPrice,
           })
 
-          // Update inventory count
-          await supabaseAdmin
-            .from('magazines')
-            .update({
-              inventory_count: magazine.inventory_count !== null
-                ? magazine.inventory_count - item.quantity
-                : null,
-              sold_count: (magazine.sold_count || 0) + item.quantity,
-            })
-            .eq('id', item.magazine_id)
+          // Decrease inventory atomically for publisher-handled fulfillment
+          if (magazine.fulfillment_method === 'publisher_handled') {
+            try {
+              await supabaseAdmin.rpc('decrease_inventory', {
+                p_magazine_id: item.magazine_id,
+                p_quantity: item.quantity
+              })
+              console.log(`Decreased inventory for ${magazine.title} by ${item.quantity}`)
+            } catch (invError) {
+              console.error(`Failed to decrease inventory for ${magazine.title}:`, invError)
+              // Non-fatal - order was created successfully, inventory can be adjusted manually
+            }
+          }
         }
 
         // Update payment session status
@@ -399,7 +408,7 @@ async function sendOrderNotificationToPublisher(
   publisherEmail: string,
   publisherName: string,
   retailerName: string,
-  orders: any[]
+  orders: OrderNotificationItem[]
 ) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
   if (!resendApiKey) {

@@ -7,7 +7,7 @@ import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
-import { useOrders } from "@/hooks/useOrders";
+import { Order, useOrders } from "@/hooks/useOrders";
 import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 
@@ -55,7 +55,7 @@ export const PublisherDashboard = () => {
 
   const orderColumns = [
     { key: "order_number", header: "Order" },
-    { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    { key: "magazine", header: "Title", render: (value: Order['magazine']) => value?.title || "Unknown" },
     { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
     { key: "created_at", header: "Time", render: (value: string) => {
       const date = new Date(value);
@@ -67,7 +67,7 @@ export const PublisherDashboard = () => {
       return `${diffDays}d ago`;
     }},
     { key: "quantity", header: "Volume" },
-    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as any} /> },
+    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as 'pending' | 'shipped' | 'delivered' | 'cancelled'} /> },
   ];
 
   if (isLoading) {

@@ -10,4 +10,5 @@ export { AdminOrderDetail } from './AdminOrderDetail';
 export { AdminAnalytics } from './AdminAnalytics';
 export { AdminSettings } from './AdminSettings';
 export { AdminFulfillmentQueue } from './AdminFulfillmentQueue';
+export { AdminMagazines } from './AdminMagazines';
 export { PrintSlipsPage } from './PrintSlipsPage';

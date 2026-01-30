@@ -8,7 +8,7 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   link?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 const MOCK_PUBLISHER_NOTIFICATIONS: Notification[] = [

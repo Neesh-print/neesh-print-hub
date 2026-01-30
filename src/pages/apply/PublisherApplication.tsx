@@ -129,7 +129,7 @@ export const PublisherApplication = () => {
           });
 
           if (data && !error) {
-             const dbData = data as any;
+             const dbData = data as unknown as PublisherApplicationDB;
              // Map DB snake_case to form camelCase
              const formData: Partial<FormData> = {
                 firstName: dbData.first_name || '',
@@ -158,7 +158,7 @@ export const PublisherApplication = () => {
              reset(formData as FormData);
              
              // Determine step based on data completeness
-             let restoreStep = 2; // Default to after Step 1 if record exists
+             const restoreStep = 2; // Default to after Step 1 if record exists
              /* 
              // Disable auto-advance for now to allow user to review all steps
              // and ensure data is actually present
@@ -264,7 +264,7 @@ export const PublisherApplication = () => {
         
         console.log("Saving progress RPC:", { publisherId, data: mergedData });
 
-        // @ts-ignore
+        // @ts-expect-error
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
            p_id: publisherId,
            p_token: accessToken,
@@ -332,7 +332,7 @@ export const PublisherApplication = () => {
       // Create application
       if (user) {
         // Authenticated users: direct insert with user_id
-        // @ts-ignore
+        // @ts-expect-error
         const { data: appData, error: appError } = await supabase
           .from("publisher_applications")
           .insert({
@@ -349,7 +349,7 @@ export const PublisherApplication = () => {
         setPublisherId(appData.id);
       } else {
         // Anonymous users: use Secure RPC
-        // @ts-ignore
+        // @ts-expect-error
         const { data, error } = await supabase.rpc('create_publisher_application', {
           p_first_name: values.firstName,
           p_last_name: values.lastName,
@@ -370,9 +370,9 @@ export const PublisherApplication = () => {
       toast.success("Let's continue with your application.");
       setCurrentStep(2);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving basic info:", err);
-      toast.error(err.message || "Failed to save information. Please try again.");
+      toast.error((err instanceof Error ? err.message : "Failed to save information. Please try again."));
     } finally {
       setIsCreatingAccount(false);
     }
@@ -541,7 +541,7 @@ export const PublisherApplication = () => {
 
         console.log("Submitting RPC update:", { publisherId, inputData: rpcData });
 
-        // @ts-ignore
+        // @ts-expect-error
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
              p_id: publisherId,
              p_token: accessToken,

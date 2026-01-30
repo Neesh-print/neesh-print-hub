@@ -258,7 +258,16 @@ export const PublisherSettings = () => {
                       try {
                         setIsOpeningDashboard(true);
                         const { data, error } = await supabase.functions.invoke('create-connect-login-link');
-                        if (error) throw error;
+                        
+                        if (error) {
+                          // Check if it's a 404 (no Stripe account)
+                          if (error.message?.includes('404') || error.message?.includes('not found')) {
+                            toast.error("No Stripe account connected. Please contact support to set up payouts.");
+                            return;
+                          }
+                          throw error;
+                        }
+                        
                         if (data?.url) {
                           window.open(data.url, '_blank');
                         } else {

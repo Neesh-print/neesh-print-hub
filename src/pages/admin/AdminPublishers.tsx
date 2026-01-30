@@ -6,6 +6,8 @@ import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput, Emp
 import { LoadingScreen } from "@/components/shared";
 import { supabase } from "@/integrations/supabase/client";
 
+import { Tables } from "@/integrations/supabase/types";
+
 interface Publisher {
   id: string;
   name: string;
@@ -14,7 +16,6 @@ interface Publisher {
   totalSales: number;
   joinDate: string;
   status: 'received' | 'pending' | 'unfulfilled';
-  [key: string]: unknown;
 }
 
 export const AdminPublishers = () => {
@@ -37,13 +38,13 @@ export const AdminPublishers = () => {
       if (fetchError) throw fetchError;
 
       // Transform data to match the table format
-      const transformed: Publisher[] = (data || []).map((pub: any) => ({
+      const transformed: Publisher[] = (data || []).map((pub: Tables<"publishers">) => ({
         id: pub.id,
         name: pub.company_name || 'Unknown Publisher',
-        email: pub.description ? `contact@${pub.company_name?.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A',
+        email: pub.description ? `contact@${pub.company_name?.toLowerCase().replace(/\s+/g, '') || "neesh.art"}.com` : 'N/A',
         magazinesListed: pub.total_magazines || 0,
         totalSales: Number(pub.total_sales) || 0,
-        joinDate: new Date(pub.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        joinDate: pub.created_at ? new Date(pub.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown',
         status: pub.verified ? 'received' : 'pending',
       }));
 

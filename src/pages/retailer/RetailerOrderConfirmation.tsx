@@ -79,7 +79,7 @@ function useOrdersBySessionId(sessionId: string | undefined) {
   const [pollCount, setPollCount] = useState(0);
   const MAX_POLL_COUNT = 15; // 15 retries * 2 seconds = 30 seconds max
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['orders', 'session', sessionId],
     queryFn: async (): Promise<OrderRow[]> => {
       if (!sessionId) throw new Error('No session ID provided');
@@ -103,7 +103,8 @@ function useOrdersBySessionId(sessionId: string | undefined) {
       return data || [];
     },
     enabled: !!sessionId && pollCount < MAX_POLL_COUNT,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data;
       // If we have data or reached max polls, stop polling
       if (data && data.length > 0) return false;
       if (pollCount >= MAX_POLL_COUNT) return false;
@@ -112,12 +113,25 @@ function useOrdersBySessionId(sessionId: string | undefined) {
       return 2000;
     },
     refetchOnWindowFocus: false,
-    onSuccess: (data) => {
-      if (!data || data.length === 0) {
-        setPollCount((prev) => prev + 1);
-      }
-    },
   });
+
+  // Effect to handle polling count increment
+  useEffect(() => {
+    if (!query.data || query.data.length === 0) {
+       // Increment poll count if no data yet
+       // This simple logic might be too aggressive, ideally we increment on each fetch attempt
+       // simplified for now as refetchInterval will handle the stopping condition
+    }
+  }, [query.data]);
+  
+  // Custom polling logic via effect to increment counter on refetch
+  useEffect(() => {
+     if (query.isFetchedAfterMount && (!query.data || query.data.length === 0)) {
+         setPollCount(prev => prev + 1);
+     }
+  }, [query.isFetchedAfterMount, query.dataUpdatedAt, query.data]);
+
+  return query;
 }
 
 export const RetailerOrderConfirmation = () => {
@@ -190,10 +204,16 @@ export const RetailerOrderConfirmation = () => {
     );
   }
 
+  interface StripeMetadata {
+    customer_email?: string;
+    amount_total?: number;
+  }
+
   // Success! We have orders - aggregate the data
   const firstOrder = orders[0];
-  const customerEmail = (firstOrder?.stripe_payment_metadata as any)?.customer_email || 'your email';
-  const amountTotal = (firstOrder?.stripe_payment_metadata as any)?.amount_total;
+  const metadata = firstOrder?.stripe_payment_metadata as unknown as StripeMetadata;
+  const customerEmail = metadata?.customer_email || 'your email';
+  const amountTotal = metadata?.amount_total;
   
   // Calculate totals from the order rows
   const subtotal = orders.reduce((sum, order) => sum + order.total_price, 0);

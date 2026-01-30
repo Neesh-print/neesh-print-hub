@@ -69,7 +69,7 @@ export const AdminAnalytics = () => {
         .select('id, company_name');
 
       const pubMap: Record<string, string> = {};
-      (pubData || []).forEach((p: any) => {
+      (pubData || []).forEach((p) => {
         pubMap[p.id] = p.company_name || 'Unknown';
       });
       setPublishers(pubMap);
@@ -80,7 +80,7 @@ export const AdminAnalytics = () => {
         .select('id, title, publisher_id');
 
       const magMap: Record<string, { title: string; publisher_id: string }> = {};
-      (magData || []).forEach((m: any) => {
+      (magData || []).forEach((m) => {
         magMap[m.id] = { title: m.title, publisher_id: m.publisher_id };
       });
       setMagazines(magMap);

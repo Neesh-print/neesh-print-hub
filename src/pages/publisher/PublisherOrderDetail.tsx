@@ -96,15 +96,20 @@ export const PublisherOrderDetail = () => {
           return;
         }
 
+        // We know the structure matches what we asked for.
+        // The inferred type from select() is usually correct but nested arrays/objects can be tricky.
+        // We'll trust the shape for now but cast to unknown first to avoid partial mismatch complaints if any.
+        const orderData = data as unknown as OrderDetail;
+
         // Security check: Ensure this order belongs to the current publisher
-        if (data.magazines?.publisher_id !== publisher.id) {
+        if (orderData.magazines?.publisher_id !== publisher.id) {
           setError("Unauthorized - This order does not belong to your publications");
           toast.error("You can only view orders for your own magazines");
           setTimeout(() => navigate('/publisher/orders'), 2000);
           return;
         }
 
-        setOrder(data as OrderDetail);
+        setOrder(orderData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch order');
       } finally {
@@ -265,7 +270,7 @@ export const PublisherOrderDetail = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-caption text-muted-foreground">Fulfillment:</span>
-                <StatusBadge status={order.status as any} />
+                <StatusBadge status={order.status as 'pending' | 'shipped' | 'delivered' | 'cancelled'} />
               </div>
             </div>
           </InfoCard>

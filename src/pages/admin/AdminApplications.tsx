@@ -23,7 +23,7 @@ interface ApplicationRow {
   originalType: 'publisher' | 'retailer';
   originalStatus: 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted';
   notes: ApplicationNote[];
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -87,7 +87,7 @@ export const AdminApplications = () => {
           const appData: ApplicationData = {
             id: liveApp.id,
             type: liveApp.type === 'publisher' ? 'publisher' : 'retailer',
-            status: liveApp.status as any,
+            status: liveApp.status as 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted',
             name: liveApp.name,
             email: liveApp.email,
             phone: liveApp.data?.phone,
@@ -209,8 +209,8 @@ export const AdminApplications = () => {
         bVal = bVal?.toLowerCase() || '';
       }
       
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      if ((aVal as number | string) < (bVal as number | string)) return sortDirection === 'asc' ? -1 : 1;
+      if ((aVal as number | string) > (bVal as number | string)) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
     return sorted;

@@ -7,7 +7,7 @@ import { LoadingScreen } from "@/components/shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { FulfillmentOrder } from "@/components/admin/FulfillmentOrderCard";
 import { toast } from "sonner";
-import { useOrders } from "@/hooks/useOrders";
+import { Order, useOrders } from "@/hooks/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { startOfToday, endOfToday } from "date-fns";
 
@@ -42,7 +42,7 @@ export const AdminFulfillmentQueue = () => {
   const isLoading = pendingLoading || packedLoading || shippedLoading;
 
   // Transform orders to FulfillmentOrder format
-  const transformToFulfillmentOrder = (order: any): FulfillmentOrder => ({
+  const transformToFulfillmentOrder = (order: Order): FulfillmentOrder => ({
     id: order.id,
     orderNumber: order.order_number.replace('#', ''),
     retailerName: order.retailer?.shop_name || 'Unknown Retailer',
@@ -61,7 +61,7 @@ export const AdminFulfillmentQueue = () => {
   });
 
   const fulfillmentOrders = useMemo(() => {
-    let orders: any[] = [];
+    let orders: Order[] = [];
     if (activeTab === "pending") orders = pendingOrders;
     else if (activeTab === "packed") orders = packedOrders;
     else if (activeTab === "shipped") orders = shippedOrders;

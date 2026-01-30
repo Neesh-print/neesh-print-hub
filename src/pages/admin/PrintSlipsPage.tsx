@@ -56,7 +56,29 @@ export const PrintSlipsPage = () => {
 
       if (fetchError) throw fetchError;
 
-      const transformed: PackingSlipOrder[] = (data || []).map((order: any) => {
+      type RawOrderRow = {
+        id: string;
+        created_at: string;
+        quantity: number;
+        shipping_address: string | null;
+        retailers: {
+          shop_name: string | null;
+          address: string | null;
+          city: string | null;
+          state: string | null;
+          postal_code: string | null;
+          country: string | null;
+        } | null;
+        magazines: {
+          title: string;
+          publishers: {
+            company_name: string | null;
+          } | null;
+        } | null;
+      };
+
+      const transformed: PackingSlipOrder[] = (data || []).map((order) => {
+        const orderData = order as unknown as RawOrderRow;
         // Parse shipping address: try to use structured retailer data if no shipping_address
         let shippingAddress = {
           street: '',

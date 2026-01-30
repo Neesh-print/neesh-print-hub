@@ -75,16 +75,16 @@ export const RetailerProfile = () => {
   // Profile completion check
   const profileData = retailer ? {
     shop_name: retailer.shop_name,
-    contact_name: (retailer as any).contact_name || null,
-    contact_email: (retailer as any).contact_email || null,
+    contact_name: retailer.contact_name || null,
+    contact_email: retailer.contact_email || null,
     city: retailer.city,
     state: retailer.state,
     shop_description: retailer.shop_description,
-    store_types: (retailer as any).store_types || [],
+    store_types: retailer.store_types || [],
     shop_url: retailer.shop_url,
     instagram_handle: retailer.instagram_handle,
-    profile_image_url: (retailer as any).profile_image_url,
-    profile_completed_at: (retailer as any).profile_completed_at,
+    profile_image_url: retailer.profile_image_url,
+    profile_completed_at: retailer.profile_completed_at,
   } : null;
 
   const profileComplete = profileData ? isProfileComplete(profileData) : false;

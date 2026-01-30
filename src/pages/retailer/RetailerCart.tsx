@@ -36,7 +36,7 @@ export const RetailerCart = () => {
       } else {
         throw new Error('No checkout URL returned');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Checkout error:', error);
       
       let errorMessage = "Please try again later.";

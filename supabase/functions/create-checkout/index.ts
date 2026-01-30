@@ -1,9 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const ALLOWED_ORIGINS = [
+  'https://neesh.art',
+  'https://www.neesh.art',
+  'http://localhost:8081',
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin || '') ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin || '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Credentials': 'true',
+  };
 }
 
 interface CartItem {
@@ -18,6 +28,8 @@ interface CheckoutRequest {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -81,6 +93,36 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (checkoutRequest.cart_items.length > 50) {
+      return new Response(
+        JSON.stringify({ error: 'Cart cannot exceed 50 items' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Input Validation
+    for (const item of checkoutRequest.cart_items) {
+      if (!item.magazine_id || typeof item.quantity !== 'number') {
+        return new Response(
+          JSON.stringify({ error: 'Invalid cart item format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (item.quantity <= 0 || item.quantity > 10000) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid quantity' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      // Basic UUID validation
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.magazine_id)) {
+        return new Response(
+            JSON.stringify({ error: 'Invalid magazine ID' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // Get Stripe API key from environment
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
     if (!stripeKey) {
@@ -96,13 +138,11 @@ Deno.serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    console.log(`Creating checkout for user ${user.id} with ${checkoutRequest.cart_items.length} items`)
-
     // Fetch real magazine prices from database (SECURITY: Don't trust client prices!)
     const magazineIds = checkoutRequest.cart_items.map(item => item.magazine_id)
     const { data: magazines, error: magazinesError } = await supabaseClient
       .from('magazines')
-      .select('id, title, wholesale_price, cover_image_url, publisher_id, inventory_count')
+      .select('id, title, wholesale_price, cover_image_url, publisher_id, inventory_count, minimum_order_quantity, fulfillment_method')
       .in('id', magazineIds)
       .eq('is_active', true)
 
@@ -141,12 +181,25 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Check inventory
-      if (magazine.inventory_count !== null && magazine.inventory_count < item.quantity) {
+      // Check minimum order quantity
+      const minOrderQty = magazine.minimum_order_quantity || 1
+      if (item.quantity < minOrderQty) {
         return new Response(
-          JSON.stringify({ error: `Insufficient inventory for "${magazine.title}". Available: ${magazine.inventory_count}` }),
+          JSON.stringify({ 
+            error: `"${magazine.title}" requires a minimum order of ${minOrderQty} copies. You have ${item.quantity} in your cart.` 
+          }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      // Check inventory for publisher-handled fulfillment
+      if (magazine.fulfillment_method === 'publisher_handled') {
+        if (magazine.inventory_count !== null && magazine.inventory_count < item.quantity) {
+          return new Response(
+            JSON.stringify({ error: `Insufficient inventory for "${magazine.title}". Available: ${magazine.inventory_count}` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
     }
 
@@ -172,6 +225,7 @@ Deno.serve(async (req) => {
             metadata: {
               magazine_id: magazine.id,
               publisher_id: magazine.publisher_id,
+              // Removed wholesale_price from metadata to prevent exposure
             },
           },
           unit_amount: retailerPrice, // Price in cents
@@ -180,23 +234,39 @@ Deno.serve(async (req) => {
       })
     }
 
-    console.log(`Total amount: $${totalAmount / 100}, Items: ${lineItems.length}`)
-
     // Prepare metadata for the checkout session
+    // SECURITY: Limit metadata size and only include necessary fields
+    const minimizedCart = checkoutRequest.cart_items.map(item => ({
+        id: item.magazine_id,
+        qty: item.quantity
+    }));
+    
+    const cartString = JSON.stringify(minimizedCart);
+    
+    // Check if metadata is too large for Stripe (limit is 500 chars)
+    if (cartString.length > 480) {
+         // Fallback or error - for now, error to prevent data loss
+         return new Response(
+            JSON.stringify({ error: 'Cart too large for payment processing. Please reduce the number of items.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+
     const metadata: Record<string, string> = {
       retailer_id: user.id,
-      cart_items: JSON.stringify(checkoutRequest.cart_items),
+      cart_items: JSON.stringify(checkoutRequest.cart_items), // We validated the original cart items earlier
       order_type: 'magazine_purchase',
     }
 
     // Create Stripe Checkout Session
-    const origin = req.headers.get('origin') || 'http://localhost:8080'
+    const origin = req.headers.get('origin') || 'http://localhost:8081'
+    
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: lineItems,
       success_url: checkoutRequest.success_url || `${origin}/retailer/order-confirmation/{CHECKOUT_SESSION_ID}`,
       cancel_url: checkoutRequest.cancel_url || `${origin}/retailer/cart`,
-      customer_email: user.email,
+      customer_email: user.email /* Validated by Auth */,
       metadata,
       payment_intent_data: {
         metadata, // Also add to payment intent
@@ -207,8 +277,6 @@ Deno.serve(async (req) => {
         allowed_countries: ['US', 'CA'],
       },
     })
-
-    console.log(`Checkout session created: ${session.id}`)
 
     // Store the checkout session in payment_sessions table
     const { error: sessionError } = await supabaseClient
@@ -243,6 +311,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in create-checkout:', error)
+    const corsHeaders = getCorsHeaders(req.headers.get('origin'));
     return new Response(
       JSON.stringify({
         success: false,

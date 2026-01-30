@@ -110,22 +110,49 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
       }
 
       if (data) {
+        const rawData = data as unknown as {
+          id: string;
+          status: string;
+          total_price: number;
+          unit_price: number;
+          quantity: number;
+          created_at: string;
+          updated_at: string;
+          tracking_number: string | null;
+          shipping_address: string | null;
+          notes: string | null;
+          payment_intent_id: string | null;
+          retailer_id: string | null;
+          magazine_id: string | null;
+          magazines: {
+            id: string;
+            title: string;
+            cover_image_url: string | null;
+            wholesale_price: number;
+            publisher_id: string;
+            publishers: {
+              id: string;
+              company_name: string | null;
+            } | null;
+          } | null;
+        };
+
         const transformed: OrderDetail = {
-          id: data.id,
-          order_number: `#${data.id.slice(0, 4).toUpperCase()}`,
-          status: data.status,
-          fulfillment_status: data.status,
-          payment_status: data.status === 'pending' ? 'pending' : 'paid',
-          total_amount: Number(data.total_price) || 0,
+          id: rawData.id,
+          order_number: `#${rawData.id.slice(0, 4).toUpperCase()}`,
+          status: rawData.status,
+          fulfillment_status: rawData.status,
+          payment_status: rawData.status === 'pending' ? 'pending' : 'paid',
+          total_amount: Number(rawData.total_price) || 0,
           shipping_amount: 0,
-          created_at: data.created_at || '',
-          updated_at: data.updated_at || '',
+          created_at: rawData.created_at || '',
+          updated_at: rawData.updated_at || '',
           shipped_at: null,
-          tracking_number: data.tracking_number,
+          tracking_number: rawData.tracking_number,
           carrier: null,
-          shipping_address: data.shipping_address,
-          notes: data.notes,
-          payment_intent_id: data.payment_intent_id,
+          shipping_address: rawData.shipping_address,
+          notes: rawData.notes,
+          payment_intent_id: rawData.payment_intent_id,
           retailer: retailerData ? {
             id: retailerData.id,
             shop_name: retailerData.shop_name,
@@ -137,18 +164,18 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
             country: retailerData.country,
             phone: retailerData.phone,
           } : null,
-          magazine: (data as any).magazines ? {
-            id: (data as any).magazines.id,
-            title: (data as any).magazines.title,
-            cover_image_url: (data as any).magazines.cover_image_url,
-            wholesale_price: Number((data as any).magazines.wholesale_price) || 0,
-            publisher: (data as any).magazines.publishers ? {
-              id: (data as any).magazines.publishers.id,
-              company_name: (data as any).magazines.publishers.company_name,
+          magazine: rawData.magazines ? {
+            id: rawData.magazines.id,
+            title: rawData.magazines.title,
+            cover_image_url: rawData.magazines.cover_image_url,
+            wholesale_price: Number(rawData.magazines.wholesale_price) || 0,
+            publisher: rawData.magazines.publishers ? {
+              id: rawData.magazines.publishers.id,
+              company_name: rawData.magazines.publishers.company_name,
             } : null,
           } : null,
-          quantity: data.quantity,
-          unit_price: Number(data.unit_price) || 0,
+          quantity: rawData.quantity,
+          unit_price: Number(rawData.unit_price) || 0,
         };
         setOrder(transformed);
       }
