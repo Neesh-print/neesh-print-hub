@@ -97,7 +97,8 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
   }, [user, session, options]);
 
   const uploadDirect = useCallback(async (file: File): Promise<string | null> => {
-    if (!user) {
+
+    if (!user && !options.allowAnonymous) {
       const errorMsg = "You must be logged in to upload files";
       setError(errorMsg);
       options.onError?.(errorMsg);
@@ -140,7 +141,8 @@ export const useFileUpload = (options: UseFileUploadOptions): UseFileUploadRetur
       const timestamp = Date.now();
       const safeName = fileToUpload.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const folder = options.folder || 'uploads';
-      const path = `${user.id}/${folder}/${timestamp}-${safeName}`;
+      const userId = user?.id || 'anonymous';
+      const path = `${userId}/${folder}/${timestamp}-${safeName}`;
       
       setProgress(30);
 

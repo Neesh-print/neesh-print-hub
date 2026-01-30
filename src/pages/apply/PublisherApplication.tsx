@@ -5,7 +5,8 @@ import { ChevronLeft, CheckCircle, ChevronRight, Loader2, LogOut } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo, ApplicationProgress, AutoSaveIndicator } from "@/components/neesh";
+import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo, AutoSaveIndicator } from "@/components/neesh";
+import { SegmentedProgressBar } from "@/components/shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -103,6 +104,7 @@ export const PublisherApplication = () => {
     maxSizeMB: 10,
     allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
     allowAnonymous: true,
+    useServerValidation: false,
     onUploadComplete: (url) => {
       setValue("coverImageUrl", url);
       toast.success("Cover image uploaded!");
@@ -454,6 +456,13 @@ export const PublisherApplication = () => {
     await saveProgress();
     toast.success("Progress saved! You can resume anytime.");
     navigate("/");
+  };
+
+  const handleStepClick = (index: number) => {
+    const step = index + 1;
+    if (step < currentStep) {
+      setCurrentStep(step);
+    }
   };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -1161,6 +1170,16 @@ export const PublisherApplication = () => {
             <Logo size="lg" />
           </a>
 
+          {/* Progress Bar (Steps 1-11) */}
+          {currentStep < 12 && (
+            <SegmentedProgressBar 
+              total={TOTAL_STEPS - 1} 
+              current={currentStep}
+              onItemClick={handleStepClick}
+              className="flex-1 max-w-xl mx-8 hidden md:flex"
+            />
+          )}
+
           <div className="flex items-center gap-4">
             {/* Auto-save indicator */}
             {publisherId && currentStep > 1 && currentStep < 12 && (
@@ -1198,32 +1217,18 @@ export const PublisherApplication = () => {
       <main className="flex-1 flex items-start justify-center px-4 md:px-6 pt-24 pb-8">
         <div className="w-full max-w-6xl flex gap-8 items-start">
           {/* Progress sidebar - Desktop only */}
-          {currentStep > 1 && currentStep < 12 && (
-            <div className="hidden lg:block w-80 sticky top-24">
-              <ApplicationProgress
-                currentStep={currentStep}
-                totalSteps={TOTAL_STEPS - 1} // 11 steps + 1 success = 12 total, so progress is out of 11? 
-                // Original was TOTAL_STEPS - 1? Let's check logic.
-                // TOTAL_STEPS = 13?
-                // Step 12 is Success.
-                // So Steps 1-11 are flow.
-                // 13 implies what?
-                // Let's stick to 'TOTAL_STEPS - 1' as it was before.
-                // But TOTAL_STEPS is 13. So 12 steps bar?
-                // Step 11 is 'Review'.
-                // Step 12 is 'Success'.
-              />
-            </div>
-          )}
+
 
           {/* Form content */}
-          <div className="flex-1 max-w-md mx-auto lg:mx-0">
+          <div className="flex-1 max-w-md mx-auto">
             {/* Progress card - Mobile only */}
-            {currentStep > 1 && currentStep < 12 && (
-              <div className="lg:hidden mb-6">
-                <ApplicationProgress
-                  currentStep={currentStep}
-                  totalSteps={TOTAL_STEPS - 1}
+            {/* Progress bar - Mobile only (simplified) */}
+            {currentStep < 12 && (
+              <div className="md:hidden mb-6">
+                <SegmentedProgressBar 
+                    total={TOTAL_STEPS - 1} 
+                    current={currentStep}
+                    onItemClick={handleStepClick}
                 />
               </div>
             )}

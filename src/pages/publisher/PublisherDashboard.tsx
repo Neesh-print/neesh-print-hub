@@ -67,7 +67,7 @@ export const PublisherDashboard = () => {
       return `${diffDays}d ago`;
     }},
     { key: "quantity", header: "Volume" },
-    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as 'pending' | 'shipped' | 'delivered' | 'cancelled'} /> },
+    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as import("@/components/neesh/StatusBadge").StatusType} /> },
   ];
 
   if (isLoading) {

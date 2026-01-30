@@ -89,7 +89,25 @@ Deno.serve(async (req) => {
           )
         }
 
-        const cartItems: CartItem[] = JSON.parse(cartItemsJson)
+        // Idempotency check: Don't process if already handled
+        const { data: existingSession } = await supabaseAdmin
+            .from('payment_sessions')
+            .select('status')
+            .eq('session_id', session.id)
+            .single();
+        
+        if (existingSession?.status === 'completed') {
+             console.log(`Session ${session.id} already processed. Skipping.`);
+             return new Response(JSON.stringify({ received: true }), { headers: corsHeaders, status: 200 });
+        }
+
+        let cartItems: CartItem[];
+        try {
+             cartItems = JSON.parse(cartItemsJson);
+        } catch (e) {
+             console.error('Failed to parse cart items JSON:', cartItemsJson);
+             return new Response(JSON.stringify({ error: 'Invalid cart format' }), { status: 400, headers: corsHeaders });
+        }
 
         // Fetch magazine details
         const magazineIds = cartItems.map(item => item.magazine_id)
@@ -104,18 +122,21 @@ Deno.serve(async (req) => {
         }
 
         const magazineMap = new Map(magazines.map(m => [m.id, m]))
-        const missingMagazines = cartItems.filter(item => !magazineMap.has(item.magazine_id));
         
-        if (missingMagazines.length > 0) {
-            console.error(`Critical Error: Magazines not found for items: ${missingMagazines.map(m => m.magazine_id).join(', ')}`);
+        // Check for missing magazines
+        for (const item of cartItems) {
+            if (!magazineMap.has(item.magazine_id)) {
+                console.error(`Magazine not found for ID: ${item.magazine_id}`);
+                // We continue processing other items, but this is a serious data integrity issue
+            }
         }
 
-interface OrderNotificationItem {
-  order_id: string;
-  magazine_title: string;
-  quantity: number;
-  total_price: number;
-}
+        interface OrderNotificationItem {
+          order_id: string;
+          magazine_title: string;
+          quantity: number;
+          total_price: number;
+        }
 
         // Create orders for each cart item
         const createdOrders: string[] = []
@@ -142,7 +163,6 @@ interface OrderNotificationItem {
               state: session.shipping_details.address?.state,
               postal_code: session.shipping_details.address?.postal_code,
               country: session.shipping_details.address?.country,
-              // country: session.shipping_details.address?.country, // Removed duplicate
             }
           } : null
 
@@ -158,7 +178,7 @@ interface OrderNotificationItem {
               status: 'paid',
               stripe_session_id: session.id,
               payment_intent_id: session.payment_intent as string,
-              shipping_address: shippingAddress, // Save shipping address
+              shipping_address: shippingAddress, // Now supported by schema!
               stripe_payment_metadata: {
                 customer_email: session.customer_email,
                 payment_status: session.payment_status,
@@ -170,6 +190,12 @@ interface OrderNotificationItem {
 
           if (orderError) {
             console.error('Error creating order:', orderError)
+            // Log full error details for debugging
+            console.error('Failed insert payload:', {
+                retailer_id: retailerId,
+                magazine_id: item.magazine_id,
+                stripe_session_id: session.id
+            });
             continue
           }
 
@@ -188,18 +214,22 @@ interface OrderNotificationItem {
             total_price: totalPrice,
           })
 
-          // Decrease inventory atomically for publisher-handled fulfillment
-          if (magazine.fulfillment_method === 'publisher_handled') {
-            try {
-              await supabaseAdmin.rpc('decrease_inventory', {
+          // Decrease inventory atomically
+          try {
+              // We use the new RPC function which is safe
+              const { error: invError } = await supabaseAdmin.rpc('decrease_inventory', {
                 p_magazine_id: item.magazine_id,
                 p_quantity: item.quantity
-              })
-              console.log(`Decreased inventory for ${magazine.title} by ${item.quantity}`)
-            } catch (invError) {
-              console.error(`Failed to decrease inventory for ${magazine.title}:`, invError)
-              // Non-fatal - order was created successfully, inventory can be adjusted manually
-            }
+              });
+              
+              if (invError) {
+                  console.error(`RPC decrease_inventory failed for ${magazine.title}:`, invError);
+              } else {
+                  console.log(`Decreased inventory for ${magazine.title} by ${item.quantity}`);
+              }
+
+          } catch (invError) {
+              console.error(`Failed to call decrease_inventory for ${magazine.title}:`, invError)
           }
         }
 

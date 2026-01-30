@@ -14,7 +14,17 @@ export interface Order {
   shipped_at: string | null;
   tracking_number: string | null;
   carrier: string | null;
-  shipping_address: string | null;
+  shipping_address: {
+    name?: string;
+    address?: {
+        line1?: string;
+        line2?: string;
+        city?: string;
+        state?: string;
+        postal_code?: string;
+        country?: string;
+    };
+  } | null;
   retailer: {
     id: string;
     shop_name: string | null;
@@ -90,7 +100,8 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
       if (fetchError) throw fetchError;
 
       // Transform view data to match Order interface
-      const transformedOrders: Order[] = (data || []).map((item, index) => ({
+      // Cast to any[] to handle new columns not yet in generated types
+      const transformedOrders: Order[] = ((data as any[]) || []).map((item, index) => ({
         id: item.id || `temp-${index}`,
         order_number: `#${String(index + 1).padStart(4, '0')}`,
         status: item.status || 'pending',
@@ -99,10 +110,10 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
         total_amount: Number(item.total_price) || 0,
         shipping_amount: 0,
         created_at: item.created_at || new Date().toISOString(),
-        shipped_at: null,
-        tracking_number: null,
-        carrier: null,
-        shipping_address: null,
+        shipped_at: item.status === 'shipped' ? item.updated_at : null,
+        tracking_number: item.tracking_number,
+        carrier: item.carrier,
+        shipping_address: item.shipping_address, // Now available from view
         retailer: item.retailer_id ? {
           id: item.retailer_id,
           shop_name: item.retailer_shop_name,

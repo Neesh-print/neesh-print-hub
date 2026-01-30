@@ -53,7 +53,46 @@ export const useUpdateOrderStatus = (): UseUpdateOrderStatusReturn => {
 
       if (updateError) throw updateError;
 
-      // TODO: Trigger shipping notification email via edge function
+      // Send automated message with tracking info
+      try {
+        // Get retailer_id and current user (sender)
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Fetch order to get retailer_id
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('retailer_id, magazine_id, magazines(title)')
+          .eq('id', orderId)
+          .single();
+
+        if (user && orderData?.retailer_id) {
+          const magazineTitle = orderData.magazines?.title || 'your order';
+          const trackingLink = carrier.toLowerCase() === 'usps' 
+            ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`
+            : carrier.toLowerCase() === 'ups'
+            ? `https://www.ups.com/track?tracknum=${trackingNumber}`
+            : carrier.toLowerCase() === 'fedex'
+            ? `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`
+            : `Tracking: ${trackingNumber}`;
+
+          const messageContent = `Your order for "${magazineTitle}" has shipped! 
+Carrier: ${carrier.toUpperCase()}
+Tracking Number: ${trackingNumber}
+
+You can track your package here: ${trackingLink}`;
+
+          await supabase.from('notifications').insert({
+              user_id: orderData.retailer_id, // Recipient: Retailer
+              title: 'Order Shipped',
+              content: messageContent,
+              notification_type: 'order_update',
+              related_order_id: orderId,
+          });
+        }
+      } catch (msgError) {
+          console.error("Failed to send tracking message:", msgError);
+          // Non-fatal, don't fail the tracking update
+      }
 
       return true;
 

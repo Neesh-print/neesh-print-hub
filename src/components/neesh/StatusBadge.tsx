@@ -7,7 +7,10 @@ export type StatusType =
   | 'payment-pending'
   | 'payment-received'
   | 'payment-not-sent'
-  | 'new-order';
+  | 'new-order'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 
 export interface StatusBadgeProps {
   status: StatusType;
@@ -50,6 +53,18 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
   'new-order': {
     label: 'NEW ORDER',
     className: 'bg-status-pending text-status-pending-text',
+  },
+  'shipped': {
+    label: 'SHIPPED',
+    className: 'bg-status-neutral text-status-neutral-text',
+  },
+  'delivered': {
+    label: 'DELIVERED',
+    className: 'bg-status-success text-status-success-text',
+  },
+  'cancelled': {
+    label: 'CANCELLED',
+    className: 'bg-status-error text-status-error-text',
   },
 };
 
