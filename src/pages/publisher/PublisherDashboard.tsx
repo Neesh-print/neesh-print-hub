@@ -47,6 +47,7 @@ export const PublisherDashboard = () => {
     hasProfileInstagram: !!publisher?.instagram_handle,
     titleCount: magazines.length,
     publisherName: publisher?.company_name || undefined,
+    hasPayoutSetup: !!publisher?.stripe_account_id,
   });
 
   const handleTransfer = () => {

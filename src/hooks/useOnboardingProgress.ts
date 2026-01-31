@@ -44,6 +44,7 @@ export function useOnboardingProgress(
     publisherName?: string;
     storeName?: string;
     profileCompletedAt?: string | null;
+    hasPayoutSetup?: boolean;
   }
 ): OnboardingState {
   const [dismissed, setDismissed] = useState(false);
@@ -114,6 +115,7 @@ function getPublisherChecklist(
     hasProfileWebsite?: boolean;
     hasProfileInstagram?: boolean;
     titleCount?: number;
+    hasPayoutSetup?: boolean;
   },
   viewedItems?: Set<string>
 ): ChecklistItem[] {
@@ -122,8 +124,8 @@ function getPublisherChecklist(
   const hasTitle = (contextData?.titleCount ?? 0) > 0;
   const hasSharedProfile = viewedItems?.has('share_profile') ?? false;
   
-  // Payout setup - check localStorage for now
-  const hasPayoutSetup = localStorage.getItem(getStorageKey('publisher', 'payout_setup')) === 'true';
+  // Payout setup - check context data first, then localStorage
+  const hasPayoutSetup = contextData?.hasPayoutSetup ?? (localStorage.getItem(getStorageKey('publisher', 'payout_setup')) === 'true');
 
   return [
     {

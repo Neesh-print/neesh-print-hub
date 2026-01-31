@@ -1,87 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MapPin, Instagram, Globe, ExternalLink, Lock } from "lucide-react";
+import { MapPin, Instagram, Globe, ExternalLink, Lock, Loader2 } from "lucide-react";
 import { MagazineCard, ButtonPrimary, ButtonSecondary, Modal } from "@/components/neesh";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock data - expanded for public profile
-const mockPublisher = {
-  slug: "kinfolk-publishing",
-  avatar: "/placeholder.svg",
-  name: "Kinfolk Publishing",
-  tagline: "Celebrating the simple things and the artful pursuit of beautiful things.",
-  bio: "Kinfolk is a slow lifestyle magazine founded in 2011. We celebrate the simple things and the artful pursuit of beautiful things. Our content spans across art, design, food, and culture with a focus on mindful living.",
-  location: "Portland, Oregon",
-  website: "kinfolk.com",
+
+
+// Types for the public profile data
+interface PublicPublisher {
+  id: string;
+  name: string;
+  tagline: string | null;
+  bio: string | null;
+  location: string;
+  shippingLocation: string;
+  website: string | null;
+  avatar: string | null;
+  memberSince: string;
   socialLinks: {
-    instagram: "kinfolk",
-    twitter: "kinfolk",
-    tiktok: "kinfolk",
-  },
-  memberSince: "2024",
-  shippingLocation: "Portland, OR",
-};
+    instagram: string | null;
+    twitter: string | null;
+    tiktok: string | null;
+  };
+}
 
-const mockTitles = [
-  {
-    id: "1",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 45",
-    issueNumber: "Issue 45",
-    price: 18.00,
-  },
-  {
-    id: "2",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 44",
-    issueNumber: "Issue 44",
-    price: 18.00,
-  },
-  {
-    id: "3",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 43",
-    issueNumber: "Issue 43",
-    price: 16.50,
-  },
-  {
-    id: "4",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 42",
-    issueNumber: "Issue 42",
-    price: 16.50,
-  },
-  {
-    id: "5",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 41",
-    issueNumber: "Issue 41",
-    price: 15.00,
-  },
-  {
-    id: "6",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Issue 40",
-    issueNumber: "Issue 40",
-    price: 15.00,
-  },
-  {
-    id: "7",
-    coverImage: "/placeholder.svg",
-    title: "The Travel Issue",
-    issueNumber: "Special Edition",
-    price: 22.00,
-  },
-  {
-    id: "8",
-    coverImage: "/placeholder.svg",
-    title: "Kinfolk Home",
-    issueNumber: "Annual",
-    price: 24.00,
-  },
-];
+interface PublicTitle {
+  id: string;
+  title: string;
+  issueNumber: string | null;
+  coverImage: string | null;
+  price: number;
+}
 
 export const PublisherPublicProfile = () => {
   const navigate = useNavigate();
@@ -89,12 +41,122 @@ export const PublisherPublicProfile = () => {
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const { user } = useAuth();
   
+  const [publisher, setPublisher] = useState<PublicPublisher | null>(null);
+  const [titles, setTitles] = useState<PublicTitle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   // Use wishlist hook directly (works with localStorage for non-authenticated users)
   const { isInWishlist, toggleWishlist, wishlistCount } = useWishlist();
 
-  // In real app, fetch publisher by slug
-  const publisher = mockPublisher;
-  const titles = mockTitles;
+  useEffect(() => {
+    const fetchPublisherData = async () => {
+      if (!slug) return;
+      
+      setIsLoading(true);
+      try {
+        let pubData, pubError;
+
+        // Check if slug is a UUID
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+
+        if (isUuid) {
+          // 1. Fetch publisher by ID
+          const result = await supabase
+            .from('publishers')
+            .select('*, users!inner(created_at, profiles(avatar_url, city, state, bio))')
+            .eq('id', slug)
+            .maybeSingle();
+          pubData = result.data;
+          pubError = result.error;
+        } else {
+          // Fallback: Try to find by legacy slug or company name
+          // Since we don't have a slug column, we'll try to match company_name roughly
+          // converting "some-company-name" -> "Some Company Name" is hard to do perfectly,
+          // so we'll just try a loose match if possible, or maybe just fail for now but cleanly.
+          
+          // Actually, let's try to match exact company_name for now assuming the slug might be the company name
+          // But usually slugs are lowercase-kebab-versions.
+          // Let's try to match `company_name` ilike the slug but with hyphens replaced by %
+          const fuzzyName = slug.replace(/-/g, ' ');
+          
+          const result = await supabase
+            .from('publishers')
+            .select('*, users!inner(created_at, profiles(avatar_url, city, state, bio))')
+            .ilike('company_name', fuzzyName)
+            .maybeSingle();
+            
+          pubData = result.data;
+          pubError = result.error;
+        }
+
+        if (pubError) throw pubError;
+        if (!pubData) throw new Error("Publisher not found");
+
+        const profile = pubData.users?.profiles?.[0] || pubData.users?.profiles; // Handle explicit join behavior
+
+        // Transform to friendly format
+        setPublisher({
+          id: pubData.id,
+          name: pubData.company_name || "Untitled Publisher",
+          tagline: pubData.description ? pubData.description.substring(0, 100) + (pubData.description.length > 100 ? "..." : "") : null,
+          bio: pubData.description || null,
+          location: [profile?.city, profile?.state].filter(Boolean).join(", ") || "United States",
+          shippingLocation: [profile?.city, profile?.state].filter(Boolean).join(", ") || "United States",
+          website: pubData.website_url ? pubData.website_url.replace(/^https?:\/\//, '') : null,
+          avatar: profile?.avatar_url || null,
+          memberSince: new Date(pubData.created_at || new Date()).getFullYear().toString(),
+          socialLinks: {
+            instagram: pubData.instagram_handle,
+            twitter: null,
+            tiktok: null,
+          }
+        });
+
+        // 2. Fetch active magazines
+        const { data: magData, error: magError } = await supabase
+          .from('magazines')
+          .select('*')
+          .eq('publisher_id', pubData.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (magError) throw magError;
+
+        setTitles((magData || []).map(mag => ({
+          id: mag.id,
+          title: mag.title,
+          issueNumber: mag.issue_number,
+          coverImage: mag.cover_image_url,
+          price: mag.wholesale_price || 0, // Showing wholesale price as "price" context dependent
+        })));
+
+      } catch (error) {
+        console.error("Error fetching publisher:", error);
+        toast.error("Could not load publisher profile");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPublisherData();
+  }, [slug]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!publisher) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <h1 className="text-xl font-bold mb-2">Publisher Not Found</h1>
+        <ButtonPrimary onClick={() => navigate("/explore")}>Browse Magazines</ButtonPrimary>
+      </div>
+    );
+  }
 
   const handleTitleClick = () => {
     setShowSignUpModal(true);

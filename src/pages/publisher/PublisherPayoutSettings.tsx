@@ -53,7 +53,28 @@ export const PublisherPayoutSettings = () => {
         return;
       }
 
-      setHasStripeAccount(!!data.stripe_account_id);
+      if (data.stripe_account_id) {
+          setHasStripeAccount(true);
+      } else {
+          // Attempt sync
+          console.log('No local Stripe ID, attempting sync...');
+          try {
+              const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-stripe-account');
+              if (syncData?.found && syncData?.stripe_account_id) {
+                  console.log('Synced Stripe ID:', syncData.stripe_account_id);
+                  setHasStripeAccount(true);
+                  if (syncData.restored) {
+                      toast.success("Payment account restored!");
+                  }
+              } else {
+                  setHasStripeAccount(false);
+              }
+          } catch (e) {
+              console.error("Sync failed", e);
+              setHasStripeAccount(false);
+          }
+      }
+
     } catch (error) {
       console.error('Error checking stripe status:', error);
     } finally {
