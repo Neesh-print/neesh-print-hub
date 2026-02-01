@@ -78,7 +78,7 @@ export const MagazineCard = ({
           <div className="absolute inset-0 bg-muted animate-pulse" />
         )}
         
-        {imageError ? (
+        {(imageError || !coverImage) ? (
           <div className="absolute inset-0">
             <ImagePlaceholder />
           </div>

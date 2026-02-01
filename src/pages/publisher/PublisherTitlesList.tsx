@@ -10,8 +10,11 @@ export const PublisherTitlesList = () => {
   const navigate = useNavigate();
   const { publisher, isLoading: publisherLoading } = usePublisherProfile();
   const { magazines: titles, isLoading: magazinesLoading } = useMagazines({ 
-    publisherId: publisher?.id 
+    publisherId: publisher?.id,
+    enabled: !!publisher?.id
   });
+
+
 
   const isLoading = publisherLoading || (publisher && magazinesLoading);
 
@@ -115,6 +118,7 @@ export const PublisherTitlesList = () => {
                   coverImage={title.cover_image_url}
                   price={title.wholesale_price}
                   publisher={title.issue_number || ""}
+                  inventoryCount={title.inventory_count}
                   onClick={() => handleEditTitle(title.id)}
                 />
                 

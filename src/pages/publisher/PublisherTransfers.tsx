@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, CreditCard } from "lucide-react";
+import { Upload, CreditCard, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, TabNavigation, InfoCard } from "@/components/neesh";
+import { supabase } from "@/integrations/supabase/client";
 
 const tabs = [
   { id: "transfers", label: "Transfers" },
@@ -12,6 +13,25 @@ const tabs = [
 export const PublisherTransfers = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("transfers");
+  const [balance, setBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+        try {
+            const { data, error } = await supabase.functions.invoke('get-stripe-balance');
+            if (data) {
+                const avail = data.available?.reduce((sum: number, b: any) => sum + b.amount, 0) || 0;
+                setBalance(avail / 100);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    fetchBalance();
+  }, []);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -33,11 +53,17 @@ export const PublisherTransfers = () => {
         <div className="max-w-md mx-auto text-center">
           {/* Account Balance */}
           <p className="text-caption text-muted-foreground mb-2">Account Balance</p>
-          <p className="font-display font-bold text-display-lg text-foreground mb-2">
-            $2,720.00
-          </p>
+          <div className="min-h-[3rem] flex items-center justify-center mb-2">
+            {isLoading ? (
+               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            ) : (
+                <p className="font-display font-bold text-display-lg text-foreground">
+                    ${(balance || 0).toFixed(2)}
+                </p>
+            )}
+          </div>
           <p className="text-body text-muted-foreground mb-8">
-            Withdraw up to $2,720.00
+             {isLoading ? "Loading..." : `Withdraw up to $${(balance || 0).toFixed(2)}`}
           </p>
 
           {/* Action Cards */}
@@ -54,7 +80,7 @@ export const PublisherTransfers = () => {
               </div>
             </InfoCard>
 
-            <InfoCard onClick={() => console.log("Payment methods")}>
+            <InfoCard onClick={() => navigate("/publisher/settings/payout")}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
                   <CreditCard className="w-6 h-6 text-foreground" />

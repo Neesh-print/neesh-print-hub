@@ -146,7 +146,15 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [options.publisherId, options.retailerId, options.status, options.fulfillmentStatus, options.limit, options.dateRange]);
+  }, [
+    options.publisherId, 
+    options.retailerId, 
+    options.status, 
+    options.fulfillmentStatus, 
+    options.limit, 
+    options.dateRange?.start.toISOString(), 
+    options.dateRange?.end.toISOString()
+  ]);
 
   useEffect(() => {
     fetchOrders();

@@ -34,33 +34,99 @@ export const PublisherEditTitle = () => {
     }
     
     // Default form data
+    // Default initial form state
     return {
-      title: isNew ? "" : "Kinfolk Magazine",
-      issueNumber: isNew ? "" : "Issue 45",
-      frequency: isNew ? "" : "Quarterly",
+      title: "",
+      issueNumber: "",
+      frequency: "",
       isSingleIssue: true,
       isSeries: false,
-      category: isNew ? "" : "Art",
-      dimensions: isNew ? "" : "210 x 280mm, 350g",
-      pageCount: isNew ? "" : "160",
-      printRun: isNew ? "" : "25,000",
-      warehouseLocation: isNew ? "" : "Portland, OR",
-      availableQuantities: isNew ? "" : "2,500",
-      restockTimeline: isNew ? "" : "8 weeks",
-      promotionalText: isNew ? "" : "A slow lifestyle magazine celebrating the simple things.",
-      metadata: isNew ? "" : "ISSN 2325-1654, kinfolk, lifestyle, design",
-      wholesalePrice: isNew ? "" : "28.00",
-      retailPrice: isNew ? "" : "45.00",
-      discountStructure: isNew ? "" : "10% for 50+, 15% for 100+",
-      paymentTerms: isNew ? "" : "Net 30",
-      originCountryCode: isNew ? null as string | null : "US",
-      publicationDate: isNew ? null as string | null : "2025-01-01",
-      fulfillmentMethod: isNew ? "publisher_handled" : "publisher_handled",
-      minimumOrderQuantity: isNew ? "1" : "1",
+      category: "",
+      dimensions: "",
+      pageCount: "",
+      printRun: "",
+      warehouseLocation: "",
+      availableQuantities: "",
+      restockTimeline: "",
+      promotionalText: "",
+      metadata: "",
+      wholesalePrice: "",
+      retailPrice: "",
+      discountStructure: "",
+      paymentTerms: "",
+      originCountryCode: null as string | null,
+      publicationDate: null as string | null,
+      fulfillmentMethod: "publisher_handled",
+      minimumOrderQuantity: "1",
     };
   };
-  
+
   const [formData, setFormData] = useState(getInitialFormData);
+  // We need a ref to track if we've already loaded the initial data to prevent overwriting user edits
+  // if this component re-renders or if we use local storage.
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Fetch magazine data if editing
+  useEffect(() => {
+    if (isNew) return;
+
+    const fetchMagazine = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('magazines')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          // Only update if we haven't loaded yet, or strictly rely on this fetch being the source of truth
+          // for the initial edit state.
+          // Note: LocalStorage might have draft edits. We should decide precedence. 
+          // For now, let's trust the DB if it's the first load, but maybe warn if local storage exists?
+          // Actually, let's keep it simple: DB data overrides unless local storage is VERY fresh (not implemented).
+          // We'll just load DB data.
+          
+          setFormData({
+            title: data.title || "",
+            issueNumber: data.issue_number || "",
+            frequency: data.issue_frequency || "",
+            isSingleIssue: data.publication_type === 'Issue',
+            isSeries: data.publication_type !== 'Issue',
+            category: data.category || "",
+            // dimensions and pageCount need parsing or we just map raw specs
+            // For now, let's put specs in dimensions if we can't parse
+            dimensions: data.specs || "", 
+            pageCount: data.page_count?.toString() || "",
+            printRun: data.print_run || "",
+            warehouseLocation: data.warehouse_location || "",
+            availableQuantities: data.inventory_count?.toString() || "",
+            restockTimeline: data.restock_timeline || "",
+            promotionalText: data.description || "",
+            metadata: data.metadata || "",
+            wholesalePrice: data.wholesale_price?.toString() || "",
+            retailPrice: data.suggested_retail_price?.toString() || "",
+            discountStructure: data.discount_structure || "",
+            paymentTerms: data.payment_terms || "",
+            originCountryCode: data.origin_country_code || null,
+            publicationDate: data.publication_date || null,
+            fulfillmentMethod: data.fulfillment_method || "publisher_handled",
+            minimumOrderQuantity: data.minimum_order_quantity?.toString() || "1",
+          });
+
+          // Set images
+          setCoverImageUrl(data.cover_image_url);
+          setSampleSpreadUrl(data.sample_spread_url);
+          setLogoUrl(data.logo_url);
+        }
+      } catch (err) {
+        console.error("Error fetching magazine:", err);
+        toast.error("Failed to load magazine details.");
+      }
+    };
+
+    fetchMagazine();
+  }, [id, isNew]);
   
   // Auto-save form data to localStorage whenever it changes
   useEffect(() => {
@@ -178,13 +244,18 @@ export const PublisherEditTitle = () => {
         issue_number: formData.issueNumber,
         issue_frequency: formData.frequency,
         category: formData.category,
-        specs: formData.pageCount && formData.dimensions 
-          ? `${formData.pageCount} pages, ${formData.dimensions}` 
-          : formData.dimensions || formData.pageCount,
+        specs: formData.dimensions, // Storing dimensions in 'specs' column
+        page_count: parseInt(formData.pageCount) || null,
+        print_run: formData.printRun,
+        warehouse_location: formData.warehouseLocation,
+        restock_timeline: formData.restockTimeline,
         inventory_count: formData.fulfillmentMethod === 'publisher_handled' 
           ? (parseInt(formData.availableQuantities.replace(/,/g, '')) || 0)
           : 0, // Neesh-handled magazines don't track publisher inventory
         description: formData.promotionalText,
+        metadata: formData.metadata,
+        discount_structure: formData.discountStructure,
+        payment_terms: formData.paymentTerms,
         wholesale_price: parseFloat(formData.wholesalePrice) || 0,
         // LEGACY: The 'price' column is required by the database but deprecated in favor of 'wholesale_price'.
         // We mirror 'wholesale_price' to satisfy the constraint until a migration can make it nullable.
