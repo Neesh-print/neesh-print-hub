@@ -421,7 +421,7 @@ export const AdminApplications = () => {
                   const success = await handleQuickApprove(row.id, row.originalType);
                   if (success) toast.success('Application approved');
                 }}
-                className="p-1.5 rounded hover:bg-status-success/20 text-status-success transition-colors"
+                className="p-1.5 rounded hover:bg-status-success text-status-success hover:text-white transition-colors"
                 title="Approve"
               >
                 <Check className="w-4 h-4" />
@@ -619,9 +619,9 @@ export const AdminApplications = () => {
           <div className="flex items-center justify-between max-w-5xl mx-auto">
             <span className="text-body font-medium">{selectedRows.length} selected</span>
             <div className="flex items-center gap-2">
-              <ButtonPrimary 
-                onClick={() => setShowBulkApprove(true)} 
-                className="gap-1.5 bg-status-success hover:bg-status-success/90"
+              <ButtonPrimary
+                onClick={() => setShowBulkApprove(true)}
+                className="gap-1.5 bg-status-success hover:bg-status-success/90 !text-black"
               >
                 <Check className="w-4 h-4" />
                 Approve

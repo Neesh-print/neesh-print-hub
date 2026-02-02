@@ -42,13 +42,17 @@ export const PublisherEditTitle = () => {
       isSingleIssue: true,
       isSeries: false,
       category: "",
-      dimensions: "",
+      subcategory: "",
+      widthMm: "",
+      heightMm: "",
+      weightGrams: "",
       pageCount: "",
       printRun: "",
       warehouseLocation: "",
       availableQuantities: "",
       restockTimeline: "",
-      promotionalText: "",
+      descriptiveText: "",
+      isbn: "",
       metadata: "",
       wholesalePrice: "",
       retailPrice: "",
@@ -94,15 +98,17 @@ export const PublisherEditTitle = () => {
             isSingleIssue: data.publication_type === 'Issue',
             isSeries: data.publication_type !== 'Issue',
             category: data.category || "",
-            // dimensions and pageCount need parsing or we just map raw specs
-            // For now, let's put specs in dimensions if we can't parse
-            dimensions: data.specs || "", 
+            subcategory: data.subcategory || "",
+            widthMm: data.width_mm?.toString() || "",
+            heightMm: data.height_mm?.toString() || "",
+            weightGrams: data.weight_grams?.toString() || "",
             pageCount: data.page_count?.toString() || "",
             printRun: data.print_run || "",
             warehouseLocation: data.warehouse_location || "",
             availableQuantities: data.inventory_count?.toString() || "",
             restockTimeline: data.restock_timeline || "",
-            promotionalText: data.description || "",
+            descriptiveText: data.description || "",
+            isbn: data.isbn || "",
             metadata: data.metadata || "",
             wholesalePrice: data.wholesale_price?.toString() || "",
             retailPrice: data.suggested_retail_price?.toString() || "",
@@ -244,22 +250,26 @@ export const PublisherEditTitle = () => {
         issue_number: formData.issueNumber,
         issue_frequency: formData.frequency,
         category: formData.category,
-        specs: formData.dimensions, // Storing dimensions in 'specs' column
+        subcategory: formData.subcategory || null,
+        width_mm: parseFloat(formData.widthMm) || null,
+        height_mm: parseFloat(formData.heightMm) || null,
+        weight_grams: parseFloat(formData.weightGrams) || null,
         page_count: parseInt(formData.pageCount) || null,
         print_run: formData.printRun,
         warehouse_location: formData.warehouseLocation,
         restock_timeline: formData.restockTimeline,
-        inventory_count: formData.fulfillmentMethod === 'publisher_handled' 
+        inventory_count: formData.fulfillmentMethod === 'publisher_handled'
           ? (parseInt(formData.availableQuantities.replace(/,/g, '')) || 0)
           : 0, // Neesh-handled magazines don't track publisher inventory
-        description: formData.promotionalText,
+        description: formData.descriptiveText,
+        isbn: formData.isbn || null,
         metadata: formData.metadata,
         discount_structure: formData.discountStructure,
         payment_terms: formData.paymentTerms,
         wholesale_price: parseFloat(formData.wholesalePrice) || 0,
         // LEGACY: The 'price' column is required by the database but deprecated in favor of 'wholesale_price'.
         // We mirror 'wholesale_price' to satisfy the constraint until a migration can make it nullable.
-        price: parseFloat(formData.wholesalePrice) || 0, 
+        price: parseFloat(formData.wholesalePrice) || 0,
         suggested_retail_price: parseFloat(formData.retailPrice) || 0,
         cover_image_url: coverImageUrl,
         sample_spread_url: sampleSpreadUrl,
@@ -363,13 +373,36 @@ export const PublisherEditTitle = () => {
                   options={getCategoryOptions()}
                   placeholder="Select a category"
                 />
-                <FormInput
-                  label="Dimensions"
-                  value={formData.dimensions}
-                  onChange={handleInputChange("dimensions")}
-                  placeholder="width x height in mm or inches & weight"
-                  helperText="width x height in mm or inches & weight"
+                <FormSelect
+                  label="Subcategory (Optional)"
+                  value={formData.subcategory}
+                  onChange={(value) => setFormData(prev => ({ ...prev, subcategory: value }))}
+                  options={getCategoryOptions()}
+                  placeholder="Select a secondary category"
                 />
+                <div className="grid grid-cols-3 gap-3">
+                  <FormInput
+                    label="Width (mm)"
+                    value={formData.widthMm}
+                    onChange={handleInputChange("widthMm")}
+                    placeholder="e.g., 210"
+                    type="number"
+                  />
+                  <FormInput
+                    label="Height (mm)"
+                    value={formData.heightMm}
+                    onChange={handleInputChange("heightMm")}
+                    placeholder="e.g., 297"
+                    type="number"
+                  />
+                  <FormInput
+                    label="Weight (g)"
+                    value={formData.weightGrams}
+                    onChange={handleInputChange("weightGrams")}
+                    placeholder="e.g., 350"
+                    type="number"
+                  />
+                </div>
                 <FormInput
                   label="Page Count"
                   value={formData.pageCount}
@@ -425,17 +458,16 @@ export const PublisherEditTitle = () => {
                         <p className="text-sm text-muted-foreground">You manage your own inventory and ship orders directly to retailers</p>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-secondary transition-colors">
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border opacity-50 cursor-not-allowed">
                       <input
                         type="radio"
                         name="fulfillmentMethod"
                         value="neesh_handled"
-                        checked={formData.fulfillmentMethod === 'neesh_handled'}
-                        onChange={(e) => setFormData(prev => ({ ...prev, fulfillmentMethod: e.target.value }))}
-                        className="mt-0.5 w-4 h-4"
+                        disabled
+                        className="mt-0.5 w-4 h-4 cursor-not-allowed"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-foreground">Neesh handles shipping & storage</div>
+                        <div className="font-medium text-muted-foreground">Neesh handles shipping & storage</div>
                         <p className="text-sm text-muted-foreground">Send stock to our warehouse and we'll handle fulfillment (coming soon)</p>
                       </div>
                     </label>
@@ -499,13 +531,6 @@ export const PublisherEditTitle = () => {
               </div>
             </div>
 
-            {/* File Format */}
-            <div className="card-neesh">
-              <h3 className="font-display font-semibold text-heading text-foreground mb-4">File Format</h3>
-              <p className="text-body text-muted-foreground">
-                Upload high-resolution images (JPG, PNG, or WebP). For best results, use 300 DPI images.
-              </p>
-            </div>
           </div>
 
           {/* Right Column */}
@@ -513,6 +538,9 @@ export const PublisherEditTitle = () => {
             {/* Assets */}
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">Assets</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Accepted formats: JPG, PNG, or WebP. For best results, use high-resolution images (300 DPI).
+              </p>
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Cover Image</label>
@@ -569,18 +597,25 @@ export const PublisherEditTitle = () => {
                 </div>
 
                 <FormTextarea
-                  label="Promotional Text"
-                  value={formData.promotionalText}
-                  onChange={handleInputChange("promotionalText")}
-                  placeholder="Short description for marketing"
+                  label="Descriptive Text"
+                  value={formData.descriptiveText}
+                  onChange={handleInputChange("descriptiveText")}
+                  placeholder="Short description for marketing and catalog listings"
                   rows={3}
                 />
                 <FormInput
-                  label="Metadata"
+                  label="ISBN"
+                  value={formData.isbn}
+                  onChange={handleInputChange("isbn")}
+                  placeholder="e.g., 978-3-16-148410-0"
+                  helperText="International Standard Book Number (if applicable)"
+                />
+                <FormInput
+                  label="Additional Metadata"
                   value={formData.metadata}
                   onChange={handleInputChange("metadata")}
-                  placeholder="ISBN, ISSN, keywords"
-                  helperText="ISBN, ISSN, keywords"
+                  placeholder="ISSN, keywords, tags"
+                  helperText="ISSN, keywords, or other searchable tags"
                 />
               </div>
             </div>

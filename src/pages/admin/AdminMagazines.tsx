@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
-import { Package, AlertTriangle, TrendingDown } from "lucide-react";
+import { Package, AlertTriangle, TrendingDown, Eye, ExternalLink } from "lucide-react";
 
 
 interface Magazine {
@@ -11,15 +12,21 @@ interface Magazine {
   inventory_count: number | null;
   minimum_order_quantity: number | null;
   fulfillment_method: 'publisher_handled' | 'neesh_handled';
+  price: number | null;
+  wholesale_price: number | null;
+  description: string | null;
+  publisher_id: string;
   publisher: {
     company_name: string;
   };
 }
 
 export function AdminMagazines() {
+  const navigate = useNavigate();
   const [magazines, setMagazines] = useState<Magazine[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'low_stock' | 'out_of_stock'>('all');
+  const [selectedMagazine, setSelectedMagazine] = useState<Magazine | null>(null);
 
   const fetchMagazines = useCallback(async () => {
     setLoading(true);
@@ -33,6 +40,10 @@ export function AdminMagazines() {
           inventory_count,
           minimum_order_quantity,
           fulfillment_method,
+          price,
+          wholesale_price,
+          description,
+          publisher_id,
           publisher:publishers(company_name)
         `)
         .eq('is_active', true)
@@ -171,18 +182,21 @@ export function AdminMagazines() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                   Loading magazines...
                 </td>
               </tr>
             ) : magazines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                   No magazines found
                 </td>
               </tr>
@@ -268,6 +282,24 @@ export function AdminMagazines() {
                         </span>
                       )}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedMagazine(magazine)}
+                          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/admin/publishers/${magazine.publisher_id}`)}
+                          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                          title="View Publisher"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -275,6 +307,84 @@ export function AdminMagazines() {
           </tbody>
         </table>
       </div>
+
+      {/* Magazine Detail Modal */}
+      {selectedMagazine && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSelectedMagazine(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex gap-6">
+                {selectedMagazine.cover_image_url && (
+                  <img
+                    src={selectedMagazine.cover_image_url}
+                    alt={selectedMagazine.title}
+                    className="w-40 h-56 object-cover rounded-lg shadow-md"
+                  />
+                )}
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedMagazine.title}</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {Array.isArray(selectedMagazine.publisher)
+                      ? selectedMagazine.publisher[0]?.company_name
+                      : selectedMagazine.publisher?.company_name || 'Unknown Publisher'}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Retail Price</span>
+                      <p className="font-medium">${selectedMagazine.price?.toFixed(2) || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Wholesale Price</span>
+                      <p className="font-medium">${selectedMagazine.wholesale_price?.toFixed(2) || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Inventory</span>
+                      <p className="font-medium">
+                        {selectedMagazine.fulfillment_method === 'neesh_handled'
+                          ? 'On Demand'
+                          : selectedMagazine.inventory_count?.toLocaleString() || '0'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Min. Order</span>
+                      <p className="font-medium">{selectedMagazine.minimum_order_quantity || 1}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Fulfillment</span>
+                      <p className="font-medium">
+                        {selectedMagazine.fulfillment_method === 'neesh_handled' ? 'Neesh' : 'Publisher'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedMagazine.description && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">Description</h3>
+                  <p className="text-sm text-gray-700">{selectedMagazine.description}</p>
+                </div>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => navigate(`/admin/publishers/${selectedMagazine.publisher_id}`)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  View Publisher
+                </button>
+                <button
+                  onClick={() => setSelectedMagazine(null)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

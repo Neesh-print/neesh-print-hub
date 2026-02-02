@@ -330,12 +330,12 @@ export const PublisherSettings = () => {
 
               {/* Danger Zone */}
               <div>
-                <h4 className="font-medium text-destructive mb-1">Delete Account</h4>
+                <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
                 <p className="text-sm text-muted-foreground mb-3">
-                  This will permanently delete your account, titles, and order history
+                  This will deactivate your account. Your titles and order history will be preserved.
                 </p>
                 <ButtonSecondary destructive>
-                  Delete Account
+                  Deactivate Account
                 </ButtonSecondary>
               </div>
             </div>

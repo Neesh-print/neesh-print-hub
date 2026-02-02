@@ -8,19 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { format } from "date-fns";
 
-import { Tables } from "@/integrations/supabase/types";
-
-// Define the query result type matches the select query structure
-type OrderWithRelations = Pick<Tables<"orders">, 
-  "id" | "status" | "total_price" | "unit_price" | "quantity" | 
-  "created_at" | "tracking_number" | "shipping_address" | "notes"
-> & {
-  retailers: Pick<Tables<"retailers">, "id" | "shop_name" | "user_id"> | null;
-  magazines: (Pick<Tables<"magazines">, "id" | "title" | "cover_image_url" | "price"> & {
-    publishers: Pick<Tables<"publishers">, "id" | "company_name"> | null;
-  }) | null;
-};
-
 // Flattened interface for UI consumption
 interface OrderDetail {
   id: string;
@@ -78,7 +65,7 @@ export const AdminOrderDetail = () => {
     setError(null);
 
     try {
-      // Use typed query
+      // Fetch order with magazines (no retailers join - FK points to users, not retailers)
       const { data, error: fetchError } = await supabase
         .from('orders')
         .select(`
@@ -91,11 +78,7 @@ export const AdminOrderDetail = () => {
           tracking_number,
           shipping_address,
           notes,
-          retailers (
-            id,
-            shop_name,
-            user_id
-          ),
+          retailer_id,
           magazines (
             id,
             title,
@@ -113,12 +96,39 @@ export const AdminOrderDetail = () => {
       if (fetchError) throw fetchError;
       if (!data) throw new Error('Order not found');
 
-      // Safe cast because our select matches the OrderWithRelations structure
-      // Note: Supabase types might be slightly different for join arrays vs objects, but .single() usually returns object or null.
-      // However, data from select is typed by Supabase client based on schema string, which is powerful but imperfect.
-      // We'll trust the runtime data matches the schema we asked for.
-      
-      const rawData = data as unknown as OrderWithRelations;
+      // Fetch retailer info separately using retailer_id as user_id
+      let retailerData = null;
+      if (data.retailer_id) {
+        const { data: retailer } = await supabase
+          .from('retailers')
+          .select('id, shop_name, user_id')
+          .eq('user_id', data.retailer_id)
+          .maybeSingle();
+        retailerData = retailer;
+      }
+
+      const rawData = data as {
+        id: string;
+        status: string;
+        total_price: number;
+        unit_price: number;
+        quantity: number;
+        created_at: string;
+        tracking_number: string | null;
+        shipping_address: string | null;
+        notes: string | null;
+        retailer_id: string | null;
+        magazines: {
+          id: string;
+          title: string;
+          cover_image_url: string | null;
+          price: number;
+          publishers: {
+            id: string;
+            company_name: string | null;
+          } | null;
+        } | null;
+      };
 
       const orderData: OrderDetail = {
         id: rawData.id,
@@ -130,10 +140,10 @@ export const AdminOrderDetail = () => {
         tracking_number: rawData.tracking_number,
         shipping_address: rawData.shipping_address,
         notes: rawData.notes,
-        retailer: rawData.retailers ? {
-          id: rawData.retailers.id,
-          shop_name: rawData.retailers.shop_name,
-          user_id: rawData.retailers.user_id,
+        retailer: retailerData ? {
+          id: retailerData.id,
+          shop_name: retailerData.shop_name,
+          user_id: retailerData.user_id,
         } : null,
         magazine: rawData.magazines ? {
           id: rawData.magazines.id,

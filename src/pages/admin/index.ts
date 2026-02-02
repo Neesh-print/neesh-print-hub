@@ -7,6 +7,7 @@ export { AdminRetailers } from './AdminRetailers';
 export { AdminRetailerDetail } from './AdminRetailerDetail';
 export { AdminOrders } from './AdminOrders';
 export { AdminOrderDetail } from './AdminOrderDetail';
+export { AdminMessages } from './AdminMessages';
 export { AdminAnalytics } from './AdminAnalytics';
 export { AdminSettings } from './AdminSettings';
 export { AdminFulfillmentQueue } from './AdminFulfillmentQueue';

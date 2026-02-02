@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MapPin, Instagram, Globe, ExternalLink, Lock, Loader2 } from "lucide-react";
-import { MagazineCard, ButtonPrimary, ButtonSecondary, Modal } from "@/components/neesh";
+import { MagazineCard, ButtonPrimary, ButtonSecondary, Modal, Logo } from "@/components/neesh";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -173,7 +173,7 @@ export const PublisherPublicProfile = () => {
       {/* Header - minimal branding */}
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <span className="font-display font-bold text-xl text-foreground">neesh</span>
+          <Logo size="lg" />
           <div className="flex items-center gap-3">
             <ButtonSecondary onClick={() => navigate("/login")}>
               Sign In
@@ -351,7 +351,7 @@ export const PublisherPublicProfile = () => {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <span className="text-caption">Powered by</span>
-            <span className="font-display font-bold text-foreground">neesh</span>
+            <Logo size="sm" />
           </div>
           <a
             href="/apply"

@@ -74,6 +74,7 @@ import {
   AdminRetailerDetail,
   AdminOrders,
   AdminOrderDetail,
+  AdminMessages,
   AdminAnalytics,
   AdminFulfillmentQueue,
   AdminMagazines,
@@ -541,6 +542,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminOrderDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/messages"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminMessages />
           </ProtectedRoute>
         }
       />

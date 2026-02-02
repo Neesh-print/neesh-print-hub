@@ -76,6 +76,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Publishers", icon: <Users className="w-5 h-5" />, path: "/admin/publishers" },
     { label: "Retailers", icon: <Store className="w-5 h-5" />, path: "/admin/retailers" },
     { label: "Orders", icon: <ShoppingBag className="w-5 h-5" />, path: "/admin/orders" },
+    { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/admin/messages" },
     { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/admin/analytics" },
   ];
 

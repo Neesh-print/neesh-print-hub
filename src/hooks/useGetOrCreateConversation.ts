@@ -44,46 +44,21 @@ export function useGetOrCreateConversation() {
         return existingConvId;
       }
 
-      // Create new conversation
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .insert({})
-        .select()
-        .single();
+      // Create new conversation via RPC to handle RLS safety
+      const { data: conversationId, error: createError } = await supabase.rpc(
+        'create_conversation',
+        {
+          p_other_user_id: userId,
+          p_other_user_type: userType,
+          p_other_display_name: displayName || 'Unknown',
+          p_other_avatar_url: avatarUrl || null,
+        }
+      );
 
-      if (convError) throw convError;
+      if (createError) throw createError;
+      if (!conversationId) throw new Error('Failed to create conversation');
 
-      // Get current user's display info from messageable_users
-      const { data: currentUserData } = await supabase
-        .from('messageable_users')
-        .select('display_name, avatar_url')
-        .eq('user_id', currentUser.id)
-        .eq('user_type', currentUser.type)
-        .maybeSingle();
-
-      // Add both participants
-      const { error: partError } = await supabase
-        .from('conversation_participants')
-        .insert([
-          {
-            conversation_id: conversation.id,
-            user_id: currentUser.id,
-            user_type: currentUser.type,
-            display_name: currentUserData?.display_name || 'Unknown',
-            avatar_url: currentUserData?.avatar_url,
-          },
-          {
-            conversation_id: conversation.id,
-            user_id: userId,
-            user_type: userType,
-            display_name: displayName || 'Unknown',
-            avatar_url: avatarUrl,
-          },
-        ]);
-
-      if (partError) throw partError;
-
-      return conversation.id;
+      return conversationId;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

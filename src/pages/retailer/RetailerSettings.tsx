@@ -264,12 +264,12 @@ export const RetailerSettings = () => {
 
               {/* Danger Zone */}
               <div>
-                <h4 className="font-medium text-destructive mb-1">Delete Account</h4>
+                <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
                 <p className="text-sm text-muted-foreground mb-3">
-                  This will permanently delete your account and order history
+                  This will deactivate your account. Your order history will be preserved.
                 </p>
                 <Button variant="destructive">
-                  Delete Account
+                  Deactivate Account
                 </Button>
               </div>
             </div>
