@@ -458,7 +458,7 @@ export const PublisherEditTitle = () => {
                         <p className="text-sm text-muted-foreground">You manage your own inventory and ship orders directly to retailers</p>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border opacity-50 cursor-not-allowed">
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/50 opacity-60 cursor-not-allowed">
                       <input
                         type="radio"
                         name="fulfillmentMethod"
@@ -467,8 +467,13 @@ export const PublisherEditTitle = () => {
                         className="mt-0.5 w-4 h-4 cursor-not-allowed"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-muted-foreground">Neesh handles shipping & storage</div>
-                        <p className="text-sm text-muted-foreground">Send stock to our warehouse and we'll handle fulfillment (coming soon)</p>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-muted-foreground">Neesh handles shipping & storage</span>
+                          <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium">
+                            Coming Soon
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">Send stock to our warehouse and we'll handle fulfillment</p>
                       </div>
                     </label>
                   </div>
