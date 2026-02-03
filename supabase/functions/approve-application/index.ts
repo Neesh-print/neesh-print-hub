@@ -325,63 +325,8 @@ Deno.serve(async (req) => {
         console.error('Error creating profile:', profileError)
       }
 
-      // Step 4: Send magic link for sign in
-      const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.store'
-      try {
-        const { data: linkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: email,
-          options: {
-            redirectTo: `${siteUrl}/${type}`,
-          },
-        })
-
-        if (magicLinkError) {
-          console.error('Error generating magic link:', magicLinkError)
-        } else if (linkData?.properties?.action_link) {
-          // Send email using Resend
-          const resendApiKey = Deno.env.get('RESEND_API_KEY')
-          if (resendApiKey) {
-            const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there'
-            const businessName = type === 'publisher'
-              ? (application.business_name || application.magazine_title || 'Your Business')
-              : (application.shop_name || 'Your Shop')
-            
-            const html = generateApprovalEmail({
-              firstName,
-              businessName,
-              role: type,
-              magicLinkUrl: linkData.properties.action_link,
-            })
-
-            const resendResponse = await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${resendApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                from: 'Neesh <hi@neesh.art>',
-                to: email,
-                subject: `Welcome to Neesh - ${businessName} Approved! 🎉`,
-                html: html,
-              }),
-            })
-
-            if (!resendResponse.ok) {
-              const resendError = await resendResponse.json()
-              console.error('Error sending approval email:', resendError)
-            } else {
-              console.log('Approval email sent successfully')
-            }
-          } else {
-            console.error('RESEND_API_KEY not found, cannot send approval email')
-          }
-        }
-      } catch (emailError) {
-        console.error('Error with magic link / email:', emailError)
-      }
-      }
+      
+      } // end if (!userId) - new user creation
     } // end if (!userId) - new user creation
 
     // Validate we have a userId at this point
@@ -475,6 +420,68 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Successfully approved ${type} application: ${applicationId}`)
+
+    // Step 7: Send approval email with magic link
+    // We send this AFTER everything else succeeds
+    // Step 7: Send approval email with magic link
+    // We send this AFTER everything else succeeds
+    const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.store'
+    try {
+      console.log('Generating magic link for approval email...')
+      const { data: linkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
+        options: {
+          redirectTo: `${siteUrl}/${type}`,
+        },
+      })
+
+      if (magicLinkError) {
+        console.error('Error generating magic link:', magicLinkError)
+      } else if (linkData?.properties?.action_link) {
+        // Send email using Resend
+        const resendApiKey = Deno.env.get('RESEND_API_KEY')
+        if (resendApiKey) {
+          const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there'
+          const businessName = type === 'publisher'
+            ? (application.business_name || application.magazine_title || 'Your Business')
+            : (application.shop_name || 'Your Shop')
+          
+          const html = generateApprovalEmail({
+            firstName,
+            businessName,
+            role: type,
+            magicLinkUrl: linkData.properties.action_link,
+          })
+
+          console.log(`Sending approval email to ${email}...`)
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Neesh <hi@neesh.art>',
+              to: email,
+              subject: `Welcome to Neesh - ${businessName} Approved! 🎉`,
+              html: html,
+            }),
+          })
+
+          if (!resendResponse.ok) {
+            const resendError = await resendResponse.json()
+            console.error('Error sending approval email:', resendError)
+          } else {
+            console.log('Approval email sent successfully')
+          }
+        } else {
+          console.error('RESEND_API_KEY not found, cannot send approval email')
+        }
+      }
+    } catch (emailError) {
+      console.error('Error with magic link / email:', emailError)
+    }
 
     return new Response(
       JSON.stringify({ 
