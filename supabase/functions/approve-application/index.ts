@@ -426,12 +426,8 @@ Deno.serve(async (req) => {
     // Step 7: Send approval email with magic link
     // We send this AFTER everything else succeeds
     const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.store'
-    let emailStatus = 'not_attempted'
-    let emailDebug = ''
-    
     try {
       console.log('Generating magic link for approval email...')
-      emailDebug += 'Generating magic link... '
       const { data: linkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'magiclink',
         email: email,
@@ -442,10 +438,7 @@ Deno.serve(async (req) => {
 
       if (magicLinkError) {
         console.error('Error generating magic link:', magicLinkError)
-        emailStatus = 'magic_link_error'
-        emailDebug += `Magic link error: ${magicLinkError.message}`
       } else if (linkData?.properties?.action_link) {
-        emailDebug += 'Magic link generated. '
         // Send email using Resend
         const resendApiKey = Deno.env.get('RESEND_API_KEY')
         if (resendApiKey) {
@@ -462,7 +455,6 @@ Deno.serve(async (req) => {
           })
 
           console.log(`Sending approval email to ${email}...`)
-          emailDebug += `Sending email to ${email}... `
           const resendResponse = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
@@ -480,49 +472,22 @@ Deno.serve(async (req) => {
           if (!resendResponse.ok) {
             const resendError = await resendResponse.json()
             console.error('Error sending approval email:', resendError)
-            emailStatus = 'resend_error'
-            emailDebug += `Resend error: ${JSON.stringify(resendError)}`
-
-            // Debug: If 403, list the domains this key can actually see
-            if (resendResponse.status === 403) {
-              try {
-                emailDebug += ' | CHECKING DOMAINS... '
-                const domainsResponse = await fetch('https://api.resend.com/domains', {
-                  headers: { 'Authorization': `Bearer ${resendApiKey}` }
-                })
-                const domainsData = await domainsResponse.json()
-                emailDebug += `Visible Domains: ${JSON.stringify(domainsData)}`
-              } catch (domainErr) {
-                emailDebug += ` | Domain check failed: ${(domainErr as Error).message}`
-              }
-            }
           } else {
             console.log('Approval email sent successfully')
-            emailStatus = 'sent'
-            emailDebug += 'Sent successfully.'
           }
         } else {
           console.error('RESEND_API_KEY not found, cannot send approval email')
-          emailStatus = 'missing_api_key'
-          emailDebug += 'Missing RESEND_API_KEY'
         }
-      } else {
-        emailStatus = 'no_action_link'
-        emailDebug += `No action_link in response. Data: ${JSON.stringify(linkData)}`
       }
     } catch (emailError) {
       console.error('Error with magic link / email:', emailError)
-      emailStatus = 'exception'
-      emailDebug += `Exception: ${(emailError as Error).message}`
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         userId,
-        message: `${type} application approved successfully`,
-        emailStatus,
-        emailDebug
+        message: `${type} application approved successfully` 
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
