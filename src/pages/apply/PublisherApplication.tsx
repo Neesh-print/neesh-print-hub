@@ -133,6 +133,9 @@ export const PublisherApplication = () => {
           if (data && !error) {
              const dbData = data as unknown as PublisherApplicationDB;
              // Map DB snake_case to form camelCase
+             // Map DB fields to form fields explicitly - don't spread additional_info
+             // as it can override explicitly mapped fields and cause data leakage between fields
+             const additionalInfo = dbData.additional_info || {};
              const formData: Partial<FormData> = {
                 firstName: dbData.first_name || '',
                 lastName: dbData.last_name || '',
@@ -141,17 +144,17 @@ export const PublisherApplication = () => {
                 magazineTitle: dbData.magazine_title || '',
                 coverImageUrl: dbData.cover_image_url || '',
                 description: dbData.description || '',
-                websiteUrl: dbData.social_website_link || '',
+                websiteUrl: dbData.social_website_link || additionalInfo.websiteUrl || '',
                 instagramHandle: dbData.instagram_handle || '',
                 shippingCountry: dbData.shipping_country || '',
                 shippingCity: dbData.shipping_city || '',
                 issueFrequency: dbData.issue_frequency || '',
-                publicationType: dbData.publication_type || '',
+                publicationType: dbData.publication_type || additionalInfo.publicationType || '',
                 regionsCurrentlySold: dbData.distribution_channels || [],
                 fulfillmentMethod: dbData.fulfillment_method || '',
                 cloudLink: dbData.quotes_feedback || '',
-                // Merge any additional info that matches form structure
-                ...dbData.additional_info
+                confirmRights: additionalInfo.confirmRights || false,
+                optInUpdates: additionalInfo.optInUpdates ?? true,
              };
              
              console.log("Resuming application with data:", dbData);
@@ -566,6 +569,29 @@ export const PublisherApplication = () => {
       setIsSubmitted(true);
       setCurrentStep(12); // Success Step
 
+      // Send application received confirmation email (fire and forget)
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+              email: formValues.email,
+              firstName: formValues.firstName,
+              businessName: formValues.businessName || formValues.magazineTitle,
+              role: 'publisher',
+            }),
+          }
+        );
+      } catch (emailError) {
+        // Don't fail the submission if email fails
+        console.error('Failed to send confirmation email:', emailError);
+      }
+
     } catch (err) {
       console.error("Submission error:", err);
       toast.error("Failed to submit application. Please try again.");
@@ -843,6 +869,7 @@ export const PublisherApplication = () => {
                       const formatted = val.startsWith("@") ? val : `@${val}`;
                       field.onChange(formatted === "@" ? "" : formatted);
                     }}
+                    autoComplete="off"
                   />
                 )}
               />
@@ -894,6 +921,7 @@ export const PublisherApplication = () => {
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
                     onChange={field.onChange}
+                    autoComplete="address-level2"
                   />
                 )}
               />
