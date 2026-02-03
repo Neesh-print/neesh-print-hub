@@ -61,6 +61,8 @@ export const FULFILLMENT_OPTIONS = [
     value: "neesh",
     label: "Neesh Fulfillment",
     description: "Send us inventory, we handle shipping",
+    disabled: true,
+    comingSoon: true,
   },
   {
     value: "self",

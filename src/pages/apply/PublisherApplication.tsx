@@ -1011,14 +1011,21 @@ export const PublisherApplication = () => {
               </p>
             </div>
             <div className="space-y-3">
-              {FULFILLMENT_OPTIONS.map((option) => (
+              {FULFILLMENT_OPTIONS.map((option) => {
+                const isDisabled = 'disabled' in option && option.disabled;
+                const isComingSoon = 'comingSoon' in option && option.comingSoon;
+                return (
                 <label
                   key={option.value}
                   className={`
-                    block p-4 rounded-lg border-2 cursor-pointer transition-all
-                    ${formValues.fulfillmentMethod === option.value
+                    block p-4 rounded-lg border-2 transition-all
+                    ${isDisabled 
+                      ? "border-border bg-muted/50 cursor-not-allowed opacity-60" 
+                      : "cursor-pointer hover:border-accent/50"
+                    }
+                    ${!isDisabled && formValues.fulfillmentMethod === option.value
                       ? "border-accent bg-accent/5"
-                      : "border-border hover:border-accent/50"
+                      : "border-border"
                     }
                   `}
                 >
@@ -1027,13 +1034,24 @@ export const PublisherApplication = () => {
                     name="fulfillmentMethod"
                     value={option.value}
                     checked={formValues.fulfillmentMethod === option.value}
-                    onChange={(e) => setValue("fulfillmentMethod", e.target.value)}
+                    onChange={(e) => !isDisabled && setValue("fulfillmentMethod", e.target.value)}
+                    disabled={isDisabled}
                     className="sr-only"
                   />
-                  <span className="font-medium text-foreground">{option.label}</span>
+                  <div className="flex items-center justify-between">
+                    <span className={`font-medium ${isDisabled ? "text-muted-foreground" : "text-foreground"}`}>
+                      {option.label}
+                    </span>
+                    {isComingSoon && (
+                      <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium">
+                        Coming Soon
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground mt-1">{option.description}</p>
                 </label>
-              ))}
+              );
+              })}
             </div>
             <ButtonPrimary onClick={handleNext} fullWidth>
               Continue
