@@ -133,6 +133,9 @@ export const PublisherApplication = () => {
           if (data && !error) {
              const dbData = data as unknown as PublisherApplicationDB;
              // Map DB snake_case to form camelCase
+             // Map DB fields to form fields explicitly - don't spread additional_info
+             // as it can override explicitly mapped fields and cause data leakage between fields
+             const additionalInfo = dbData.additional_info || {};
              const formData: Partial<FormData> = {
                 firstName: dbData.first_name || '',
                 lastName: dbData.last_name || '',
@@ -141,17 +144,17 @@ export const PublisherApplication = () => {
                 magazineTitle: dbData.magazine_title || '',
                 coverImageUrl: dbData.cover_image_url || '',
                 description: dbData.description || '',
-                websiteUrl: dbData.social_website_link || '',
+                websiteUrl: dbData.social_website_link || additionalInfo.websiteUrl || '',
                 instagramHandle: dbData.instagram_handle || '',
                 shippingCountry: dbData.shipping_country || '',
                 shippingCity: dbData.shipping_city || '',
                 issueFrequency: dbData.issue_frequency || '',
-                publicationType: dbData.publication_type || '',
+                publicationType: dbData.publication_type || additionalInfo.publicationType || '',
                 regionsCurrentlySold: dbData.distribution_channels || [],
                 fulfillmentMethod: dbData.fulfillment_method || '',
                 cloudLink: dbData.quotes_feedback || '',
-                // Merge any additional info that matches form structure
-                ...dbData.additional_info
+                confirmRights: additionalInfo.confirmRights || false,
+                optInUpdates: additionalInfo.optInUpdates ?? true,
              };
              
              console.log("Resuming application with data:", dbData);
@@ -843,6 +846,7 @@ export const PublisherApplication = () => {
                       const formatted = val.startsWith("@") ? val : `@${val}`;
                       field.onChange(formatted === "@" ? "" : formatted);
                     }}
+                    autoComplete="off"
                   />
                 )}
               />
@@ -894,6 +898,7 @@ export const PublisherApplication = () => {
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
                     onChange={field.onChange}
+                    autoComplete="address-level2"
                   />
                 )}
               />
