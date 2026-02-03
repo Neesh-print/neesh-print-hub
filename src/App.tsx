@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CartProvider } from "@/components/retailer/CartContext";
 import { WishlistProvider } from "@/components/retailer/WishlistContext";
-import { ErrorBoundary } from "@/components/shared";
+import { ErrorBoundary, ScrollToTop } from "@/components/shared";
 
 // Auth pages
 import {
@@ -74,8 +74,10 @@ import {
   AdminRetailerDetail,
   AdminOrders,
   AdminOrderDetail,
+  AdminMessages,
   AdminAnalytics,
   AdminFulfillmentQueue,
+  AdminMagazines,
   PrintSlipsPage,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
@@ -87,21 +89,43 @@ import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreM
 import NotFound from "./pages/NotFound";
 import { ErrorPage, OfflinePage, UnauthorizedPage } from "./pages/errors";
 
+// Application status pages
+import { ApplicationRejected } from "./pages/ApplicationRejected";
+
 const queryClient = new QueryClient();
 
 // Home redirect component that redirects based on auth state
 const HomeRedirect = () => {
-  const { user, userRole, isLoading, isRoleLoading } = useAuth();
+  const { user, userRole, publisherStatus, isLoading, isRoleLoading } = useAuth();
   
   // Wait for both auth and role to finish loading
   if (isLoading || isRoleLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
+  // Check publisher application status
+  if (userRole === 'publisher' && publisherStatus) {
+    const { applicationStatus } = publisherStatus;
+
+    if (applicationStatus === 'draft') {
+      return <Navigate to="/apply/publisher" replace />;
+    }
+    if (applicationStatus === 'submitted') {
+      return <Navigate to="/pending" replace />;
+    }
+    if (applicationStatus === 'rejected') {
+      return <Navigate to="/rejected" replace />;
+    }
+    // Only approved publishers reach the dashboard
+    if (applicationStatus === 'approved') {
+      return <Navigate to="/publisher" replace />;
+    }
+  }
+
   // Redirect based on role (role fetch is complete at this point)
   switch (userRole) {
     case 'publisher':
@@ -137,6 +161,7 @@ const AppRoutes = () => {
       <Route path="/apply/retailer" element={<RetailerApplication />} />
       <Route path="/apply/submitted" element={<ApplicationSubmittedPage />} />
       <Route path="/pending" element={<ApplicationPendingPage />} />
+      <Route path="/rejected" element={<ApplicationRejected />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/p/:slug" element={<PublisherPublicProfile />} />
@@ -521,6 +546,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/admin/messages"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminMessages />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/analytics"
         element={
           <ProtectedRoute allowedRoles={['admin']}>
@@ -552,6 +585,14 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/magazines"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminMagazines />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Error pages */}
       <Route path="/error" element={<ErrorPage />} />
@@ -572,6 +613,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ScrollToTop />
             <AppRoutes />
           </BrowserRouter>
         </ErrorBoundary>

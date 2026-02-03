@@ -14,6 +14,7 @@ import {
 import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FileUploadZone } from "@/components/neesh";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { toast } from "sonner";
 
 const TOTAL_STEPS = 6;
 
@@ -210,7 +211,7 @@ export const PublisherOnboarding = () => {
           {currentStep === 3 && <StepBranding data={data} onNext={handleNext} onSkip={handleSkipStep} onBack={handleBack} logoUpload={logoUpload} bannerUpload={bannerUpload} onLogoUpload={handleLogoUpload} onBannerUpload={handleBannerUpload} />}
           {currentStep === 4 && <StepFirstTitle data={data} setData={setData} onNext={handleNext} onSkip={handleSkipStep} onBack={handleBack} coverUpload={coverUpload} onCoverUpload={handleCoverUpload} />}
           {currentStep === 5 && <StepPayout onNext={handleNext} onBack={handleBack} />}
-          {currentStep === 6 && <StepComplete onComplete={handleComplete} />}
+          {currentStep === 6 && <StepComplete onComplete={handleComplete} publisherId={publisher?.id} />}
         </div>
       </main>
     </div>
@@ -671,7 +672,7 @@ const StepPayout = ({ onNext, onBack }: { onNext: () => void; onBack: () => void
 };
 
 // Step 6: Complete
-const StepComplete = ({ onComplete }: { onComplete: () => void }) => {
+const StepComplete = ({ onComplete, publisherId }: { onComplete: () => void; publisherId?: string }) => {
   const navigate = useNavigate();
   
   return (
@@ -713,8 +714,9 @@ const StepComplete = ({ onComplete }: { onComplete: () => void }) => {
         
         <button 
           onClick={() => {
-            // TODO: Get actual public profile URL
-            navigator.clipboard.writeText(window.location.origin + "/p/your-profile");
+            // Use current origin + /p/ + slug (temporarily using ID or "your-profile" if waiting)
+             navigator.clipboard.writeText(window.location.origin + "/p/" + (publisherId || "your-profile"));
+             toast.success("Profile link copied to clipboard!");
           }}
           className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors text-left"
         >

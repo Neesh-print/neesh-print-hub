@@ -6,6 +6,8 @@ import { BackNavigation, DataTable, StatusBadge, ButtonSecondary, FormInput, Emp
 import { LoadingScreen } from "@/components/shared";
 import { supabase } from "@/integrations/supabase/client";
 
+import { Tables } from "@/integrations/supabase/types";
+
 interface Retailer {
   id: string;
   storeName: string;
@@ -16,7 +18,6 @@ interface Retailer {
   totalSpent: number;
   joinDate: string;
   status: 'received' | 'pending' | 'unfulfilled';
-  [key: string]: unknown;
 }
 
 export const AdminRetailers = () => {
@@ -39,15 +40,15 @@ export const AdminRetailers = () => {
       if (fetchError) throw fetchError;
 
       // Transform data to match the table format
-      const transformed: Retailer[] = (data || []).map((ret: any) => ({
+      const transformed: Retailer[] = (data || []).map((ret: Tables<"retailers">) => ({
         id: ret.id,
         storeName: ret.shop_name || 'Unknown Store',
-        email: ret.shop_url ? `contact@${ret.shop_name?.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A',
+        email: ret.contact_email || (ret.shop_name ? `contact@${ret.shop_name.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A'),
         location: [ret.city, ret.state].filter(Boolean).join(', ') || 'N/A',
-        storeType: 'Independent Store',
+        storeType: (ret.store_types && ret.store_types.length > 0) ? ret.store_types[0] : 'Independent Store',
         totalOrders: ret.total_orders || 0,
         totalSpent: Number(ret.total_spent) || 0,
-        joinDate: new Date(ret.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        joinDate: ret.created_at ? new Date(ret.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown',
         status: ret.verified ? 'received' : 'pending',
       }));
 

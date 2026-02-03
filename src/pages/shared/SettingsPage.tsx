@@ -54,10 +54,10 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
     });
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeactivateAccount = () => {
     toast({
       title: "Request submitted",
-      description: "Account deletion requests are reviewed within 7 business days.",
+      description: "Account deactivation requests are reviewed within 7 business days.",
       variant: "destructive",
     });
   };
@@ -169,16 +169,16 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
             </div>
 
             <div className="pt-4 border-t border-border">
-              <h4 className="font-medium text-destructive mb-1">Delete Account</h4>
+              <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
               <p className="text-sm text-muted-foreground mb-3">
-                Permanently delete your account and all associated data. This action cannot be undone.
+                Deactivate your account. Your order and transaction history will be preserved.
               </p>
               <Button
                 variant="destructive"
-                onClick={handleDeleteAccount}
+                onClick={handleDeactivateAccount}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Request Account Deletion
+                Request Account Deactivation
               </Button>
             </div>
           </div>

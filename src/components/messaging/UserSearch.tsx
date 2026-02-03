@@ -55,9 +55,10 @@ export function UserSearch({
 
       if (error) throw error;
 
-      // Filter out excluded users and map to proper type
+      // Filter out excluded users and support user (we add it manually), then map to proper type
       let filtered: MessageableUser[] = (data || [])
         .filter((user) => !excludeIds.includes(user.id || ''))
+        .filter((user) => user.user_type !== 'support') // Exclude support from DB results, we add it manually
         .map((user) => ({
           id: user.id || '',
           user_id: user.user_id || '',

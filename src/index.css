@@ -1,10 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Neesh Design System - The OS for Indie Print */
-
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
@@ -144,7 +144,9 @@
 
 @layer components {
   .input-neesh {
-    @apply bg-input border-0 rounded-lg px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 transition-all;
+    @apply bg-input border-0 rounded-lg px-4 py-3 text-sm
+      placeholder:text-muted-foreground focus:outline-none focus:ring-2
+      focus:ring-ring focus:ring-offset-1 transition-all;
   }
 
   .card-neesh {
@@ -156,7 +158,8 @@
   }
 
   .status-badge {
-    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium uppercase tracking-wide;
+    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium
+      uppercase tracking-wide;
   }
 }
 

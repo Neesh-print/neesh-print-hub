@@ -8,6 +8,7 @@ import { useWishlistContext } from "@/components/retailer/WishlistContext";
 import { BackNavigation, ButtonSecondary, InfoCard } from "@/components/neesh";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { LoadingScreen } from "@/components/shared";
 import { useShippingAddress } from "@/hooks/useShippingAddress";
 import { useOrders } from "@/hooks/useOrders";
 import { getStoreTypeLabels } from "@/lib/store-types";
@@ -25,8 +26,6 @@ export const RetailerProfile = () => {
   const { retailer, isLoading: profileLoading } = useRetailerProfile();
   const { address: shippingAddress, isLoading: addressLoading } = useShippingAddress();
   const { orders } = useOrders();
-  
-  // Connect to real wishlist
   const { wishlistIds, wishlistCount } = useWishlistContext();
   const { magazines } = useMagazines({ status: 'active' });
   
@@ -39,9 +38,34 @@ export const RetailerProfile = () => {
       coverImage: mag.cover_image_url || "/placeholder.svg",
     }));
 
-  // Calculate order stats
+  if (profileLoading || addressLoading) {
+    return (
+      <RetailerLayout>
+        <LoadingScreen message="Loading profile..." />
+      </RetailerLayout>
+    );
+  }
+
+  if (!retailer) {
+    return (
+      <RetailerLayout>
+        <div className="p-6">
+          <InfoCard title="Profile Not Found">
+            <p className="text-muted-foreground mb-4">
+              We couldn't load your retailer profile. Please ensure you have completed the onboarding.
+            </p>
+            <ButtonSecondary onClick={() => navigate("/retailer/settings")}>
+              Go to Settings
+            </ButtonSecondary>
+          </InfoCard>
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  // Calculate order stats (Upstream logic)
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+  // const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
   const thisMonthOrders = orders.filter(o => {
     const orderDate = new Date(o.created_at);
     const now = new Date();
@@ -51,58 +75,26 @@ export const RetailerProfile = () => {
   // Profile completion check
   const profileData = retailer ? {
     shop_name: retailer.shop_name,
-    contact_name: (retailer as any).contact_name || null,
-    contact_email: (retailer as any).contact_email || null,
+    contact_name: retailer.contact_name || null,
+    contact_email: retailer.contact_email || null,
     city: retailer.city,
     state: retailer.state,
     shop_description: retailer.shop_description,
-    store_types: (retailer as any).store_types || [],
+    store_types: retailer.store_types || [],
     shop_url: retailer.shop_url,
     instagram_handle: retailer.instagram_handle,
-    profile_image_url: (retailer as any).profile_image_url,
-    profile_completed_at: (retailer as any).profile_completed_at,
+    profile_image_url: retailer.profile_image_url,
+    profile_completed_at: retailer.profile_completed_at,
   } : null;
 
   const profileComplete = profileData ? isProfileComplete(profileData) : false;
 
-  // Get store type labels
   const storeTypeLabels = profileData?.store_types 
     ? getStoreTypeLabels(profileData.store_types) 
     : [];
 
-  // Format location
   const location = [retailer?.city, retailer?.state].filter(Boolean).join(', ');
-
-  // Generate slug for sharing
   const shopSlug = retailer?.shop_name ? slugify(retailer.shop_name) : "";
-
-  // Loading state
-  if (profileLoading || addressLoading) {
-    return (
-      <RetailerLayout>
-        <BackNavigation
-          title="My Profile"
-          onBack={() => navigate("/retailer")}
-        />
-        <div className="px-4 md:px-6 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <div className="card-neesh">
-                <div className="flex flex-col md:flex-row gap-6">
-                  <Skeleton className="w-24 h-24 rounded-full flex-shrink-0" />
-                  <div className="flex-1 space-y-3">
-                    <Skeleton className="h-8 w-48" />
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </RetailerLayout>
-    );
-  }
 
   return (
     <RetailerLayout>
@@ -156,10 +148,10 @@ export const RetailerProfile = () => {
                 {/* Info */}
                 <div className="flex-1">
                   <h1 className="font-display font-bold text-2xl text-foreground mb-2">
-                    {retailer?.shop_name || 'Your Store'}
+                    {retailer.shop_name || "Untitled Shop"}
                   </h1>
 
-                  {retailer?.shop_url && (
+                  {retailer.shop_url && (
                     <a
                       href={retailer.shop_url.startsWith('http') ? retailer.shop_url : `https://${retailer.shop_url}`}
                       target="_blank"
@@ -177,19 +169,13 @@ export const RetailerProfile = () => {
                     </p>
                   )}
 
-                  {retailer?.shop_description ? (
+                  {retailer.shop_description ? (
                     <p className="text-muted-foreground mb-4">
                       {retailer.shop_description}
                     </p>
                   ) : (
                     <p className="text-muted-foreground mb-4 italic">
-                      No description yet.{' '}
-                      <button 
-                        onClick={() => navigate('/retailer/profile/edit')}
-                        className="text-accent hover:underline"
-                      >
-                        Add one
-                      </button>
+                      No description yet.
                     </p>
                   )}
 
@@ -201,7 +187,7 @@ export const RetailerProfile = () => {
                   )}
 
                   {/* Store Type Tags */}
-                  {storeTypeLabels.length > 0 ? (
+                  {storeTypeLabels.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-6">
                       {storeTypeLabels.map((type) => (
                         <span
@@ -212,21 +198,11 @@ export const RetailerProfile = () => {
                         </span>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground mb-6 italic">
-                      No store types selected.{' '}
-                      <button 
-                        onClick={() => navigate('/retailer/profile/edit')}
-                        className="text-accent hover:underline"
-                      >
-                        Add them
-                      </button>
-                    </p>
                   )}
 
                   {/* Social Icons */}
                   <div className="flex gap-3 mb-6">
-                    {retailer?.instagram_handle && (
+                    {retailer.instagram_handle && (
                       <a
                         href={`https://instagram.com/${retailer.instagram_handle.replace('@', '')}`}
                         target="_blank"
@@ -271,15 +247,12 @@ export const RetailerProfile = () => {
                   <span className="text-muted-foreground">Total Orders</span>
                   <span className="font-medium">{totalOrders}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pending</span>
-                  <span className="font-medium">{pendingOrders}</span>
-                </div>
+                {/* Total spent could be added here if desired */}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">This Month</span>
                   <span className="font-medium">{thisMonthOrders}</span>
                 </div>
-              </div>
+                </div>
             </InfoCard>
 
             {/* Shipping Address */}
@@ -315,7 +288,7 @@ export const RetailerProfile = () => {
                         {shippingAddress.city}, {getStateLabel(shippingAddress.state) || shippingAddress.state} {shippingAddress.postal_code}
                       </p>
                       <button 
-                        onClick={() => navigate("/retailer/profile/edit")}
+                        onClick={() => navigate("/retailer/settings")}
                         className="mt-2 text-sm text-accent hover:underline"
                       >
                         Edit address →
@@ -325,7 +298,7 @@ export const RetailerProfile = () => {
                     <div className="text-sm text-muted-foreground">
                       <p className="italic mb-2">No shipping address added yet.</p>
                       <button 
-                        onClick={() => navigate("/retailer/profile/edit")}
+                        onClick={() => navigate("/retailer/settings")}
                         className="text-accent hover:underline"
                       >
                         Add shipping address
@@ -335,7 +308,6 @@ export const RetailerProfile = () => {
                 </div>
               )}
             </div>
-
             {/* Bookmarked Titles */}
             <div className="card-neesh">
               <button

@@ -22,12 +22,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('[ErrorBoundary] Caught unhandled error:', {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+    });
     // TODO: Send to error reporting service (Sentry, etc.)
   }
 
   resetErrorBoundary = () => {
     this.setState({ hasError: false, error: null });
+    // If the parent provided a reset handler (e.g. to clear state that caused the error), call it.
+    // This allows for a "soft" reset effectively.
   };
 
   render() {

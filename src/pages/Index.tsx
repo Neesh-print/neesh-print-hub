@@ -57,7 +57,7 @@ const Index = () => {
       key: "status", 
       header: "Status", 
       align: "right" as const,
-      render: (value: string) => <StatusBadge status={value as any} />
+      render: (value: string) => <StatusBadge status={value as 'received' | 'pending' | 'unfulfilled' | 'new-order'} />
     },
   ];
 

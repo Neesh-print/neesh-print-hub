@@ -7,21 +7,15 @@ import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
-import { useOrders } from "@/hooks/useOrders";
+import { Order, useOrders } from "@/hooks/useOrders";
 import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
+import { usePublisherAnalytics } from "@/hooks/usePublisherAnalytics";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 
-// Mock sales chart data (would come from analytics in production)
-const salesChartData = [
-  { month: "Jan", sales: 1200 },
-  { month: "Feb", sales: 1800 },
-  { month: "Mar", sales: 1400 },
-  { month: "Apr", sales: 2200 },
-  { month: "May", sales: 2800 },
-  { month: "Jun", sales: 3200 },
-];
+// ... inside component ...
 
-const timePeriods = ["D", "W", "M", "Q", "YTD", "Y", "ALL"];
+
+
 
 export const PublisherDashboard = () => {
   const navigate = useNavigate();
@@ -31,14 +25,28 @@ export const PublisherDashboard = () => {
   const { publisher, isLoading: publisherLoading, error: publisherError } = usePublisherProfile();
   const { magazines, isLoading: magazinesLoading, error: magazinesError, refetch: refetchMagazines } = useMagazines({
     publisherId: publisher?.id,
+    enabled: !!publisher?.id
   });
   const { orders, isLoading: ordersLoading, error: ordersError, refetch: refetchOrders } = useOrders({
     publisherId: publisher?.id,
     limit: 5,
   });
 
-  const isLoading = publisherLoading || (publisher && (magazinesLoading || ordersLoading));
+  const { metrics, isLoading: analyticsLoading } = usePublisherAnalytics(publisher?.id);
+
+  const timePeriods = ["7d", "30d", "90d", "All"];
+
+  // Sales Chart Data from metrics
+  const salesChartData = metrics ? metrics.revenueByDate.map(d => ({
+    month: d.date,
+    sales: d.revenue
+  })) : [];
+
+  const hasSalesData = salesChartData.some(d => d.sales > 0);
+
+  const isLoading = publisherLoading || (publisher && (magazinesLoading || ordersLoading || analyticsLoading));
   const error = publisherError || magazinesError || ordersError;
+
 
   // Onboarding progress
   const onboarding = useOnboardingProgress('publisher', {
@@ -47,6 +55,7 @@ export const PublisherDashboard = () => {
     hasProfileInstagram: !!publisher?.instagram_handle,
     titleCount: magazines.length,
     publisherName: publisher?.company_name || undefined,
+    hasPayoutSetup: !!publisher?.stripe_account_id,
   });
 
   const handleTransfer = () => {
@@ -55,7 +64,7 @@ export const PublisherDashboard = () => {
 
   const orderColumns = [
     { key: "order_number", header: "Order" },
-    { key: "magazine", header: "Title", render: (value: any) => value?.title || "Unknown" },
+    { key: "magazine", header: "Title", render: (value: Order['magazine']) => value?.title || "Unknown" },
     { key: "total_amount", header: "Total", render: (value: number) => `$${value.toFixed(2)}` },
     { key: "created_at", header: "Time", render: (value: string) => {
       const date = new Date(value);
@@ -67,7 +76,7 @@ export const PublisherDashboard = () => {
       return `${diffDays}d ago`;
     }},
     { key: "quantity", header: "Volume" },
-    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as any} /> },
+    { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as import("@/components/neesh/StatusBadge").StatusType} /> },
   ];
 
   if (isLoading) {
@@ -93,9 +102,7 @@ export const PublisherDashboard = () => {
     );
   }
 
-  // Calculate totals from real data
-  const totalSales = orders.reduce((sum, order) => sum + order.total_amount, 0);
-  const totalSold = orders.reduce((sum, order) => sum + order.quantity, 0);
+  // Calculate totals from real data - metrics handles this now
   const totalInventory = magazines.reduce((sum, mag) => sum + (mag.inventory_count || 0), 0);
 
   return (
@@ -142,13 +149,18 @@ export const PublisherDashboard = () => {
             <div className="lg:w-1/3">
               <p className="text-caption text-muted-foreground mb-1">Total Sales</p>
               <div className="flex items-baseline gap-3">
-                <span className="font-display font-bold text-display-md text-foreground">${totalSales.toFixed(2)}</span>
-                <div className="flex items-center gap-1 text-chart-green">
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="text-body font-medium">+12.30%</span>
+                <span className="font-display font-bold text-display-md text-foreground">
+                    ${metrics.totalRevenue.toFixed(2)}
+                </span>
+                {/* Trend is placeholder for now unless we calculate it */}
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  {/* <TrendingUp className="w-4 h-4" /> */}
+                  {/* <span className="text-body font-medium">+0.00%</span> */}
                 </div>
               </div>
-              <p className="text-caption text-muted-foreground mt-2">{totalSold}/{totalInventory + totalSold} Sold</p>
+              <p className="text-caption text-muted-foreground mt-2">
+                {metrics.totalUnitsSold} Units Sold
+              </p>
             </div>
 
             {/* Sales Chart */}

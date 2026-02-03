@@ -1,5 +1,5 @@
 -- Create shipping_addresses table
-CREATE TABLE public.shipping_addresses (
+CREATE TABLE IF NOT EXISTS public.shipping_addresses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   retailer_id UUID NOT NULL REFERENCES public.retailers(id) ON DELETE CASCADE,
   
@@ -28,10 +28,10 @@ CREATE TABLE public.shipping_addresses (
 );
 
 -- Index for fast lookup by retailer
-CREATE INDEX idx_shipping_addresses_retailer ON public.shipping_addresses(retailer_id);
+CREATE INDEX IF NOT EXISTS idx_shipping_addresses_retailer ON public.shipping_addresses(retailer_id);
 
 -- Ensure only one default address per retailer
-CREATE UNIQUE INDEX idx_one_default_per_retailer 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_default_per_retailer 
   ON public.shipping_addresses(retailer_id) 
   WHERE is_default = TRUE;
 
@@ -39,6 +39,7 @@ CREATE UNIQUE INDEX idx_one_default_per_retailer
 ALTER TABLE public.shipping_addresses ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Retailers can view own addresses" ON public.shipping_addresses;
 CREATE POLICY "Retailers can view own addresses"
   ON public.shipping_addresses
   FOR SELECT
@@ -46,6 +47,7 @@ CREATE POLICY "Retailers can view own addresses"
     SELECT id FROM public.retailers WHERE user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Retailers can insert own addresses" ON public.shipping_addresses;
 CREATE POLICY "Retailers can insert own addresses"
   ON public.shipping_addresses
   FOR INSERT
@@ -53,6 +55,7 @@ CREATE POLICY "Retailers can insert own addresses"
     SELECT id FROM public.retailers WHERE user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Retailers can update own addresses" ON public.shipping_addresses;
 CREATE POLICY "Retailers can update own addresses"
   ON public.shipping_addresses
   FOR UPDATE
@@ -60,6 +63,7 @@ CREATE POLICY "Retailers can update own addresses"
     SELECT id FROM public.retailers WHERE user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Retailers can delete own addresses" ON public.shipping_addresses;
 CREATE POLICY "Retailers can delete own addresses"
   ON public.shipping_addresses
   FOR DELETE
@@ -67,6 +71,7 @@ CREATE POLICY "Retailers can delete own addresses"
     SELECT id FROM public.retailers WHERE user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Admins can manage all addresses" ON public.shipping_addresses;
 CREATE POLICY "Admins can manage all addresses"
   ON public.shipping_addresses
   FOR ALL
@@ -101,11 +106,13 @@ END;
 $$;
 
 -- Create trigger
+DROP TRIGGER IF EXISTS shipping_address_change ON public.shipping_addresses;
 CREATE TRIGGER shipping_address_change
   AFTER INSERT OR UPDATE OR DELETE ON public.shipping_addresses
   FOR EACH ROW EXECUTE FUNCTION public.update_retailer_shipping_flag();
 
 -- Trigger to update updated_at
+DROP TRIGGER IF EXISTS update_shipping_addresses_updated_at ON public.shipping_addresses;
 CREATE TRIGGER update_shipping_addresses_updated_at
   BEFORE UPDATE ON public.shipping_addresses
   FOR EACH ROW

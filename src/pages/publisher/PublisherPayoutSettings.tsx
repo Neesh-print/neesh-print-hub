@@ -1,202 +1,270 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, FormInput, FormSelect, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { BackNavigation, ButtonSecondary, ButtonPrimary } from "@/components/neesh";
 import { toast } from "sonner";
-
-type PayoutMethod = "bank_account" | "paypal";
+import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { StripeAccountManagement } from "@/components/stripe/StripeAccountManagement";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const PublisherPayoutSettings = () => {
   const navigate = useNavigate();
-  
-  const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>("bank_account");
-  const [isSaving, setIsSaving] = useState(false);
-  
-  // Bank account fields
-  const [bankName, setBankName] = useState("");
-  const [accountHolderName, setAccountHolderName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [routingNumber, setRoutingNumber] = useState("");
-  const [accountType, setAccountType] = useState("checking");
-  
-  // PayPal fields
-  const [paypalEmail, setPaypalEmail] = useState("");
-  
-  // Payout schedule
-  const [payoutSchedule, setPayoutSchedule] = useState("monthly_15");
+  const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
+  const [hasStripeAccount, setHasStripeAccount] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
+  useEffect(() => {
+    checkStripeStatus();
     
-    // Simulate API call - in production this would update the payout settings
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setIsSaving(false);
-    toast.success("Payout method updated successfully");
-    navigate("/publisher/settings#payouts");
+    // Check if returning from Stripe onboarding
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('onboarding') === 'complete') {
+      toast.success("Stripe account connected successfully! You can now receive payouts.");
+      // Remove the query param
+      window.history.replaceState({}, '', '/publisher/settings/payout');
+      // Recheck stripe status
+      checkStripeStatus();
+    }
+  }, []);
+
+  const checkStripeStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('publishers')
+        .select('stripe_account_id')
+        .eq('id', user.id)
+        .maybeSingle(); // Use maybeSingle() to handle 0 or 1 rows gracefully
+
+      // Only log errors that aren't "no rows found"
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking stripe status:', error);
+        return;
+      }
+
+      // If no publisher record found, show the "not connected" state
+      if (!data) {
+        console.log('No publisher record found for user:', user.id);
+        setHasStripeAccount(false);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.stripe_account_id) {
+          setHasStripeAccount(true);
+      } else {
+          // Attempt sync
+          console.log('No local Stripe ID, attempting sync...');
+          try {
+              const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-stripe-account');
+              if (syncData?.found && syncData?.stripe_account_id) {
+                  console.log('Synced Stripe ID:', syncData.stripe_account_id);
+                  setHasStripeAccount(true);
+                  if (syncData.restored) {
+                      toast.success("Payment account restored!");
+                  }
+              } else {
+                  setHasStripeAccount(false);
+              }
+          } catch (e) {
+              console.error("Sync failed", e);
+              setHasStripeAccount(false);
+          }
+      }
+
+    } catch (error) {
+      console.error('Error checking stripe status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fallback to open Stripe Dashboard directly
+  const handleOpenDashboard = async () => {
+    try {
+      setIsOpeningDashboard(true);
+      const { data, error } = await supabase.functions.invoke('create-connect-login-link');
+      
+      if (error) {
+        if (error instanceof Error && error.message.includes('404')) {
+           toast.error("Stripe account not found. Please contact support.");
+           setHasStripeAccount(false);
+           return;
+        }
+        throw error;
+      }
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        toast.error("Could not generate dashboard link");
+      }
+    } catch (error) {
+      console.error('Error opening dashboard:', error);
+      toast.error("Failed to open Stripe Dashboard");
+    } finally {
+      setIsOpeningDashboard(false);
+    }
   };
 
   return (
     <PublisherLayout>
       <BackNavigation
-        title="Update Payout Method"
+        title="Payout Settings"
         onBack={() => navigate("/publisher/settings")}
       />
 
-      <div className="px-4 md:px-6 pb-12 max-w-2xl mx-auto">
-        <p className="text-muted-foreground mb-6">
-          Update your payout details to receive payments for your sales.
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Payout Method Selection */}
-          <div className="card-neesh space-y-4">
-            <h3 className="font-display font-semibold text-lg text-foreground">
-              Payout Method
-            </h3>
-            
-            <RadioGroup
-              value={payoutMethod}
-              onValueChange={(value) => setPayoutMethod(value as PayoutMethod)}
-              className="space-y-3"
-            >
-              <div className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
-                <RadioGroupItem value="bank_account" id="bank_account" />
-                <Label htmlFor="bank_account" className="flex-1 cursor-pointer">
-                  <div className="font-medium">Bank Account (ACH)</div>
-                  <div className="text-sm text-muted-foreground">Direct deposit to your bank account</div>
-                </Label>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
-                <RadioGroupItem value="paypal" id="paypal" />
-                <Label htmlFor="paypal" className="flex-1 cursor-pointer">
-                  <div className="font-medium">PayPal</div>
-                  <div className="text-sm text-muted-foreground">Receive payments to your PayPal account</div>
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Bank Account Details */}
-          {payoutMethod === "bank_account" && (
-            <div className="card-neesh space-y-4">
-              <h3 className="font-display font-semibold text-lg text-foreground">
-                Bank Account Details
-              </h3>
-              
-              <FormInput
-                label="Bank Name"
-                value={bankName}
-                onChange={setBankName}
-                placeholder="e.g. Chase, Bank of America"
-                required
-              />
-              
-              <FormInput
-                label="Account Holder Name"
-                value={accountHolderName}
-                onChange={setAccountHolderName}
-                placeholder="Name as it appears on the account"
-                required
-              />
-              
-              <FormSelect
-                label="Account Type"
-                value={accountType}
-                onChange={setAccountType}
-                options={[
-                  { value: "checking", label: "Checking" },
-                  { value: "savings", label: "Savings" },
-                ]}
-              />
-              
-              <FormInput
-                label="Routing Number"
-                value={routingNumber}
-                onChange={setRoutingNumber}
-                placeholder="9-digit routing number"
-                required
-              />
-              
-              <FormInput
-                label="Account Number"
-                value={accountNumber}
-                onChange={setAccountNumber}
-                placeholder="Your account number"
-                required
-              />
-              
-              <p className="text-sm text-muted-foreground">
-                Your bank details are encrypted and stored securely.
-              </p>
+      <div className="px-4 md:px-6 pb-12 max-w-4xl mx-auto">
+        <div className="space-y-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          )}
+          ) : !hasStripeAccount ? (
+            <div className="card-neesh">
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                  <AlertCircle className="h-6 w-6 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-medium text-foreground">Set Up Your Payout Method</h3>
+                    <p className="text-muted-foreground mt-1">
+                      Connect your bank account with Stripe to receive payments from retailers. This secure process only takes a few minutes.
+                    </p>
+                  </div>
+                </div>
 
-          {/* PayPal Details */}
-          {payoutMethod === "paypal" && (
-            <div className="card-neesh space-y-4">
-              <h3 className="font-display font-semibold text-lg text-foreground">
-                PayPal Details
-              </h3>
-              
-              <FormInput
-                label="PayPal Email"
-                type="email"
-                value={paypalEmail}
-                onChange={setPaypalEmail}
-                placeholder="your-email@example.com"
-                required
-              />
-              
-              <p className="text-sm text-muted-foreground">
-                Make sure this email is linked to your PayPal account.
-              </p>
+                <ButtonPrimary 
+                  onClick={async () => {
+                    try {
+                      setIsLoading(true);
+                      const { data, error } = await supabase.functions.invoke('create-stripe-account');
+                      
+                      console.log('create-stripe-account response:', { data, error });
+                      
+                      if (error) {
+                        console.error('Error creating Stripe account:', error);
+                        // Try to get the actual error message from the response
+                        let errorMessage = "Failed to create Stripe account";
+                        
+                        if (data?.error) {
+                          errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                        } else if (error.message) {
+                          errorMessage = error.message;
+                        }
+                        
+                        console.error('Displaying error:', errorMessage);
+                        toast.error(errorMessage);
+                        return;
+                      }
+                      
+                      if (data?.url) {
+                        // Redirect to Stripe onboarding
+                        console.log('Redirecting to Stripe onboarding:', data.url);
+                        window.location.href = data.url;
+                      } else {
+                        console.error('No URL in response:', data);
+                        toast.error("Could not generate onboarding link");
+                      }
+                    } catch (error) {
+                      console.error('Error setting up payouts:', error);
+                      toast.error("Failed to set up payouts");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Setting up...
+                    </>
+                  ) : (
+                    'Set Up Payouts with Stripe'
+                  )}
+                </ButtonPrimary>
+
+                <p className="text-sm text-muted-foreground">
+                  Powered by <strong>Stripe Connect</strong> • Secure and trusted by millions of businesses
+                </p>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Embedded Stripe Components */}
+              <div className="card-neesh">
+                <Tabs defaultValue="account" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="account">Account Details</TabsTrigger>
+                    <TabsTrigger value="payouts">Payouts</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="account" className="mt-0">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-display font-semibold text-lg text-foreground">
+                          Account Management
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Update your bank account details, business information, and tax forms.
+                        </p>
+                      </div>
+                      <StripeAccountManagement component="account_management" />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="payouts" className="mt-0">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-display font-semibold text-lg text-foreground">
+                          Payout History
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          View your payout history, upcoming payouts, and manage your payout schedule.
+                        </p>
+                      </div>
+                      <StripeAccountManagement component="payouts" />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Fallback option */}
+              <div className="card-neesh">
+                <h3 className="font-display font-semibold text-lg text-foreground mb-3">
+                  Need More Options?
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  For advanced settings, tax forms, or if you're having issues with the embedded view, 
+                  you can open the full Stripe Dashboard.
+                </p>
+                <ButtonSecondary 
+                  onClick={handleOpenDashboard}
+                  disabled={isOpeningDashboard}
+                >
+                  {isOpeningDashboard ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Opening...
+                    </>
+                  ) : (
+                    <>
+                      Open Full Stripe Dashboard
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </ButtonSecondary>
+              </div>
+            </>
           )}
-
-          {/* Payout Schedule */}
-          <div className="card-neesh space-y-4">
-            <h3 className="font-display font-semibold text-lg text-foreground">
-              Payout Schedule
-            </h3>
-            
-            <FormSelect
-              label="When to receive payouts"
-              value={payoutSchedule}
-              onChange={setPayoutSchedule}
-              options={[
-                { value: "monthly_1", label: "Monthly, on the 1st" },
-                { value: "monthly_15", label: "Monthly, on the 15th" },
-                { value: "biweekly", label: "Bi-weekly (every 2 weeks)" },
-                { value: "weekly", label: "Weekly" },
-              ]}
-            />
-            
-            <p className="text-sm text-muted-foreground">
-              Payouts require a minimum balance of $50. Amounts below this threshold will roll over to the next payout period.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <ButtonSecondary
-              type="button"
-              onClick={() => navigate("/publisher/settings")}
-            >
-              Cancel
-            </ButtonSecondary>
-            <ButtonPrimary type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Payout Settings"}
-            </ButtonPrimary>
-          </div>
-        </form>
+        </div>
       </div>
     </PublisherLayout>
   );
 };
 
 export default PublisherPayoutSettings;
+

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { ApplicationStatus, APPLICATION_STATUS } from '@/lib/constants';
 
 type UserRole = 'publisher' | 'retailer' | 'admin';
 
@@ -20,11 +21,18 @@ interface Profile {
   website_url: string | null;
 }
 
+interface PublisherStatus {
+  publisherId: string;
+  applicationStatus: ApplicationStatus;
+  currentStep: number;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   userRole: UserRole | null;
+  publisherStatus: PublisherStatus | null;
   isLoading: boolean;
   isRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -33,6 +41,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshPublisherStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,8 +51,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [publisherStatus, setPublisherStatus] = useState<PublisherStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRoleLoading, setIsRoleLoading] = useState(true);
+
+  const fetchPublisherStatus = async (userId: string) => {
+    const { data: publisher, error } = await supabase
+      .from('publishers')
+      .select('id, application_status, current_onboarding_step')
+      .eq('user_id', userId)
+      .single();
+
+    if (publisher && !error) {
+      setPublisherStatus({
+        publisherId: publisher.id,
+        applicationStatus: publisher.application_status as ApplicationStatus,
+        currentStep: publisher.current_onboarding_step || 1,
+      });
+    } else {
+      setPublisherStatus(null);
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     setIsRoleLoading(true);
@@ -53,7 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .select('*')
       .eq('user_id', userId)
       .single();
-    
+
     if (profileData) {
       setProfile(profileData);
     }
@@ -64,14 +92,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .select('role')
       .eq('id', userId)
       .single();
-    
+
     if (userData) {
-      setUserRole(userData.role as UserRole);
+      const role = userData.role as UserRole;
+      setUserRole(role);
+
+      // If publisher, also fetch publisher status
+      if (role === 'publisher') {
+        await fetchPublisherStatus(userId);
+      }
     } else {
       setUserRole(null);
     }
     
     setIsRoleLoading(false);
+  };
+
+  const refreshPublisherStatus = async () => {
+    if (user) {
+      await fetchPublisherStatus(user.id);
+    }
   };
 
   useEffect(() => {
@@ -80,7 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         // Defer profile fetch to avoid deadlock
         if (session?.user) {
           // CRITICAL: Set loading state BEFORE scheduling fetch
@@ -91,9 +131,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setProfile(null);
           setUserRole(null);
+          setPublisherStatus(null);
           setIsRoleLoading(false);
         }
-        
+
         setIsLoading(false);
       }
     );
@@ -102,13 +143,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
         fetchProfile(session.user.id);
       } else {
         setIsRoleLoading(false);
       }
-      
+
       setIsLoading(false);
     });
 
@@ -125,10 +166,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, role: UserRole) => {
     const redirectUrl = `${window.location.origin}/`;
-    
-    // SECURITY: Role is passed via user_metadata and validated server-side
-    // by the handle_new_user() trigger which blocks admin self-assignment
-    const { error } = await supabase.auth.signUp({
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -143,16 +182,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: error as Error };
     }
 
-    // User and profile records are created automatically by the 
-    // on_auth_user_created trigger which calls handle_new_user()
-    // This ensures role validation happens server-side
+    // Create user and profile entries if signup successful
+    if (data.user) {
+      // Insert into users table
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: data.user.id,
+          email: email,
+          username: email.split('@')[0],
+          role: role,
+          password_hash: 'managed_by_supabase_auth', // Placeholder - actual hash is in auth.users
+        });
+
+      if (userError) {
+        console.error('Error creating user record:', userError);
+      }
+
+      // Insert into profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: data.user.id,
+        });
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+      }
+    }
 
     return { error: null };
   };
 
   const signInWithGoogle = async () => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -163,17 +227,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         },
       },
     });
-    
+
     return { error: error as Error | null };
   };
 
   const resetPassword = async (email: string) => {
     const redirectUrl = `${window.location.origin}/reset-password`;
-    
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
     });
-    
+
     return { error: error as Error | null };
   };
 
@@ -181,7 +245,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
-    
+
     return { error: error as Error | null };
   };
 
@@ -191,6 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     setUserRole(null);
+    setPublisherStatus(null);
   };
 
   return (
@@ -199,6 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       session,
       profile,
       userRole,
+      publisherStatus,
       isLoading,
       isRoleLoading,
       signIn,
@@ -207,6 +273,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       resetPassword,
       updatePassword,
       signOut,
+      refreshPublisherStatus,
     }}>
       {children}
     </AuthContext.Provider>

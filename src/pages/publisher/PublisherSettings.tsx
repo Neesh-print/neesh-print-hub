@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary } from "@/components/neesh";
+import { BackNavigation, FormInput, ButtonSecondary, ButtonPrimary, FormTextarea } from "@/components/neesh";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -9,11 +9,22 @@ import { SocialLinkInput } from "@/components/ui/social-link-input";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+
+import { supabase } from "@/integrations/supabase/client";
 
 export const PublisherSettings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { publisher, updateProfile } = usePublisherProfile();
+  const { publisher, isLoading, updateProfile } = usePublisherProfile();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    company_name: "",
+    description: "",
+  });
 
   // Social links state
   const [instagramHandle, setInstagramHandle] = useState<string | null>(null);
@@ -23,6 +34,10 @@ export const PublisherSettings = () => {
   // Sync with publisher data
   useEffect(() => {
     if (publisher) {
+      setFormData({
+        company_name: publisher.company_name || "",
+        description: publisher.description || "",
+      });
       setInstagramHandle(publisher.instagram_handle);
       setWebsiteUrl(publisher.website_url);
     }
@@ -40,12 +55,38 @@ export const PublisherSettings = () => {
     navigate("/publisher");
   };
 
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const success = await updateProfile(formData);
+      if (success) {
+        toast.success("Profile saved successfully");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleNotificationChange = (key: keyof typeof notifications) => {
     setNotifications(prev => ({
       ...prev,
       [key]: !prev[key],
     }));
   };
+
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+          <div className="flex items-center justify-center p-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+      </PublisherLayout>
+    );
+  }
 
   return (
     <PublisherLayout>
@@ -56,6 +97,35 @@ export const PublisherSettings = () => {
         />
 
         <div className="space-y-6">
+          {/* Publisher Profile */}
+          <div className="card-neesh">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-lg text-foreground">
+                Publisher Profile
+                </h3>
+                <ButtonPrimary onClick={handleSave} disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                </ButtonPrimary>
+            </div>
+            
+            <div className="space-y-4">
+              <FormInput
+                label="Company / Publication Name"
+                placeholder="e.g. Kinfolk"
+                value={formData.company_name}
+                onChange={(value) => handleChange('company_name', value)}
+              />
+
+              <FormTextarea
+                label="Description / Bio"
+                placeholder="Tell retailers about your publications..."
+                value={formData.description}
+                onChange={(value) => handleChange('description', value)}
+              />
+            </div>
+          </div>
+
           {/* Notification Preferences */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-lg text-foreground mb-4">
@@ -165,9 +235,63 @@ export const PublisherSettings = () => {
               Payout Settings
             </h3>
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Current payout method</p>
-                <p className="text-foreground">Bank account ending in ****1234</p>
+              <p className="text-sm text-muted-foreground mb-2">
+                Update your bank account details for receiving periodic payouts.
+              </p>
+              
+              <FormInput
+                label="Bank Name"
+                value="Stripe Connected Account"
+                onChange={() => {}}
+                disabled
+                helperText="Managed via Stripe Connect"
+              />
+
+              <div className="p-4 bg-secondary/50 rounded-lg border border-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">Stripe Connect Status</p>
+                    <p className="text-sm text-muted-foreground">Account active and ready for payouts</p>
+                  </div>
+                  <ButtonSecondary 
+                    onClick={async () => {
+                      try {
+                        setIsOpeningDashboard(true);
+                        const { data, error } = await supabase.functions.invoke('create-connect-login-link');
+                        
+                        if (error) {
+                          // Check if it's a 404 (no Stripe account)
+                          if (error.message?.includes('404') || error.message?.includes('not found')) {
+                            toast.error("No Stripe account connected. Please contact support to set up payouts.");
+                            return;
+                          }
+                          throw error;
+                        }
+                        
+                        if (data?.url) {
+                          window.open(data.url, '_blank');
+                        } else {
+                          toast.error("Could not generate dashboard link");
+                        }
+                      } catch (error) {
+                        console.error('Error opening dashboard:', error);
+                        toast.error("Failed to open Stripe Dashboard");
+                      } finally {
+                        setIsOpeningDashboard(false);
+                      }
+                    }}
+                    disabled={isOpeningDashboard}
+                  >
+                    {isOpeningDashboard ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Opening...
+                      </>
+                    ) : (
+                      "View Dashboard"
+                    )}
+                  </ButtonSecondary>
+                </div>
               </div>
 
               <div>
@@ -180,7 +304,7 @@ export const PublisherSettings = () => {
               </ButtonSecondary>
 
               <p className="text-sm text-muted-foreground">
-                Contact support@neesh.art to change your payout details
+                To update your bank account details, please visit your Stripe Express dashboard.
               </p>
             </div>
           </div>
@@ -206,12 +330,12 @@ export const PublisherSettings = () => {
 
               {/* Danger Zone */}
               <div>
-                <h4 className="font-medium text-destructive mb-1">Delete Account</h4>
+                <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
                 <p className="text-sm text-muted-foreground mb-3">
-                  This will permanently delete your account, titles, and order history
+                  This will deactivate your account. Your titles and order history will be preserved.
                 </p>
                 <ButtonSecondary destructive>
-                  Delete Account
+                  Deactivate Account
                 </ButtonSecondary>
               </div>
             </div>

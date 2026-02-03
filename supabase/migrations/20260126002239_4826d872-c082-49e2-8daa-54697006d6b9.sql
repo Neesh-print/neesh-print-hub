@@ -16,6 +16,7 @@ VALUES ('retailer-profiles', 'retailer-profiles', true, 5242880) -- 5MB limit
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for retailer profile images
+DROP POLICY IF EXISTS "Retailers can upload own profile images" ON storage.objects;
 CREATE POLICY "Retailers can upload own profile images"
 ON storage.objects FOR INSERT
 WITH CHECK (
@@ -23,6 +24,7 @@ WITH CHECK (
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
+DROP POLICY IF EXISTS "Retailers can update own profile images" ON storage.objects;
 CREATE POLICY "Retailers can update own profile images"
 ON storage.objects FOR UPDATE
 USING (
@@ -30,6 +32,7 @@ USING (
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
+DROP POLICY IF EXISTS "Retailers can delete own profile images" ON storage.objects;
 CREATE POLICY "Retailers can delete own profile images"
 ON storage.objects FOR DELETE
 USING (
@@ -37,6 +40,7 @@ USING (
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
+DROP POLICY IF EXISTS "Profile images are publicly readable" ON storage.objects;
 CREATE POLICY "Profile images are publicly readable"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'retailer-profiles');

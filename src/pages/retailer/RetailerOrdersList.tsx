@@ -3,32 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Grid3X3, List, Search, ArrowUpDown, SlidersHorizontal, Check, ShoppingBag } from "lucide-react";
 import { RetailerLayout } from "@/components/retailer";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, EmptyState, ButtonPrimary } from "@/components/neesh";
+import { useOrders, type Order } from "@/hooks/useOrders";
+import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { formatDistanceToNow } from "date-fns";
 import type { DataTableColumn } from "@/components/neesh";
 import type { StatusType } from "@/components/neesh/StatusBadge";
-
-interface Order {
-  [key: string]: unknown;
-  id: string;
-  publisher: string;
-  total: number;
-  time: string;
-  date: string;
-  quantity: number;
-  shipping: string;
-  paymentStatus: "paid" | "pending";
-  fulfillmentStatus: "pending" | "received" | "unfulfilled";
-}
-
-const mockOrders: Order[] = [
-  { id: "#0001", publisher: "Weird Walk", total: 26.43, time: "2 hours ago", date: "Jan 15, 2026", quantity: 3, shipping: "Standard", paymentStatus: "paid", fulfillmentStatus: "received" },
-  { id: "#0002", publisher: "Apartamento", total: 54.00, time: "5 hours ago", date: "Jan 15, 2026", quantity: 3, shipping: "Express", paymentStatus: "paid", fulfillmentStatus: "pending" },
-  { id: "#0003", publisher: "MacGuffin", total: 67.50, time: "1 day ago", date: "Jan 14, 2026", quantity: 3, shipping: "Standard", paymentStatus: "pending", fulfillmentStatus: "unfulfilled" },
-  { id: "#0004", publisher: "Kinfolk", total: 96.00, time: "2 days ago", date: "Jan 13, 2026", quantity: 4, shipping: "Standard", paymentStatus: "paid", fulfillmentStatus: "received" },
-  { id: "#0005", publisher: "Cabana", total: 180.00, time: "3 days ago", date: "Jan 12, 2026", quantity: 4, shipping: "Express", paymentStatus: "paid", fulfillmentStatus: "received" },
-  { id: "#0006", publisher: "Monocle", total: 45.00, time: "4 days ago", date: "Jan 11, 2026", quantity: 3, shipping: "Standard", paymentStatus: "pending", fulfillmentStatus: "pending" },
-  { id: "#0007", publisher: "The Gourmand", total: 60.00, time: "5 days ago", date: "Jan 10, 2026", quantity: 3, shipping: "Standard", paymentStatus: "paid", fulfillmentStatus: "unfulfilled" },
-  { id: "#0008", publisher: "Offscreen", total: 76.00, time: "1 week ago", date: "Jan 8, 2026", quantity: 4, shipping: "Express", paymentStatus: "paid", fulfillmentStatus: "received" },
-];
 
 const tabs = [
   { id: "orders", label: "My Orders" },
@@ -42,41 +21,72 @@ export const RetailerOrdersList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"compact" | "comfortable">("comfortable");
 
+  // Fetch retailer profile and orders
+  const { retailer } = useRetailerProfile();
+  const { orders, isLoading, error } = useOrders({ retailerId: retailer?.id });
+
   const handleSelectionChange = (selectedIds: string[]) => {
     setSelectedOrders(selectedIds);
   };
 
-  const filteredOrders = mockOrders.filter(order =>
-    order.publisher.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    order.id.toLowerCase().includes(searchQuery.toLowerCase())
+  // Client-side filtering
+  const filteredOrders = orders.filter(order =>
+    order.magazine?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    order.order_number.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(price);
+  };
 
   const columns: DataTableColumn<Order>[] = [
     {
-      key: "id",
+      key: "order_number",
       header: "Order",
-      render: (_, row) => <span className="font-medium">{row.id}</span>,
+      render: (_, row) => <span className="font-medium">{row.order_number}</span>,
     },
     {
-      key: "publisher",
-      header: "Publisher",
+      key: "magazine",
+      header: "Magazine",
       sortable: true,
-    },
-    {
-      key: "total",
-      header: "Total",
-      sortable: true,
-      render: (_, row) => `$${row.total.toFixed(2)}`,
-    },
-    {
-      key: "time",
-      header: "Time",
       render: (_, row) => (
-        <div>
-          <span className="block">{row.time}</span>
-          <span className="text-xs text-muted-foreground">{row.date}</span>
+        <div className="flex items-center gap-3">
+          {row.magazine?.cover_image_url && (
+            <div className="w-8 h-10 rounded overflow-hidden bg-secondary flex-shrink-0">
+              <img
+                src={row.magazine.cover_image_url}
+                alt={row.magazine.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <span>{row.magazine?.title || "Unknown Magazine"}</span>
         </div>
       ),
+    },
+    {
+      key: "total_amount",
+      header: "Total",
+      sortable: true,
+      render: (_, row) => formatPrice(row.total_amount),
+    },
+    {
+      key: "created_at",
+      header: "Time",
+      render: (_, row) => {
+        const date = new Date(row.created_at);
+        const timeAgo = formatDistanceToNow(date, { addSuffix: true });
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return (
+          <div>
+            <span className="block">{timeAgo}</span>
+            <span className="text-xs text-muted-foreground">{dateStr}</span>
+          </div>
+        );
+      },
     },
     {
       key: "quantity",
@@ -84,39 +94,66 @@ export const RetailerOrdersList = () => {
       align: "center",
     },
     {
-      key: "shipping",
-      header: "Shipping",
-    },
-    {
-      key: "paymentStatus",
+      key: "payment_status",
       header: "Payment",
       render: (_, row) => {
-        const status: StatusType = row.paymentStatus === "paid" ? "payment-sent" : "payment-pending";
-        const label = row.paymentStatus === "paid" ? "PAYMENT SENT" : "PAYMENT PENDING";
+        const isPaid = row.payment_status === "paid";
+        const status: StatusType = isPaid ? "payment-sent" : "payment-pending";
+        const label = isPaid ? "PAYMENT SENT" : "PAYMENT PENDING";
         return (
           <div className="flex items-center gap-2">
             <StatusBadge status={status} label={label} />
-            {row.paymentStatus === "paid" && (
-              <Check className="w-4 h-4 text-green-600" />
-            )}
+            {isPaid && <Check className="w-4 h-4 text-green-600" />}
           </div>
         );
       },
     },
     {
-      key: "fulfillmentStatus",
+      key: "fulfillment_status",
       header: "Fulfillment",
       render: (_, row) => {
         const statusMap: Record<string, { status: StatusType; label: string }> = {
           pending: { status: "pending", label: "PENDING" },
-          received: { status: "received", label: "RECEIVED" },
-          unfulfilled: { status: "unfulfilled", label: "UNFULFILLED" },
+          paid: { status: "pending", label: "PENDING" },
+          packed: { status: "pending", label: "PACKED" },
+          shipped: { status: "received", label: "SHIPPED" },
+          delivered: { status: "received", label: "DELIVERED" },
         };
-        const config = statusMap[row.fulfillmentStatus];
+        const config = statusMap[row.fulfillment_status] || { status: "pending", label: "PENDING" };
         return <StatusBadge status={config.status} label={config.label} />;
       },
     },
   ];
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <RetailerLayout>
+        <BackNavigation
+          title="My Orders"
+          onBack={() => navigate("/retailer")}
+        />
+        <div className="px-4 md:px-6 py-12 text-center">
+          <p className="text-muted-foreground">Loading orders...</p>
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <RetailerLayout>
+        <BackNavigation
+          title="My Orders"
+          onBack={() => navigate("/retailer")}
+        />
+        <div className="px-4 md:px-6 py-12 text-center">
+          <p className="text-destructive">Error loading orders: {error}</p>
+        </div>
+      </RetailerLayout>
+    );
+  }
 
   return (
     <RetailerLayout>
@@ -196,7 +233,7 @@ export const RetailerOrdersList = () => {
             selectable
             selectedRows={selectedOrders}
             onSelectionChange={handleSelectionChange}
-            onRowClick={(order) => navigate(`/retailer/orders/${order.id.replace("#", "")}`)}
+            onRowClick={(order) => navigate(`/retailer/orders/${order.id}`)}
           />
         )}
       </div>

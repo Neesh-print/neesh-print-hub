@@ -1,53 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle, Package, Truck, Printer, ArrowLeft, ShoppingBag } from "lucide-react";
-import { RetailerLayout } from "@/components/retailer";
+import { CheckCircle, Package, Truck, Printer, ShoppingBag, Loader2 } from "lucide-react";
+import { RetailerLayout, useCart } from "@/components/retailer";
 import { ButtonPrimary, ButtonSecondary, InfoCard } from "@/components/neesh";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Database } from "@/integrations/supabase/types";
 
-// Mock order data - will be replaced with real data fetch
-const MOCK_ORDER_CONFIRMATION = {
-  id: 'ORD-789',
-  email: 'orders@commonplacebooks.com',
-  created_at: '2026-01-17T15:30:00Z',
-  items: [
-    {
-      id: 'item-1',
-      magazine: {
-        title: 'Wax Poetics Issue 75',
-        publisher: 'Wax Poetics',
-        cover_image: 'https://cdn.shopify.com/s/files/1/0985/0326/2389/files/1757968055495.png',
-      },
-      quantity: 3,
-      unit_price: 11.99,
-      total: 35.97,
-    },
-    {
-      id: 'item-2',
-      magazine: {
-        title: 'Mushroom People Volume 2',
-        publisher: 'Broccoli Publishing',
-        cover_image: 'https://cdn.shopify.com/s/files/1/0985/0326/2389/files/1_f42a6f9b-ddb3-4e6e-a873-3a21a6fd5897.png',
-      },
-      quantity: 2,
-      unit_price: 16.79,
-      total: 33.58,
-    },
-  ],
-  subtotal: 69.55,
-  shipping: 8.50,
-  tax: 0,
-  total: 78.05,
-  shipping_address: {
-    business_name: 'Commonplace Books',
-    attention: 'Michael Torres',
-    street: '1234 Main Street',
-    city: 'Denver',
-    state: 'CO',
-    postal_code: '80202',
-    country: 'United States',
-  },
-  estimated_delivery: '5-7 business days',
+type OrderRow = Database['public']['Tables']['orders']['Row'] & {
+  magazines?: {
+    title: string;
+    cover_image_url: string | null;
+    publishers?: {
+      company_name: string | null;
+    } | null;
+  } | null;
 };
 
 interface TimelineStepProps {
@@ -106,10 +74,74 @@ const VerticalTimelineStep = ({ icon, title, description, status, isLast }: Time
   </div>
 );
 
+// Fetch orders by Stripe session ID with polling
+function useOrdersBySessionId(sessionId: string | undefined) {
+  const [pollCount, setPollCount] = useState(0);
+  const MAX_POLL_COUNT = 15; // 15 retries * 2 seconds = 30 seconds max
+
+  const query = useQuery({
+    queryKey: ['orders', 'session', sessionId],
+    queryFn: async (): Promise<OrderRow[]> => {
+      if (!sessionId) throw new Error('No session ID provided');
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          magazines (
+            title,
+            cover_image_url,
+            publishers (
+              company_name
+            )
+          )
+        `)
+        .eq('stripe_session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!sessionId && pollCount < MAX_POLL_COUNT,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // If we have data or reached max polls, stop polling
+      if (data && data.length > 0) return false;
+      if (pollCount >= MAX_POLL_COUNT) return false;
+      
+      // Otherwise, poll every 2 seconds
+      return 2000;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  // Effect to handle polling count increment
+  useEffect(() => {
+    if (!query.data || query.data.length === 0) {
+       // Increment poll count if no data yet
+       // This simple logic might be too aggressive, ideally we increment on each fetch attempt
+       // simplified for now as refetchInterval will handle the stopping condition
+    }
+  }, [query.data]);
+  
+  // Custom polling logic via effect to increment counter on refetch
+  useEffect(() => {
+     if (query.isFetchedAfterMount && (!query.data || query.data.length === 0)) {
+         setPollCount(prev => prev + 1);
+     }
+  }, [query.isFetchedAfterMount, query.dataUpdatedAt, query.data]);
+
+  return { ...query, hasTimedOut: pollCount >= MAX_POLL_COUNT };
+}
+
 export const RetailerOrderConfirmation = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: sessionId } = useParams(); // Renamed from 'id' to 'sessionId'
+  const { clearCart } = useCart();
   const [isVisible, setIsVisible] = useState(false);
+  const hasCleared = useRef(false);
+
+  const { data: orders, isLoading, error, refetch, hasTimedOut } = useOrdersBySessionId(sessionId);
 
   // Animation trigger on mount
   useEffect(() => {
@@ -117,8 +149,13 @@ export const RetailerOrderConfirmation = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // TODO: Fetch real order data based on id
-  const order = MOCK_ORDER_CONFIRMATION;
+  // Clear cart once when orders are confirmed
+  useEffect(() => {
+    if (orders && orders.length > 0 && !hasCleared.current) {
+      clearCart();
+      hasCleared.current = true;
+    }
+  }, [orders, clearCart]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -131,20 +168,72 @@ export const RetailerOrderConfirmation = () => {
     window.print();
   };
 
-  const formatAddress = () => {
-    const addr = order.shipping_address;
+  // Loading state - still waiting for webhook to create orders
+  // Only show loading if we are still polling/loading and haven't timed out
+  if ((isLoading || (!orders || orders.length === 0)) && !hasTimedOut) {
     return (
-      <>
-        <p className="font-medium">{addr.business_name}</p>
-        {addr.attention && <p className="text-muted-foreground">Attn: {addr.attention}</p>}
-        <p className="text-muted-foreground">{addr.street}</p>
-        <p className="text-muted-foreground">
-          {addr.city}, {addr.state} {addr.postal_code}
-        </p>
-        <p className="text-muted-foreground">{addr.country}</p>
-      </>
+      <RetailerLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+          <Loader2 className="w-16 h-16 text-accent animate-spin mb-6" />
+          <h2 className="font-display font-bold text-2xl mb-2">Confirming your order...</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Please wait while we process your payment. This usually takes just a few seconds.
+          </p>
+        </div>
+      </RetailerLayout>
     );
-  };
+  }
+
+  // Timeout state - webhook took too long or error
+  if (error || (orders && orders.length === 0)) {
+    return (
+      <RetailerLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-6">
+            <CheckCircle className="w-10 h-10 text-green-600" />
+          </div>
+          <h2 className="font-display font-bold text-2xl mb-2">Payment Received!</h2>
+          <p className="text-muted-foreground max-w-md mb-6">
+            We've received your payment, but your order details are still processing. 
+            You'll receive a confirmation email shortly at the address you provided during checkout.
+          </p>
+          <ButtonPrimary onClick={() => navigate('/retailer/orders')}>
+            View My Orders
+          </ButtonPrimary>
+        </div>
+      </RetailerLayout>
+    );
+  }
+
+  interface StripeMetadata {
+    customer_email?: string;
+    amount_total?: number;
+  }
+
+  // Success! We have orders - aggregate the data
+  const firstOrder = orders[0];
+  // @ts-ignore: metadata exists in DB but might be missing in generated types
+  const metadata = (firstOrder as any)?.stripe_payment_metadata as unknown as StripeMetadata;
+  const customerEmail = metadata?.customer_email || 'your email';
+  const amountTotal = metadata?.amount_total;
+  
+  // Calculate totals from the order rows
+  const subtotal = orders.reduce((sum, order) => sum + order.total_price, 0);
+  const grandTotal = amountTotal ? amountTotal / 100 : subtotal; // Use Stripe's amount_total if available
+
+  // Prepare line items
+  const items = orders.map((order) => ({
+    id: order.id,
+    magazineTitle: order.magazines?.title || 'Unknown Magazine',
+    publisher: order.magazines?.publishers?.company_name || 'Unknown Publisher',
+    coverImage: order.magazines?.cover_image_url || '',
+    quantity: order.quantity,
+    unitPrice: order.unit_price,
+    total: order.total_price,
+  }));
+
+  // Use first order ID as the display order number
+  const displayOrderNumber = `#${firstOrder.id.slice(0, 8).toUpperCase()}`;
 
   return (
     <RetailerLayout>
@@ -171,14 +260,14 @@ export const RetailerOrderConfirmation = () => {
           </h1>
           <p className="text-muted-foreground">
             Thanks for your order. We've sent a confirmation to{" "}
-            <span className="text-foreground font-medium">{order.email}</span>
+            <span className="text-foreground font-medium">{customerEmail}</span>
           </p>
         </div>
 
         {/* Print-only success header */}
         <div className="hidden print:block print-only text-center mb-6">
           <h1 className="font-display font-bold text-2xl">Order Confirmed</h1>
-          <p className="text-muted-foreground text-sm">Confirmation sent to {order.email}</p>
+          <p className="text-muted-foreground text-sm">Confirmation sent to {customerEmail}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -189,44 +278,46 @@ export const RetailerOrderConfirmation = () => {
               <div className="flex items-center justify-between mb-4 pb-4 border-b">
                 <div>
                   <p className="text-sm text-muted-foreground">Order Number</p>
-                  <p className="font-display font-bold text-xl">#{order.id}</p>
+                  <p className="font-display font-bold text-xl">{displayOrderNumber}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Order Date</p>
                   <p className="font-medium">
-                    {format(new Date(order.created_at), 'MMMM d, yyyy')}
+                    {format(new Date(firstOrder.created_at || new Date()), 'MMMM d, yyyy')}
                   </p>
                 </div>
               </div>
 
               {/* Line Items */}
               <div className="space-y-4">
-                {order.items.map((item, index) => (
+                {items.map((item, index) => (
                   <div key={item.id}>
                     <div className="flex gap-4">
                       <div className="w-12 h-16 rounded overflow-hidden bg-secondary flex-shrink-0">
-                        <img
-                          src={item.magazine.cover_image}
-                          alt={item.magazine.title}
-                          className="w-full h-full object-cover"
-                        />
+                        {item.coverImage && (
+                          <img
+                            src={item.coverImage}
+                            alt={item.magazineTitle}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-foreground truncate">
-                          {item.magazine.title}
+                          {item.magazineTitle}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {item.magazine.publisher}
+                          {item.publisher}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {item.quantity} × {formatPrice(item.unit_price)}
+                          {item.quantity} × {formatPrice(item.unitPrice)}
                         </p>
                       </div>
                       <p className="font-medium text-foreground">
                         {formatPrice(item.total)}
                       </p>
                     </div>
-                    {index < order.items.length - 1 && (
+                    {index < items.length - 1 && (
                       <div className="border-b border-border mt-4" />
                     )}
                   </div>
@@ -237,21 +328,11 @@ export const RetailerOrderConfirmation = () => {
               <div className="mt-6 pt-4 border-t space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatPrice(order.subtotal)}</span>
+                  <span>{formatPrice(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span>{formatPrice(order.shipping)}</span>
-                </div>
-                {order.tax > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tax</span>
-                    <span>{formatPrice(order.tax)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between font-display font-bold text-lg pt-2 border-t">
                   <span>Total</span>
-                  <span>{formatPrice(order.total)}</span>
+                  <span>{formatPrice(grandTotal)}</span>
                 </div>
               </div>
             </div>
@@ -315,11 +396,15 @@ export const RetailerOrderConfirmation = () => {
           <div className="lg:col-span-1 space-y-4">
             {/* Shipping Details */}
             <InfoCard title="Shipping To">
-              <div className="text-sm space-y-1">{formatAddress()}</div>
+              <div className="text-sm space-y-1">
+                <p className="text-muted-foreground">
+                  Address provided during checkout
+                </p>
+              </div>
               <div className="mt-4 pt-4 border-t">
                 <p className="text-sm">
                   <span className="text-muted-foreground">Estimated delivery:</span>{" "}
-                  <span className="font-medium">{order.estimated_delivery}</span>
+                  <span className="font-medium">5-7 business days</span>
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   You'll receive tracking information once your order ships
@@ -331,7 +416,7 @@ export const RetailerOrderConfirmation = () => {
             <div className="space-y-3 no-print">
               <ButtonPrimary
                 fullWidth
-                onClick={() => navigate(`/retailer/orders/${id}`)}
+                onClick={() => navigate('/retailer/orders')}
               >
                 View Order Details
               </ButtonPrimary>

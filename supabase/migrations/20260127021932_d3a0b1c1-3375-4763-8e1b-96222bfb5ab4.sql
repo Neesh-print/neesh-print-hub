@@ -32,12 +32,15 @@ JOIN users u2 ON p.user_id = u2.id;
 DROP POLICY IF EXISTS "Users can insert own record" ON public.users;
 
 -- Create policy to block authenticated user inserts (trigger handles this)
+-- Create policy to block authenticated user inserts (trigger handles this)
+DROP POLICY IF EXISTS "Block authenticated user inserts" ON public.users;
 CREATE POLICY "Block authenticated user inserts"
 ON public.users FOR INSERT
 TO authenticated
 WITH CHECK (false);
 
 -- Ensure anonymous users cannot access users table at all
+DROP POLICY IF EXISTS "Block anonymous access to users" ON public.users;
 CREATE POLICY "Block anonymous access to users"
 ON public.users FOR ALL
 TO anon
@@ -45,6 +48,7 @@ USING (false)
 WITH CHECK (false);
 
 -- Fix #5: Strengthen orders table RLS - ensure no anonymous access
+DROP POLICY IF EXISTS "Block anonymous access to orders" ON public.orders;
 CREATE POLICY "Block anonymous access to orders"
 ON public.orders FOR ALL
 TO anon

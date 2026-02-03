@@ -65,12 +65,14 @@ $function$;
 
 -- 2. notifications: Replace system insert with authenticated user constraint
 DROP POLICY IF EXISTS "System can create notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Authenticated can create notifications" ON public.notifications;
 CREATE POLICY "Authenticated can create notifications" ON public.notifications
 FOR INSERT TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
 -- 3. order_item: Replace with authenticated insert linked to user's orders
 DROP POLICY IF EXISTS "System can create order items" ON public.order_item;
+DROP POLICY IF EXISTS "Retailers can create order items" ON public.order_item;
 CREATE POLICY "Retailers can create order items" ON public.order_item
 FOR INSERT TO authenticated
 WITH CHECK (
@@ -83,11 +85,14 @@ WITH CHECK (
 -- 4. payouts: These should be admin-only operations
 DROP POLICY IF EXISTS "System can create payouts" ON public.payouts;
 DROP POLICY IF EXISTS "System can update payouts" ON public.payouts;
+DROP POLICY IF EXISTS "Admins can create payouts" ON public.payouts;
 CREATE POLICY "Admins can create payouts" ON public.payouts
 FOR INSERT TO authenticated
 WITH CHECK (
   EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
 );
+
+DROP POLICY IF EXISTS "Admins can update payouts" ON public.payouts;
 CREATE POLICY "Admins can update payouts" ON public.payouts
 FOR UPDATE TO authenticated
 USING (
@@ -98,6 +103,7 @@ USING (
 DROP POLICY IF EXISTS "service_role_all_publisher_applications" ON public.publisher_applications;
 -- Keep existing more restrictive policies that should already exist
 -- Add admin-only policy for full access
+DROP POLICY IF EXISTS "Admins can manage publisher applications" ON public.publisher_applications;
 CREATE POLICY "Admins can manage publisher applications" ON public.publisher_applications
 FOR ALL TO authenticated
 USING (
@@ -109,6 +115,7 @@ WITH CHECK (
 
 -- 6. returns: Replace with admin-only update
 DROP POLICY IF EXISTS "System can update returns" ON public.returns;
+DROP POLICY IF EXISTS "Admins can update returns" ON public.returns;
 CREATE POLICY "Admins can update returns" ON public.returns
 FOR UPDATE TO authenticated
 USING (

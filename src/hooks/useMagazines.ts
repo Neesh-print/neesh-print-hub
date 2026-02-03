@@ -33,6 +33,7 @@ export interface UseMagazinesOptions {
   status?: 'active' | 'archived' | 'all';
   limit?: number;
   searchQuery?: string;
+  enabled?: boolean;
 }
 
 export interface UseMagazinesReturn {
@@ -44,10 +45,18 @@ export interface UseMagazinesReturn {
 
 export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesReturn => {
   const [magazines, setMagazines] = useState<Magazine[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(options.enabled !== false);
   const [error, setError] = useState<string | null>(null);
 
+
+
+
   const fetchMagazines = useCallback(async () => {
+    if (options.enabled === false) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -136,7 +145,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
     } finally {
       setIsLoading(false);
     }
-  }, [options.publisherId, options.status, options.limit, options.searchQuery]);
+  }, [options.publisherId, options.status, options.limit, options.searchQuery, options.enabled]);
 
   useEffect(() => {
     fetchMagazines();

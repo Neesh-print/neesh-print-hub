@@ -42,7 +42,7 @@ export function useConversationsQuery() {
     queryKey: ['conversations', currentUser?.id, currentUser?.type],
     queryFn: async (): Promise<Conversation[]> => {
       if (!currentUser) return [];
-      
+
       // First, get all conversation IDs where current user is a participant
       const { data: participantData, error: participantError } = await supabase
         .from('conversation_participants')
@@ -50,7 +50,7 @@ export function useConversationsQuery() {
         .eq('user_id', currentUser.id)
         .eq('user_type', currentUser.type)
         .eq('is_archived', false);
-      
+
       if (participantError) throw participantError;
       if (!participantData || participantData.length === 0) return [];
       
@@ -71,7 +71,7 @@ export function useConversationsQuery() {
       
       if (conversationsError) throw conversationsError;
       if (!conversationsData) return [];
-      
+
       // Fetch all participants for these conversations
       const { data: allParticipants, error: allParticipantsError } = await supabase
         .from('conversation_participants')
@@ -81,7 +81,7 @@ export function useConversationsQuery() {
       if (allParticipantsError) throw allParticipantsError;
       
       // Map conversations with their participants and compute unread count
-      return conversationsData.map(conv => {
+      const result = conversationsData.map(conv => {
         const participants = (allParticipants || [])
           .filter(p => p.conversation_id === conv.id)
           .map(p => ({
@@ -128,6 +128,8 @@ export function useConversationsQuery() {
           unreadCount,
         } as Conversation;
       });
+
+      return result;
     },
     enabled: !!currentUser,
     staleTime: 30000, // 30 seconds

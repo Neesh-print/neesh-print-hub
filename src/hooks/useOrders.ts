@@ -14,7 +14,17 @@ export interface Order {
   shipped_at: string | null;
   tracking_number: string | null;
   carrier: string | null;
-  shipping_address: string | null;
+  shipping_address: {
+    name?: string;
+    address?: {
+        line1?: string;
+        line2?: string;
+        city?: string;
+        state?: string;
+        postal_code?: string;
+        country?: string;
+    };
+  } | null;
   retailer: {
     id: string;
     shop_name: string | null;
@@ -56,34 +66,15 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     setError(null);
 
     try {
-      // First, fetch orders with magazines (no retailers join - FK points to users, not retailers)
-      let query = supabase
-        .from('orders')
-        .select(`
-          id,
-          status,
-          total_price,
-          unit_price,
-          quantity,
-          created_at,
-          updated_at,
-          tracking_number,
-          shipping_address,
-          notes,
-          retailer_id,
-          magazine_id,
-          magazines (
-            id,
-            title,
-            cover_image_url,
-            publisher_id
-          )
-        `)
+      // Use the order_details_with_pricing view which already joins orders with
+      // retailers, magazines, and publishers correctly
+      let query = supabase.from('order_details_with_pricing')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      // Filter by publisher - get orders for magazines owned by this publisher
+      // Filter by publisher
       if (options.publisherId) {
-        query = query.eq('magazines.publisher_id', options.publisherId);
+        query = query.eq('publisher_id', options.publisherId);
       }
 
       if (options.retailerId) {
@@ -108,57 +99,38 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
 
       if (fetchError) throw fetchError;
 
-      // Get unique retailer_ids to fetch retailer info
-      const retailerIds = [...new Set((data || []).map((item: any) => item.retailer_id).filter(Boolean))];
-      
-      // Fetch retailers by user_id (since retailer_id in orders references users.id)
-      let retailersMap: Record<string, { id: string; shop_name: string | null; user_id: string }> = {};
-      if (retailerIds.length > 0) {
-        const { data: retailers } = await supabase
-          .from('retailers')
-          .select('id, shop_name, user_id')
-          .in('user_id', retailerIds);
-        
-        if (retailers) {
-          retailersMap = retailers.reduce((acc, r) => {
-            acc[r.user_id] = { id: r.id, shop_name: r.shop_name, user_id: r.user_id };
-            return acc;
-          }, {} as Record<string, { id: string; shop_name: string | null; user_id: string }>);
-        }
-      }
-
-      // Transform data to match Order interface
-      const transformedOrders: Order[] = (data || []).map((item: any, index: number) => ({
-        id: item.id,
+      // Transform view data to match Order interface
+      // Cast to any[] to handle new columns not yet in generated types
+      const transformedOrders: Order[] = ((data as any[]) || []).map((item, index) => ({
+        id: item.id || `temp-${index}`,
         order_number: `#${String(index + 1).padStart(4, '0')}`,
-        status: item.status,
-        fulfillment_status: item.status, // Using status as fulfillment_status since schema doesn't have separate field
+        status: item.status || 'pending',
+        fulfillment_status: item.status || 'pending',
         payment_status: item.status === 'pending' ? 'pending' : 'paid',
         total_amount: Number(item.total_price) || 0,
-        shipping_amount: 0, // Not in current schema
-        created_at: item.created_at,
-        shipped_at: null, // Not in current schema
+        shipping_amount: 0,
+        created_at: item.created_at || new Date().toISOString(),
+        shipped_at: item.status === 'shipped' ? item.updated_at : null,
         tracking_number: item.tracking_number,
-        carrier: null, // Not in current schema
-        shipping_address: item.shipping_address,
-        retailer: retailersMap[item.retailer_id] || null,
-        magazine: item.magazines ? {
-          id: item.magazines.id,
-          title: item.magazines.title,
-          cover_image_url: item.magazines.cover_image_url,
-          publisher_id: item.magazines.publisher_id,
+        carrier: item.carrier,
+        shipping_address: item.shipping_address, // Now available from view
+        retailer: item.retailer_id ? {
+          id: item.retailer_id,
+          shop_name: item.retailer_shop_name,
+          user_id: item.retailer_id,
         } : null,
-        quantity: item.quantity,
+        magazine: item.magazine_id && item.magazine_title && item.publisher_id ? {
+          id: item.magazine_id,
+          title: item.magazine_title,
+          cover_image_url: item.cover_image_url,
+          publisher_id: item.publisher_id,
+        } : null,
+        quantity: item.quantity || 0,
         unit_price: Number(item.unit_price) || 0,
       }));
 
-      // If filtering by publisher, filter out orders without matching magazines
+      // Filter by fulfillment status if specified (not available in view query)
       let filteredOrders = transformedOrders;
-      if (options.publisherId) {
-        filteredOrders = transformedOrders.filter(
-          order => order.magazine?.publisher_id === options.publisherId
-        );
-      }
 
       // Filter by fulfillment status if specified
       if (options.fulfillmentStatus) {
@@ -174,7 +146,15 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [options.publisherId, options.retailerId, options.status, options.fulfillmentStatus, options.limit, options.dateRange?.start, options.dateRange?.end]);
+  }, [
+    options.publisherId, 
+    options.retailerId, 
+    options.status, 
+    options.fulfillmentStatus, 
+    options.limit, 
+    options.dateRange?.start.toISOString(), 
+    options.dateRange?.end.toISOString()
+  ]);
 
   useEffect(() => {
     fetchOrders();

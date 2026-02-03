@@ -2,55 +2,21 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
-import { Plus, BookOpen } from "lucide-react";
-
-// Mock data for publisher's titles
-const mockTitles = [
-  {
-    id: "1",
-    title: "Kinfolk",
-    issue: "Issue 42",
-    coverImage: "/placeholder.svg",
-    wholesalePrice: 12.00,
-    retailPrice: 18.00,
-    stock: 156,
-    status: "active" as const,
-  },
-  {
-    id: "2",
-    title: "Cereal",
-    issue: "Volume 21",
-    coverImage: "/placeholder.svg",
-    wholesalePrice: 15.00,
-    retailPrice: 22.00,
-    stock: 89,
-    status: "active" as const,
-  },
-  {
-    id: "3",
-    title: "Monocle",
-    issue: "Issue 167",
-    coverImage: "/placeholder.svg",
-    wholesalePrice: 14.00,
-    retailPrice: 20.00,
-    stock: 23,
-    status: "low-stock" as const,
-  },
-  {
-    id: "4",
-    title: "Apartamento",
-    issue: "Issue 31",
-    coverImage: "/placeholder.svg",
-    wholesalePrice: 16.00,
-    retailPrice: 24.00,
-    stock: 0,
-    status: "out-of-stock" as const,
-  },
-];
+import { Plus, BookOpen, Loader2 } from "lucide-react";
+import { useMagazines } from "@/hooks/useMagazines";
+import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 
 export const PublisherTitlesList = () => {
   const navigate = useNavigate();
-  const [titles] = useState(mockTitles);
+  const { publisher, isLoading: publisherLoading } = usePublisherProfile();
+  const { magazines: titles, isLoading: magazinesLoading } = useMagazines({ 
+    publisherId: publisher?.id,
+    enabled: !!publisher?.id
+  });
+
+
+
+  const isLoading = publisherLoading || (publisher && magazinesLoading);
 
   const handleBack = () => {
     navigate("/publisher");
@@ -64,7 +30,16 @@ export const PublisherTitlesList = () => {
     navigate(`/publisher/titles/${titleId}/edit`);
   };
 
-  const getStatusBadge = (status: string) => {
+  // Helper to determine status based on inventory
+  const getStatus = (inventory: number) => {
+    if (inventory === 0) return "out-of-stock";
+    if (inventory < 25) return "low-stock";
+    return "active";
+  };
+
+  const getStatusBadge = (inventory: number) => {
+    const status = getStatus(inventory);
+    
     switch (status) {
       case "active":
         return null;
@@ -84,6 +59,16 @@ export const PublisherTitlesList = () => {
         return null;
     }
   };
+
+  if (isLoading) {
+    return (
+      <PublisherLayout>
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </PublisherLayout>
+    );
+  }
 
   return (
     <PublisherLayout>
@@ -119,7 +104,7 @@ export const PublisherTitlesList = () => {
                 className="relative cursor-pointer group"
               >
                 {/* Status badge */}
-                {getStatusBadge(title.status)}
+                {getStatusBadge(title.inventory_count || 0)}
                 
                 {/* Edit overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
@@ -130,15 +115,16 @@ export const PublisherTitlesList = () => {
                 
                 <MagazineCard
                   title={title.title}
-                  coverImage={title.coverImage}
-                  price={title.wholesalePrice}
-                  publisher={title.issue}
+                  coverImage={title.cover_image_url}
+                  price={title.wholesale_price}
+                  publisher={title.issue_number || ""}
+                  inventoryCount={title.inventory_count}
                   onClick={() => handleEditTitle(title.id)}
                 />
                 
                 {/* Stock info */}
                 <div className="mt-2 text-sm text-muted-foreground">
-                  {title.stock} in stock • WSP ${title.wholesalePrice.toFixed(2)}
+                  {title.inventory_count || 0} in stock • WSP ${title.wholesale_price.toFixed(2)}
                 </div>
               </div>
             ))}

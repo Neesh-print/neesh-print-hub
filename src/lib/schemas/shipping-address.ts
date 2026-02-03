@@ -50,7 +50,7 @@ export const shippingAddressSchema = z.object({
   
   phone: z
     .string()
-    .regex(/^[\d\s\-\(\)\+]*$/, 'Enter a valid phone number')
+    .regex(/^[\d\s\-()+]*$/, 'Enter a valid phone number')
     .optional()
     .or(z.literal('')),
   

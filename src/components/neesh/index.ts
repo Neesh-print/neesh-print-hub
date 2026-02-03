@@ -23,6 +23,12 @@ export type { WalletDisplayProps } from './WalletDisplay';
 export { ProgressBar } from './ProgressBar';
 export type { ProgressBarProps } from './ProgressBar';
 
+export { ApplicationProgress } from './ApplicationProgress';
+export type { ApplicationProgressProps } from './ApplicationProgress';
+
+export { AutoSaveIndicator } from './AutoSaveIndicator';
+export type { AutoSaveIndicatorProps } from './AutoSaveIndicator';
+
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 

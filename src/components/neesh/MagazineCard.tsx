@@ -9,6 +9,10 @@ import { getStockLevel } from "@/lib/inventory";
 
 const SUPABASE_URL = "https://smfzrubkyxejzkblrrjr.supabase.co";
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { calculateRetailerPrice } from "@/utils/pricing";
+import { ImagePlaceholder } from "@/components/shared/ImagePlaceholder";
+
 export interface MagazineCardProps {
   coverImage: string;
   title: string;
@@ -73,18 +77,25 @@ export const MagazineCard = ({
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 bg-muted animate-pulse" />
         )}
-        <img
-          src={displayImage}
-          alt={`${title} cover`}
-          className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => {
-            setImageError(true);
-            setImageLoaded(true);
-          }}
-        />
+        
+        {(imageError || !coverImage) ? (
+          <div className="absolute inset-0">
+            <ImagePlaceholder />
+          </div>
+        ) : (
+          <img
+            src={displayImage}
+            alt={`${title} cover`}
+            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => {
+              setImageError(true);
+              setImageLoaded(true);
+            }}
+          />
+        )}
         
         {/* New Badge - top right corner on image */}
         {isNew && (
@@ -146,7 +157,7 @@ export const MagazineCard = ({
         )}
         
         <PriceDisplay
-          wholesalePrice={price}
+          wholesalePrice={calculateRetailerPrice(price)}
           retailPrice={retailPrice}
           layout="inline"
           size="sm"

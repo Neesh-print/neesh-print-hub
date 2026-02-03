@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, Store, Check, X, Pause, ClipboardList, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { AdminLayout, StatCard, ConfirmationModal } from "@/components/admin";
+import { AdminLayout, StatCard, ConfirmationModal, EmailPreviewModal, type EmailPreviewData } from "@/components/admin";
 import { ApplicationDetailSlideOver, ApplicationData, ApplicationNote } from "@/components/admin/ApplicationDetailSlideOver";
-import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState } from "@/components/neesh";
+import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState, FormTextarea } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
 import { useApplications } from "@/hooks/useApplications";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ interface ApplicationRow {
   originalType: 'publisher' | 'retailer';
   originalStatus: 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted';
   notes: ApplicationNote[];
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -48,6 +48,12 @@ export const AdminApplications = () => {
   const [showBulkReject, setShowBulkReject] = useState(false);
   const [showBulkHold, setShowBulkHold] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Email preview state
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailPreviewData, setEmailPreviewData] = useState<EmailPreviewData | null>(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState<{id: string, type: 'publisher' | 'retailer'} | null>(null);
+  const [pendingRejection, setPendingRejection] = useState<{id: string, type: 'publisher' | 'retailer', reason: string} | null>(null);
   
   // Slide-over state
   const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
@@ -57,7 +63,51 @@ export const AdminApplications = () => {
   const [sortColumn, setSortColumn] = useState<string>('submittedDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const { applications, isLoading, error, approveApplication, rejectApplication, refetch } = useApplications();
+  const {
+    applications,
+    isLoading,
+    error,
+    approveApplication,
+    rejectApplication,
+    getApprovalEmailPreview,
+    getRejectionEmailPreview,
+    refetch
+  } = useApplications();
+
+  // Keep selectedApplication in sync with live data
+  useEffect(() => {
+    if (selectedApplication && isSlideOverOpen) {
+      const liveApp = applications.find(a => a.id === selectedApplication.id);
+      if (liveApp) {
+        // Only update if status or metadata changed to avoid infinite loops
+        if (liveApp.status !== selectedApplication.status || 
+            JSON.stringify(liveApp.data) !== JSON.stringify(selectedApplication.data) ||
+            JSON.stringify(liveApp.data?.notes) !== JSON.stringify(selectedApplication.notes)) {
+          
+          const appData: ApplicationData = {
+            id: liveApp.id,
+            type: liveApp.type === 'publisher' ? 'publisher' : 'retailer',
+            status: liveApp.status as 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted',
+            name: liveApp.name,
+            email: liveApp.email,
+            phone: liveApp.data?.phone,
+            website: liveApp.data?.social_website_link || liveApp.data?.shop_url,
+            instagram: liveApp.data?.instagram_handle,
+            location: liveApp.data?.city 
+              ? `${liveApp.data.city}${liveApp.data.state ? `, ${liveApp.data.state}` : ''}${liveApp.data.country ? `, ${liveApp.data.country}` : ''}`
+              : liveApp.data?.shipping_city 
+                ? `${liveApp.data.shipping_city}${liveApp.data.shipping_state ? `, ${liveApp.data.shipping_state}` : ''}`
+                : undefined,
+            submitted_at: liveApp.data?.created_at || liveApp.data?.submitted_at || liveApp.submitted_at,
+            reviewed_at: liveApp.data?.reviewed_at,
+            notes: (liveApp.data?.notes as ApplicationNote[]) || [],
+            data: liveApp.data || {},
+          };
+          setSelectedApplication(appData);
+        }
+      }
+    }
+  }, [applications, selectedApplication, isSlideOverOpen]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -159,8 +209,8 @@ export const AdminApplications = () => {
         bVal = bVal?.toLowerCase() || '';
       }
       
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      if ((aVal as number | string) < (bVal as number | string)) return sortDirection === 'asc' ? -1 : 1;
+      if ((aVal as number | string) > (bVal as number | string)) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
     return sorted;
@@ -254,13 +304,48 @@ export const AdminApplications = () => {
     setSelectedRows([]);
   };
 
-  // Quick action handlers
+  // Quick action handlers - show email preview first
   const handleQuickApprove = async (id: string, type: 'publisher' | 'retailer') => {
-    return approveApplication(id, type);
+    const emailData = await getApprovalEmailPreview(id, type);
+    if (emailData) {
+      setEmailPreviewData(emailData);
+      setPendingApprovalId({ id, type });
+      setShowEmailPreview(true);
+    } else {
+      toast.error('Failed to generate email preview');
+    }
+    return false; // Return false since we're showing preview, not completing action
   };
 
   const handleQuickReject = async (id: string, type: 'publisher' | 'retailer', reason: string) => {
-    return rejectApplication(id, type, reason);
+    const emailData = await getRejectionEmailPreview(id, type, reason);
+    if (emailData) {
+      setEmailPreviewData(emailData);
+      setPendingRejection({ id, type, reason });
+      setShowEmailPreview(true);
+    } else {
+      toast.error('Failed to generate email preview');
+    }
+    return false; // Return false since we're showing preview, not completing action
+  };
+
+  // Handle actual approval/rejection after email is sent
+  const handleEmailSent = async () => {
+    if (pendingApprovalId) {
+      const { id, type } = pendingApprovalId;
+      const success = await approveApplication(id, type);
+      if (success) {
+        toast.success('Application approved');
+        setPendingApprovalId(null);
+      }
+    } else if (pendingRejection) {
+      const { id, type, reason } = pendingRejection;
+      const success = await rejectApplication(id, type, reason);
+      if (success) {
+        toast.success('Application rejected');
+        setPendingRejection(null);
+      }
+    }
   };
 
   // TODO: Implement hold functionality in useApplications
@@ -336,7 +421,7 @@ export const AdminApplications = () => {
                   const success = await handleQuickApprove(row.id, row.originalType);
                   if (success) toast.success('Application approved');
                 }}
-                className="p-1.5 rounded hover:bg-status-success/20 text-status-success transition-colors"
+                className="p-1.5 rounded hover:bg-status-success text-status-success hover:text-white transition-colors"
                 title="Approve"
               >
                 <Check className="w-4 h-4" />
@@ -534,9 +619,9 @@ export const AdminApplications = () => {
           <div className="flex items-center justify-between max-w-5xl mx-auto">
             <span className="text-body font-medium">{selectedRows.length} selected</span>
             <div className="flex items-center gap-2">
-              <ButtonPrimary 
-                onClick={() => setShowBulkApprove(true)} 
-                className="gap-1.5 bg-status-success hover:bg-status-success/90"
+              <ButtonPrimary
+                onClick={() => setShowBulkApprove(true)}
+                className="gap-1.5 bg-status-success hover:bg-status-success/90 !text-black"
               >
                 <Check className="w-4 h-4" />
                 Approve
@@ -616,6 +701,19 @@ export const AdminApplications = () => {
         title="Place On Hold"
         message={`Place ${selectedRows.length} application${selectedRows.length !== 1 ? 's' : ''} on hold?`}
         confirmLabel="Place On Hold"
+      />
+
+      {/* Email Preview Modal */}
+      <EmailPreviewModal
+        isOpen={showEmailPreview}
+        onClose={() => {
+          setShowEmailPreview(false);
+          setEmailPreviewData(null);
+          setPendingApprovalId(null);
+          setPendingRejection(null);
+        }}
+        emailData={emailPreviewData}
+        onSend={handleEmailSent}
       />
     </AdminLayout>
   );

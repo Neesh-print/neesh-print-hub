@@ -1,34 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal, Download } from "lucide-react";
+import { Search, SlidersHorizontal, Download, Package, AlertCircle } from "lucide-react";
 import { AdminLayout, StatCard, DateRangePicker } from "@/components/admin";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput } from "@/components/neesh";
-
-interface Order {
-  id: string;
-  retailer: string;
-  publisher: string;
-  total: number;
-  orderDate: string;
-  paymentStatus: 'payment-received' | 'payment-pending' | 'payment-sent';
-  fulfillmentStatus: 'received' | 'pending' | 'unfulfilled' | 'returned';
-  [key: string]: unknown;
-}
-
-const mockOrders: Order[] = [
-  { id: "#0049", retailer: "Powell's Books", publisher: "Kinfolk Magazine", total: 450.00, orderDate: "Jan 16, 2026", paymentStatus: "payment-received", fulfillmentStatus: "pending" },
-  { id: "#0048", retailer: "McNally Jackson", publisher: "Cereal Magazine", total: 280.00, orderDate: "Jan 15, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0047", retailer: "City Lights Books", publisher: "The Gourmand", total: 320.00, orderDate: "Jan 14, 2026", paymentStatus: "payment-pending", fulfillmentStatus: "pending" },
-  { id: "#0046", retailer: "Skylight Books", publisher: "Apartamento", total: 180.00, orderDate: "Jan 13, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0045", retailer: "The Strand", publisher: "Drift Magazine", total: 560.00, orderDate: "Jan 12, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0044", retailer: "Rare Device", publisher: "MacGuffin Magazine", total: 145.00, orderDate: "Jan 11, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0043", retailer: "Assembly Coffee", publisher: "Monocle", total: 210.00, orderDate: "Jan 10, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0042", retailer: "Wolfman", publisher: "Kinfolk Magazine", total: 90.00, orderDate: "Jan 9, 2026", paymentStatus: "payment-pending", fulfillmentStatus: "unfulfilled" },
-  { id: "#0041", retailer: "Amoeba Music", publisher: "Offscreen Magazine", total: 175.00, orderDate: "Jan 8, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0040", retailer: "Dusty Groove", publisher: "Cereal Magazine", total: 230.00, orderDate: "Jan 7, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0039", retailer: "Powell's Books", publisher: "Perdiz Magazine", total: 120.00, orderDate: "Jan 6, 2026", paymentStatus: "payment-received", fulfillmentStatus: "received" },
-  { id: "#0038", retailer: "McNally Jackson", publisher: "Works That Work", total: 85.00, orderDate: "Jan 5, 2026", paymentStatus: "payment-received", fulfillmentStatus: "returned" },
-];
+import { useOrders } from "@/hooks/useOrders";
+import { format } from "date-fns";
 
 const tabs = [
   { id: "all", label: "All" },
@@ -47,42 +23,66 @@ export const AdminOrders = () => {
     end: new Date(),
   });
 
-  const filteredOrders = mockOrders.filter((order) => {
-    const matchesSearch = 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.retailer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.publisher.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (activeTab === "all") return matchesSearch;
-    if (activeTab === "pending") return matchesSearch && order.fulfillmentStatus === "pending";
-    if (activeTab === "fulfilled") return matchesSearch && order.fulfillmentStatus === "received";
-    if (activeTab === "returned") return matchesSearch && order.fulfillmentStatus === "returned";
-    return matchesSearch;
-  });
+  const { orders, isLoading, error, refetch } = useOrders({ dateRange });
 
-  const totalOrders = mockOrders.length;
-  const pendingFulfillment = mockOrders.filter(o => o.fulfillmentStatus === 'pending' || o.fulfillmentStatus === 'unfulfilled').length;
-  const shippedThisWeek = mockOrders.filter(o => o.fulfillmentStatus === 'received').length;
-  const revenueThisMonth = mockOrders.reduce((sum, o) => sum + o.total, 0);
+  const filteredOrders = useMemo(() => {
+    return orders
+      .map((order) => ({
+        id: order.id,
+        orderNumber: order.order_number,
+        retailer: order.retailer?.shop_name || "Unknown Retailer",
+        publisher: order.magazine?.title || "Unknown",
+        total: order.total_amount,
+        orderDate: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : "",
+        paymentStatus: order.payment_status === "paid" ? "payment-received" as const : "payment-pending" as const,
+        fulfillmentStatus: order.fulfillment_status === "delivered" || order.fulfillment_status === "shipped"
+          ? "received" as const
+          : order.fulfillment_status === "pending"
+            ? "pending" as const
+            : "unfulfilled" as const,
+        [Symbol.toPrimitive]: undefined,
+      }))
+      .filter((order) => {
+        const matchesSearch =
+          order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.retailer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.publisher.toLowerCase().includes(searchTerm.toLowerCase());
+
+        if (activeTab === "all") return matchesSearch;
+        if (activeTab === "pending") return matchesSearch && order.fulfillmentStatus === "pending";
+        if (activeTab === "fulfilled") return matchesSearch && order.fulfillmentStatus === "received";
+        if (activeTab === "returned") return matchesSearch && order.fulfillmentStatus === "unfulfilled";
+        return matchesSearch;
+      });
+  }, [orders, searchTerm, activeTab]);
+
+  const totalOrders = orders.length;
+  const pendingFulfillment = orders.filter(o => o.fulfillment_status === 'pending').length;
+  const shippedThisWeek = orders.filter(o => {
+    if (o.fulfillment_status !== 'shipped' && o.fulfillment_status !== 'delivered') return false;
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return new Date(o.created_at) > weekAgo;
+  }).length;
+  const revenueThisMonth = orders.reduce((sum, o) => sum + o.total_amount, 0);
 
   const columns = [
-    { key: "id", header: "Order #", sortable: true },
+    { key: "orderNumber", header: "Order #", sortable: true },
     { key: "retailer", header: "Retailer" },
     { key: "publisher", header: "Publisher" },
-    { 
-      key: "total", 
-      header: "Total", 
+    {
+      key: "total",
+      header: "Total",
       align: "right" as const,
-      render: (value: unknown) => `$${(value as number).toFixed(2)}` 
+      render: (value: unknown) => `$${(value as number).toFixed(2)}`
     },
     { key: "orderDate", header: "Date", sortable: true },
-    { 
-      key: "paymentStatus", 
+    {
+      key: "paymentStatus",
       header: "Payment",
       render: (value: unknown) => <StatusBadge status={value as 'payment-received' | 'payment-pending' | 'payment-sent'} />
     },
-    { 
-      key: "fulfillmentStatus", 
+    {
+      key: "fulfillmentStatus",
       header: "Fulfillment",
       render: (value: unknown) => <StatusBadge status={value as 'received' | 'pending' | 'unfulfilled' | 'returned'} />
     },
@@ -90,11 +90,11 @@ export const AdminOrders = () => {
       key: "actions",
       header: "",
       align: "right" as const,
-      render: (_: unknown, row: Order) => (
-        <ButtonSecondary 
+      render: (_: unknown, row: Record<string, unknown>) => (
+        <ButtonSecondary
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/admin/orders/${row.id.replace("#", "")}`);
+            navigate(`/admin/orders/${row.id}`);
           }}
           className="text-caption py-1 px-3"
         >
@@ -104,6 +104,22 @@ export const AdminOrders = () => {
     },
   ];
 
+  if (error) {
+    return (
+      <AdminLayout>
+        <BackNavigation title="All Orders" onBack={() => navigate("/admin")} />
+        <div className="px-4 md:px-6 pb-8">
+          <div className="card-neesh flex flex-col items-center justify-center py-12">
+            <AlertCircle className="w-10 h-10 text-status-error-text mb-3" />
+            <h3 className="font-display font-semibold text-heading text-foreground mb-1">Something went wrong</h3>
+            <p className="text-body text-muted-foreground mb-4">{error}</p>
+            <ButtonSecondary onClick={refetch}>Try Again</ButtonSecondary>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
       <BackNavigation title="All Orders" onBack={() => navigate("/admin")} />
@@ -112,9 +128,9 @@ export const AdminOrders = () => {
       <div className="px-4 md:px-6 pb-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Orders" value={totalOrders} />
-          <StatCard 
-            label="Pending Fulfillment" 
-            value={pendingFulfillment} 
+          <StatCard
+            label="Pending Fulfillment"
+            value={pendingFulfillment}
             highlight={pendingFulfillment > 0 ? 'warning' : 'default'}
           />
           <StatCard label="Shipped This Week" value={shippedThisWeek} />
@@ -174,14 +190,35 @@ export const AdminOrders = () => {
       {/* Data Table */}
       <div className="px-4 md:px-6 pb-8">
         <div className="card-neesh">
-          <DataTable
-            columns={columns}
-            data={filteredOrders}
-            selectable
-            selectedRows={selectedRows}
-            onSelectionChange={setSelectedRows}
-            onRowClick={(row) => navigate(`/admin/orders/${row.id.replace("#", "")}`)}
-          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-pulse text-center">
+                <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-body text-muted-foreground">Loading orders...</p>
+              </div>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Package className="w-10 h-10 text-muted-foreground mb-3 opacity-50" />
+              <h3 className="font-display font-semibold text-heading text-foreground mb-1">
+                {searchTerm || activeTab !== "all" ? "No orders match your filters" : "No orders yet"}
+              </h3>
+              <p className="text-body text-muted-foreground">
+                {searchTerm || activeTab !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Orders will appear here once retailers start placing them"}
+              </p>
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={filteredOrders as unknown as Record<string, unknown>[]}
+              selectable
+              selectedRows={selectedRows}
+              onSelectionChange={setSelectedRows}
+              onRowClick={(row) => navigate(`/admin/orders/${row.id}`)}
+            />
+          )}
         </div>
       </div>
     </AdminLayout>

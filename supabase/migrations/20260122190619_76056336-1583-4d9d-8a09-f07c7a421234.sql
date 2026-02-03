@@ -345,5 +345,6 @@ INSERT INTO magazines (
   true,
   50,
   '00000000-0000-0000-0000-000000000001'::uuid,
-  '160 pages, 6.5" x 9.5", Matte cover, Perfect bound'
-);
+  '128 pages, 6.75" x 9.5", Softcover, Perfect bound'
+)
+ON CONFLICT DO NOTHING;

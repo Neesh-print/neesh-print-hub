@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { ButtonPrimary, ButtonSecondary, Logo } from "@/components/neesh";
 import { useState } from "react";
@@ -14,7 +13,6 @@ interface ErrorPageProps {
 }
 
 export default function ErrorPage({ error, resetErrorBoundary }: ErrorPageProps) {
-  const navigate = useNavigate();
   const isDev = import.meta.env.DEV;
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -53,7 +51,7 @@ export default function ErrorPage({ error, resetErrorBoundary }: ErrorPageProps)
         <ButtonPrimary onClick={handleTryAgain}>
           Try Again
         </ButtonPrimary>
-        <ButtonSecondary onClick={() => navigate('/')}>
+        <ButtonSecondary onClick={() => window.location.href = '/'}>
           Go Home
         </ButtonSecondary>
       </div>

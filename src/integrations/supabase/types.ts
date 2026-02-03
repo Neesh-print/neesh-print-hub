@@ -1022,6 +1022,7 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          stripe_account_id: string | null
           submitted_at: string | null
           total_magazines: number | null
           total_sales: number | null
@@ -1046,6 +1047,7 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_id?: string | null
           submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null
@@ -1070,6 +1072,7 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_id?: string | null
           submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null

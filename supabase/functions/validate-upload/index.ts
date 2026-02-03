@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // Configuration
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png', 
@@ -57,42 +57,65 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Get authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    // Verify user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Parse form data
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string;
     const folder = formData.get('folder') as string || 'uploads';
+    const isAnonymous = formData.get('isAnonymous') === 'true';
 
     if (!file || !bucket) {
       return new Response(
         JSON.stringify({ error: 'Missing file or bucket parameter' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    let userId = 'anonymous';
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    
+    // Auth Check
+    if (isAnonymous) {
+      // Allow specific buckets for anonymous uploads
+      const ANONYMOUS_ALLOWED_BUCKETS = ['applications', 'magazine-assets'];
+      if (!ANONYMOUS_ALLOWED_BUCKETS.includes(bucket)) {
+        return new Response(
+          JSON.stringify({ error: 'Anonymous uploads not allowed for this bucket' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Use a distinct folder for anonymous uploads if needed, or just rely on the 'folder' param
+      // We will keep userId as 'anonymous' or a random string if you prefer, but 'anonymous' is fine for applications bucket
+      // ensuring we don't overwrite user-specific folders.
+      // Actually, for applications, we might want a guid, but frontend doesn't pass one unless we generate it.
+      // Let's stick to 'anonymous' or the provided folder structure.
+    } else {
+      // Get authorization header
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Authorization required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Create Supabase client
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      // Verify user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid authentication' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      userId = user.id;
     }
 
     // Validate bucket name (prevent path traversal)
@@ -135,7 +158,7 @@ Deno.serve(async (req) => {
     // Generate safe file path
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_').substring(0, 100);
-    const path = `${user.id}/${folder}/${timestamp}-${safeName}`;
+    const path = `${userId}/${folder}/${timestamp}-${safeName}`;
 
     // Use service role client for upload
     const supabaseServiceRole = createClient(
@@ -197,8 +220,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Unexpected error:', error);
+    // Be careful with error messages in production, maybe generalize unless debug mode
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -1,48 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  FileText, 
-  Store, 
-  ShoppingBag, 
-  Truck, 
-  DollarSign, 
-  Users, 
-  Package, 
+import {
+  FileText,
+  Store,
+  ShoppingBag,
+  Truck,
+  Package,
   CheckCircle,
   AlertCircle,
-  Clock,
-  UserPlus,
-  CreditCard,
   Bell
 } from "lucide-react";
 import { AdminLayout, StatCard } from "@/components/admin";
 import { DataTable, StatusBadge, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
 import { Badge } from "@/components/ui/badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { format, subDays, startOfDay } from "date-fns";
 import { useApplications } from "@/hooks/useApplications";
-
-// Mock data for charts
-const ordersChartData = [
-  { day: "Mon", orders: 4 },
-  { day: "Tue", orders: 6 },
-  { day: "Wed", orders: 3 },
-  { day: "Thu", orders: 8 },
-  { day: "Fri", orders: 5 },
-  { day: "Sat", orders: 7 },
-  { day: "Sun", orders: 3 },
-];
-
-const revenueChartData = [
-  { day: "Mon", revenue: 450 },
-  { day: "Tue", revenue: 680 },
-  { day: "Wed", revenue: 320 },
-  { day: "Thu", revenue: 890 },
-  { day: "Fri", revenue: 560 },
-  { day: "Sat", revenue: 750 },
-  { day: "Sun", revenue: 340 },
-];
+import { useOrders } from "@/hooks/useOrders";
+import { supabase } from "@/integrations/supabase/client";
 
 const chartConfig = {
   orders: {
@@ -54,27 +30,6 @@ const chartConfig = {
     color: "hsl(var(--chart-green))",
   },
 };
-
-// Mock activity feed
-const mockActivityFeed = [
-  { id: "1", type: "new_application", icon: FileText, description: "New publisher application: Drift Magazine", timestamp: new Date(Date.now() - 1000 * 60 * 30), link: "/admin/applications/1" },
-  { id: "2", type: "new_order", icon: ShoppingBag, description: "New order #ORD-123 from McNally Jackson", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), link: "/admin/orders/123" },
-  { id: "3", type: "application_approved", icon: CheckCircle, description: "Approved retailer: Commonplace Books", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3), link: "/admin/retailers" },
-  { id: "4", type: "order_shipped", icon: Truck, description: "Order #ORD-456 marked as shipped", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), link: "/admin/orders/456" },
-  { id: "5", type: "new_application", icon: Store, description: "New retailer application: Book Culture NYC", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8), link: "/admin/applications/2" },
-  { id: "6", type: "publisher_joined", icon: UserPlus, description: "Welcome new publisher: Wax Poetics", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), link: "/admin/publishers" },
-  { id: "7", type: "payout", icon: CreditCard, description: "Payout processed: $450.00 to Kinfolk Magazine", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 26), link: "/admin/analytics" },
-  { id: "8", type: "retailer_joined", icon: UserPlus, description: "Welcome new retailer: Skylight Books", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), link: "/admin/retailers" },
-];
-
-// Mock recent orders
-const mockRecentOrders = [
-  { id: "#ORD-049", retailer: "Powell's Books", publisher: "Kinfolk", amount: 450.00, date: "2h ago", status: "pending" as const },
-  { id: "#ORD-048", retailer: "McNally Jackson", publisher: "Cereal", amount: 280.00, date: "5h ago", status: "received" as const },
-  { id: "#ORD-047", retailer: "Skylight Books", publisher: "Apartamento", amount: 320.00, date: "1d ago", status: "unfulfilled" as const },
-  { id: "#ORD-046", retailer: "City Lights", publisher: "The Gourmand", amount: 180.00, date: "2d ago", status: "received" as const },
-  { id: "#ORD-045", retailer: "The Strand", publisher: "Drift", amount: 560.00, date: "3d ago", status: "received" as const },
-];
 
 // Format relative time
 const formatRelativeTime = (date: Date) => {
@@ -94,22 +49,73 @@ const formatRelativeTime = (date: Date) => {
 export const AdminDashboard = () => {
   const navigate = useNavigate();
   const { applications } = useApplications();
+  const [publisherCount, setPublisherCount] = useState(0);
+  const [retailerCount, setRetailerCount] = useState(0);
+
+  // Fetch this week's orders
+  const dateRange = useMemo(() => ({
+    start: subDays(startOfDay(new Date()), 7),
+    end: new Date()
+  }), []);
+
+  const { orders } = useOrders({ dateRange });
+
+  // Fetch publisher and retailer counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      // Use select with count instead of HEAD request for more reliable results
+      const { data: publishers, error: pubError } = await supabase
+        .from('publishers')
+        .select('id')
+        .eq('verified', true);
+      
+      if (!pubError && publishers) {
+        setPublisherCount(publishers.length);
+      }
+
+      const { data: retailers, error: retError } = await supabase
+        .from('retailers')
+        .select('id')
+        .eq('verified', true);
+      
+      if (!retError && retailers) {
+        setRetailerCount(retailers.length);
+      }
+    };
+    fetchCounts();
+  }, []);
 
   // Calculate stats from real data
   const stats = useMemo(() => {
     const pendingApps = applications.filter(a => a.status === 'pending').length;
-    const publishers = applications.filter(a => a.type === 'publisher' && a.status === 'approved').length;
-    const retailers = applications.filter(a => a.type === 'retailer' && a.status === 'approved').length;
-    
+    const ordersThisWeek = orders.length;
+    const revenueThisWeek = orders.reduce((sum, o) => sum + o.total_amount, 0);
+    const fulfillmentQueue = orders.filter(o => o.fulfillment_status === 'pending').length;
+
     return {
       pendingApps,
-      ordersThisWeek: 23, // Mock
-      revenueThisWeek: 4850, // Mock
-      activePublishers: publishers || 12, // Fallback to mock
-      activeRetailers: retailers || 34, // Fallback to mock
-      fulfillmentQueue: 3, // Mock
+      ordersThisWeek,
+      revenueThisWeek,
+      activePublishers: publisherCount,
+      activeRetailers: retailerCount,
+      fulfillmentQueue,
     };
-  }, [applications]);
+  }, [applications, orders, publisherCount, retailerCount]);
+
+  // Chart data from real orders
+  const ordersChartData = useMemo(() => {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const data = dayNames.map(day => ({ day, orders: 0, revenue: 0 }));
+
+    orders.forEach(order => {
+      const dayIndex = new Date(order.created_at).getDay();
+      data[dayIndex].orders += 1;
+      data[dayIndex].revenue += order.total_amount;
+    });
+
+    // Reorder to start from Monday
+    return [...data.slice(1), data[0]];
+  }, [orders]);
 
   // Recent applications from real data
   const recentApplications = useMemo(() => {
@@ -124,10 +130,81 @@ export const AdminDashboard = () => {
     }));
   }, [applications]);
 
+  // Recent orders for the table
+  const recentOrders = useMemo(() => {
+    return orders.slice(0, 5).map(order => ({
+      id: order.id,
+      orderNumber: order.order_number,
+      retailer: order.retailer?.shop_name || 'Unknown',
+      publisher: order.magazine?.title || 'Unknown',
+      amount: order.total_amount,
+      status: order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered'
+        ? 'received' as const
+        : order.fulfillment_status === 'pending'
+          ? 'pending' as const
+          : 'unfulfilled' as const,
+    }));
+  }, [orders]);
+
+  // Activity feed derived from real data
+  const activityFeed = useMemo(() => {
+    const items: { id: string; icon: React.ElementType; description: string; timestamp: Date; link: string; type: string }[] = [];
+
+    // Add recent applications
+    applications.slice(0, 4).forEach(app => {
+      if (app.status === 'pending') {
+        items.push({
+          id: `app-${app.id}`,
+          icon: app.type === 'publisher' ? FileText : Store,
+          description: `New ${app.type} application: ${app.name}`,
+          timestamp: new Date(app.submitted_at),
+          link: `/admin/applications/${app.id}`,
+          type: 'new_application',
+        });
+      } else if (app.status === 'approved') {
+        items.push({
+          id: `app-approved-${app.id}`,
+          icon: CheckCircle,
+          description: `Approved ${app.type}: ${app.name}`,
+          timestamp: new Date(app.reviewed_at || app.submitted_at),
+          link: `/admin/applications/${app.id}`,
+          type: 'application_approved',
+        });
+      }
+    });
+
+    // Add recent orders
+    orders.slice(0, 4).forEach(order => {
+      if (order.fulfillment_status === 'shipped') {
+        items.push({
+          id: `order-shipped-${order.id}`,
+          icon: Truck,
+          description: `Order ${order.order_number} marked as shipped`,
+          timestamp: new Date(order.created_at),
+          link: `/admin/orders/${order.id}`,
+          type: 'order_shipped',
+        });
+      } else {
+        items.push({
+          id: `order-${order.id}`,
+          icon: ShoppingBag,
+          description: `New order ${order.order_number} from ${order.retailer?.shop_name || 'a retailer'}`,
+          timestamp: new Date(order.created_at),
+          link: `/admin/orders/${order.id}`,
+          type: 'new_order',
+        });
+      }
+    });
+
+    return items
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 8);
+  }, [applications, orders]);
+
   // Needs attention items
   const needsAttention = useMemo(() => {
     const items = [];
-    
+
     if (stats.pendingApps > 0) {
       items.push({
         id: 'apps',
@@ -139,7 +216,7 @@ export const AdminDashboard = () => {
         priority: 1,
       });
     }
-    
+
     if (stats.fulfillmentQueue > 0) {
       items.push({
         id: 'fulfillment',
@@ -156,7 +233,7 @@ export const AdminDashboard = () => {
   }, [stats]);
 
   const orderColumns = [
-    { key: "id", header: "Order #" },
+    { key: "orderNumber", header: "Order #" },
     { key: "retailer", header: "Retailer" },
     { key: "publisher", header: "Publisher" },
     { key: "amount", header: "Amount", render: (value: unknown) => `$${(value as number).toFixed(2)}` },
@@ -175,7 +252,7 @@ export const AdminDashboard = () => {
             <p className="text-body text-muted-foreground">{today}</p>
           </div>
           <div className="flex items-center gap-3">
-            <ButtonSecondary 
+            <ButtonSecondary
               onClick={() => navigate("/admin/applications")}
               className="gap-2"
             >
@@ -186,7 +263,7 @@ export const AdminDashboard = () => {
                 </Badge>
               )}
             </ButtonSecondary>
-            <ButtonPrimary 
+            <ButtonPrimary
               onClick={() => navigate("/admin/fulfillment")}
               className="gap-2"
             >
@@ -213,25 +290,21 @@ export const AdminDashboard = () => {
           <StatCard
             label="Orders This Week"
             value={stats.ordersThisWeek}
-            trend={{ value: 12, direction: 'up' }}
             onClick={() => navigate("/admin/orders")}
           />
           <StatCard
             label="Revenue This Week"
             value={`$${stats.revenueThisWeek.toLocaleString()}`}
-            trend={{ value: 8, direction: 'up' }}
             onClick={() => navigate("/admin/analytics")}
           />
           <StatCard
             label="Active Publishers"
             value={stats.activePublishers}
-            subtitle="+2 this month"
             onClick={() => navigate("/admin/publishers")}
           />
           <StatCard
             label="Active Retailers"
             value={stats.activeRetailers}
-            subtitle="+5 this month"
             onClick={() => navigate("/admin/retailers")}
           />
           <StatCard
@@ -248,7 +321,7 @@ export const AdminDashboard = () => {
         {needsAttention.length > 0 ? (
           <div className="space-y-3">
             {needsAttention.map((item) => (
-              <div 
+              <div
                 key={item.id}
                 className="flex items-center gap-4 p-4 rounded-lg border border-status-pending bg-status-pending/5"
               >
@@ -259,7 +332,7 @@ export const AdminDashboard = () => {
                   <p className="font-medium text-body text-foreground">{item.title}</p>
                   <p className="text-caption text-muted-foreground">{item.description}</p>
                 </div>
-                <ButtonSecondary 
+                <ButtonSecondary
                   onClick={() => navigate(item.link)}
                   className="flex-shrink-0"
                 >
@@ -287,67 +360,79 @@ export const AdminDashboard = () => {
           {/* Orders Chart */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-body text-foreground mb-4">Orders This Week</h3>
-            <ChartContainer config={chartConfig} className="h-[160px] w-full">
-              <BarChart data={ordersChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                <XAxis 
-                  dataKey="day" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 11 }}
-                  width={30}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar 
-                  dataKey="orders" 
-                  fill="hsl(var(--accent))" 
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ChartContainer>
+            {orders.length > 0 ? (
+              <ChartContainer config={chartConfig} className="h-[160px] w-full">
+                <BarChart data={ordersChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11 }}
+                    width={30}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="orders"
+                    fill="hsl(var(--accent))"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <div className="h-[160px] flex items-center justify-center">
+                <p className="text-caption text-muted-foreground">No orders this week</p>
+              </div>
+            )}
           </div>
 
           {/* Revenue Chart */}
           <div className="card-neesh">
             <h3 className="font-display font-semibold text-body text-foreground mb-4">Revenue This Week</h3>
-            <ChartContainer config={chartConfig} className="h-[160px] w-full">
-              <AreaChart data={revenueChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-green))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--chart-green))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis 
-                  dataKey="day" 
-                  axisLine={false} 
-                  tickLine={false}
-                  tick={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false}
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => `$${v}`}
-                  width={40}
-                />
-                <ChartTooltip 
-                  content={<ChartTooltipContent />} 
-                  formatter={(value) => [`$${value}`, 'Revenue']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--chart-green))" 
-                  strokeWidth={2}
-                  fill="url(#revenueGradient)"
-                />
-              </AreaChart>
-            </ChartContainer>
+            {orders.length > 0 ? (
+              <ChartContainer config={chartConfig} className="h-[160px] w-full">
+                <AreaChart data={ordersChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--chart-green))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--chart-green))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `$${v}`}
+                    width={40}
+                  />
+                  <ChartTooltip
+                    content={<ChartTooltipContent />}
+                    formatter={(value) => [`$${value}`, 'Revenue']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="hsl(var(--chart-green))"
+                    strokeWidth={2}
+                    fill="url(#revenueGradient)"
+                  />
+                </AreaChart>
+              </ChartContainer>
+            ) : (
+              <div className="h-[160px] flex items-center justify-center">
+                <p className="text-caption text-muted-foreground">No revenue this week</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -361,66 +446,72 @@ export const AdminDashboard = () => {
               <h3 className="font-display font-semibold text-heading text-foreground">Recent Activity</h3>
               <Bell className="w-4 h-4 text-muted-foreground" />
             </div>
-            <div className="space-y-0 -mx-4">
-              {mockActivityFeed.map((activity, index) => (
-                <div 
-                  key={activity.id}
-                  className={`flex items-start gap-3 px-4 py-3 hover:bg-secondary/50 cursor-pointer transition-colors ${
-                    index !== mockActivityFeed.length - 1 ? 'border-b border-border' : ''
-                  }`}
-                  onClick={() => navigate(activity.link)}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    activity.type === 'application_approved' || activity.type === 'publisher_joined' || activity.type === 'retailer_joined'
-                      ? 'bg-status-success/10 text-status-success'
-                      : activity.type === 'new_order' || activity.type === 'order_shipped'
-                        ? 'bg-accent/10 text-accent'
-                        : activity.type === 'payout'
-                          ? 'bg-chart-green/10 text-chart-green'
+            {activityFeed.length > 0 ? (
+              <div className="space-y-0 -mx-4">
+                {activityFeed.map((activity, index) => (
+                  <div
+                    key={activity.id}
+                    className={`flex items-start gap-3 px-4 py-3 hover:bg-secondary/50 cursor-pointer transition-colors ${
+                      index !== activityFeed.length - 1 ? 'border-b border-border' : ''
+                    }`}
+                    onClick={() => navigate(activity.link)}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      activity.type === 'application_approved'
+                        ? 'bg-status-success/10 text-status-success'
+                        : activity.type === 'new_order' || activity.type === 'order_shipped'
+                          ? 'bg-accent/10 text-accent'
                           : 'bg-secondary text-muted-foreground'
-                  }`}>
-                    <activity.icon className="w-4 h-4" />
+                    }`}>
+                      <activity.icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-caption text-foreground line-clamp-2">{activity.description}</p>
+                      <p className="text-caption text-muted-foreground mt-0.5">
+                        {formatRelativeTime(activity.timestamp)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-caption text-foreground line-clamp-2">{activity.description}</p>
-                    <p className="text-caption text-muted-foreground mt-0.5">
-                      {formatRelativeTime(activity.timestamp)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button 
-              onClick={() => navigate("/admin/activity")}
-              className="w-full text-center text-caption text-accent hover:underline mt-4"
-            >
-              View all activity
-            </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Bell className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                <p className="text-caption text-muted-foreground">No recent activity</p>
+              </div>
+            )}
           </div>
 
           {/* Recent Orders - Takes 2 columns */}
           <div className="card-neesh lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-semibold text-heading text-foreground">Recent Orders</h3>
-              <button 
+              <button
                 onClick={() => navigate("/admin/orders")}
                 className="text-caption text-accent hover:underline"
               >
                 View all
               </button>
             </div>
-            <DataTable
-              columns={orderColumns}
-              data={mockRecentOrders as unknown as Record<string, unknown>[]}
-              onRowClick={(order) => navigate(`/admin/orders/${String(order.id).replace("#ORD-", "")}`)}
-            />
+            {recentOrders.length > 0 ? (
+              <DataTable
+                columns={orderColumns}
+                data={recentOrders as unknown as Record<string, unknown>[]}
+                onRowClick={(order) => navigate(`/admin/orders/${order.id}`)}
+              />
+            ) : (
+              <div className="text-center py-8">
+                <ShoppingBag className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                <p className="text-caption text-muted-foreground">No orders yet this week</p>
+              </div>
+            )}
           </div>
 
           {/* Recent Applications - Takes 2 columns */}
           <div className="card-neesh lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-semibold text-heading text-foreground">Recent Applications</h3>
-              <button 
+              <button
                 onClick={() => navigate("/admin/applications")}
                 className="text-caption text-accent hover:underline"
               >
@@ -430,7 +521,7 @@ export const AdminDashboard = () => {
             <div className="space-y-2">
               {recentApplications.length > 0 ? (
                 recentApplications.map((app) => (
-                  <div 
+                  <div
                     key={app.id}
                     className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary transition-colors cursor-pointer group"
                     onClick={() => navigate(`/admin/applications/${app.id}`)}
@@ -452,30 +543,6 @@ export const AdminDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge status={app.status} />
-                      {app.status === 'pending' && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Quick approve
-                            }}
-                            className="p-1.5 rounded hover:bg-status-success/20 text-status-success"
-                            title="Approve"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Quick reject
-                            }}
-                            className="p-1.5 rounded hover:bg-status-error/20 text-status-error-text"
-                            title="Decline"
-                          >
-                            <AlertCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))

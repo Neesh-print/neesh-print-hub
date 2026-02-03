@@ -6,8 +6,16 @@ import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DesktopFilterBar, MobileFilterSheet, ActiveFilterTags, type CatalogueFilters, type SortOption } from "@/components/retailer/CatalogueFilters";
+import { useDebounce } from "@/hooks/useDebounce";
+import {
+  DesktopFilterBar,
+  MobileFilterSheet,
+  ActiveFilterTags,
+  type CatalogueFilters,
+  type SortOption,
+} from "@/components/retailer/CatalogueFilters";
 import { toast } from "sonner";
 const DEFAULT_FILTERS: CatalogueFilters = {
   priceRange: [0, 100],
@@ -23,30 +31,30 @@ export const RetailerCatalogue = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filters, setFilters] = useState<CatalogueFilters>(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const {
-    isInWishlist,
-    toggleWishlist,
-    wishlistCount
-  } = useWishlistContext();
-  const {
-    magazines,
-    isLoading,
-    error,
-    refetch
-  } = useMagazines({
+  
+  // Debounce search query to prevent frequent reloads
+  const debouncedQuery = useDebounce(searchQuery, 500);
+  
+  const { isInWishlist, toggleWishlist, wishlistCount } = useWishlistContext();
+
+  const { magazines, isLoading, error, refetch } = useMagazines({ 
     status: 'active',
-    searchQuery: searchQuery || undefined
+    searchQuery: debouncedQuery || undefined,
   });
+
+  const { retailer } = useRetailerProfile();
 
   // Onboarding progress for retailers
   const onboarding = useOnboardingProgress('retailer', {
-    hasProfile: false,
-    hasProfileWebsite: false,
-    hasProfileInstagram: false,
-    hasShippingAddress: false,
-    orderCount: 0,
+    hasProfile: !!retailer?.shop_name,
+    hasProfileDescription: !!retailer?.shop_description, // Added
+    hasStoreTypes: (retailer?.store_types?.length ?? 0) > 0, // Added
+    hasProfileWebsite: !!retailer?.shop_url,
+    hasProfileInstagram: !!retailer?.instagram_handle,
+    hasShippingAddress: !!retailer?.address,
+    orderCount: retailer?.total_orders || 0,
     wishlistCount: wishlistCount,
-    storeName: undefined
+    storeName: retailer?.shop_name || undefined,
   });
 
   // Extract unique categories and publishers from magazines

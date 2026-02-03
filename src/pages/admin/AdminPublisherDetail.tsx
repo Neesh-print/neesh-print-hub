@@ -1,77 +1,152 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Globe, Instagram, Mail, MapPin, MessageSquare, Edit, DollarSign } from "lucide-react";
+import { Globe, Instagram, Mail, MapPin, MessageSquare, Edit, DollarSign, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
-import { BackNavigation, InfoCard, MagazineCard, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, InfoCard, DataTable, StatusBadge, ButtonSecondary } from "@/components/neesh";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrders } from "@/hooks/useOrders";
+import { format } from "date-fns";
 
-// Mock data
-const mockPublisher = {
-  id: "1",
-  name: "Kinfolk Magazine",
-  avatar: "/placeholder.svg",
-  website: "https://kinfolk.com",
-  email: "hello@kinfolk.com",
-  instagram: "@kinfolkmag",
-  location: "Portland, OR",
-  bio: "Kinfolk is an independent slow lifestyle magazine that explores ways to simplify life, nurture creativity, and build community. Founded in 2011, we've grown to a globally recognized publication.",
-  memberSince: "March 15, 2024",
-  lastActive: "2 hours ago",
-  status: "received" as const,
-  totalSales: 4520.00,
-  totalOrders: 89,
-  avgOrderValue: 50.79,
-  currentBalance: 1280.00,
-};
+interface PublisherData {
+  id: string;
+  user_id: string;
+  company_name: string | null;
+  description: string | null;
+  website_url: string | null;
+  instagram_handle: string | null;
+  verified: boolean | null;
+  total_magazines: number | null;
+  total_sales: number | null;
+  created_at: string | null;
+}
 
-const mockMagazines = [
-  { id: "1", title: "Kinfolk Issue 50", coverImage: "/placeholder.svg", price: 18.00, publisher: "Kinfolk" },
-  { id: "2", title: "Kinfolk Issue 49", coverImage: "/placeholder.svg", price: 18.00, publisher: "Kinfolk" },
-  { id: "3", title: "Kinfolk Issue 48", coverImage: "/placeholder.svg", price: 18.00, publisher: "Kinfolk" },
-  { id: "4", title: "Kinfolk Issue 47", coverImage: "/placeholder.svg", price: 16.00, publisher: "Kinfolk" },
-  { id: "5", title: "Kinfolk Issue 46", coverImage: "/placeholder.svg", price: 16.00, publisher: "Kinfolk" },
-  { id: "6", title: "Kinfolk Issue 45", coverImage: "/placeholder.svg", price: 16.00, publisher: "Kinfolk" },
-  { id: "7", title: "Kinfolk Issue 44", coverImage: "/placeholder.svg", price: 14.00, publisher: "Kinfolk" },
-  { id: "8", title: "Kinfolk Issue 43", coverImage: "/placeholder.svg", price: 14.00, publisher: "Kinfolk" },
-];
-
-const mockRecentOrders = [
-  { id: "#0089", retailer: "Powell's Books", total: 180.00, date: "Jan 15, 2026", status: "received" as const, [Symbol.toPrimitive]: undefined } as Record<string, unknown>,
-  { id: "#0085", retailer: "McNally Jackson", total: 144.00, date: "Jan 12, 2026", status: "received" as const, [Symbol.toPrimitive]: undefined } as Record<string, unknown>,
-  { id: "#0081", retailer: "City Lights", total: 90.00, date: "Jan 8, 2026", status: "pending" as const, [Symbol.toPrimitive]: undefined } as Record<string, unknown>,
-  { id: "#0078", retailer: "Skylight Books", total: 72.00, date: "Jan 5, 2026", status: "received" as const, [Symbol.toPrimitive]: undefined } as Record<string, unknown>,
-  { id: "#0072", retailer: "The Strand", total: 216.00, date: "Jan 2, 2026", status: "received" as const, [Symbol.toPrimitive]: undefined } as Record<string, unknown>,
-];
+interface Magazine {
+  id: string;
+  title: string;
+  cover_image_url: string | null;
+  price: number;
+}
 
 export const AdminPublisherDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [publisher, setPublisher] = useState<PublisherData | null>(null);
+  const [magazines, setMagazines] = useState<Magazine[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
 
-  const publisher = mockPublisher;
+  const fetchPublisher = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('publishers')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!data) throw new Error('Publisher not found');
+
+      setPublisher(data);
+
+      // Fetch magazines for this publisher
+      const { data: magData } = await supabase
+        .from('magazines')
+        .select('id, title, cover_image_url, price')
+        .eq('publisher_id', data.id)
+        .order('created_at', { ascending: false });
+
+      setMagazines(magData || []);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch publisher');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchPublisher();
+  }, [fetchPublisher]);
+
+  // Fetch recent orders for this publisher's magazines
+  const { orders: recentOrders } = useOrders({ publisherId: publisher?.id, limit: 5 });
+
+  const handleSuspend = async () => {
+    if (!publisher) return;
+    try {
+      await supabase
+        .from('publishers')
+        .update({ verified: false })
+        .eq('id', publisher.id);
+      setShowSuspendModal(false);
+      fetchPublisher();
+    } catch (err) {
+      console.error('Failed to suspend publisher:', err);
+    }
+  };
 
   const orderColumns = [
-    { key: "id", header: "Order #" },
+    { key: "orderNumber", header: "Order #" },
     { key: "retailer", header: "Retailer" },
     { key: "total", header: "Total", render: (value: unknown) => `$${(value as number).toFixed(2)}` },
     { key: "date", header: "Date" },
     { key: "status", header: "Status", render: (value: unknown) => <StatusBadge status={value as 'pending' | 'received'} /> },
   ];
 
-  const handleSuspend = () => {
-    console.log("Suspending publisher:", id);
-    setShowSuspendModal(false);
-  };
+  const transformedOrders = recentOrders.map(order => ({
+    id: order.id,
+    orderNumber: order.order_number,
+    retailer: order.retailer?.shop_name || 'Unknown',
+    total: order.total_amount,
+    date: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : '',
+    status: (order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered' ? 'received' : 'pending') as 'pending' | 'received',
+  }));
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <BackNavigation title="Publisher Details" onBack={() => navigate("/admin/publishers")} />
+        <div className="px-4 md:px-6 pb-8 flex items-center justify-center py-20">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-muted-foreground" />
+            <p className="text-body text-muted-foreground">Loading publisher...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error || !publisher) {
+    return (
+      <AdminLayout>
+        <BackNavigation title="Publisher Details" onBack={() => navigate("/admin/publishers")} />
+        <div className="px-4 md:px-6 pb-8">
+          <div className="card-neesh flex flex-col items-center justify-center py-12">
+            <AlertCircle className="w-10 h-10 text-status-error-text mb-3" />
+            <h3 className="font-display font-semibold text-heading text-foreground mb-1">Publisher not found</h3>
+            <p className="text-body text-muted-foreground mb-4">{error || 'This publisher could not be loaded.'}</p>
+            <ButtonSecondary onClick={() => navigate("/admin/publishers")}>Back to Publishers</ButtonSecondary>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   const statusLabels: Record<string, string> = {
     received: 'Active',
     pending: 'Inactive',
     unfulfilled: 'Suspended',
   };
+  const publisherStatus = publisher.verified ? 'received' as const : 'pending' as const;
 
   return (
     <AdminLayout>
-      <BackNavigation title={publisher.name} onBack={() => navigate("/admin/publishers")} />
+      <BackNavigation title={publisher.company_name || 'Publisher'} onBack={() => navigate("/admin/publishers")} />
 
       <div className="px-4 md:px-6 pb-8">
         <div className="grid lg:grid-cols-2 gap-6">
@@ -80,35 +155,31 @@ export const AdminPublisherDetail = () => {
             {/* Profile Card */}
             <div className="card-neesh">
               <div className="flex items-start gap-4 mb-4">
-                <img 
-                  src={publisher.avatar} 
-                  alt={publisher.name}
-                  className="w-16 h-16 rounded-full bg-secondary object-cover"
-                />
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-muted-foreground" />
+                </div>
                 <div className="flex-1">
-                  <h2 className="font-display font-bold text-heading text-foreground">{publisher.name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-body text-muted-foreground">{publisher.location}</span>
-                  </div>
+                  <h2 className="font-display font-bold text-heading text-foreground">{publisher.company_name || 'Unknown Publisher'}</h2>
                 </div>
               </div>
 
-              <p className="text-body text-foreground mb-4">{publisher.bio}</p>
+              {publisher.description && (
+                <p className="text-body text-foreground mb-4">{publisher.description}</p>
+              )}
 
               <div className="space-y-2">
-                <a href={publisher.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-body text-accent hover:underline">
-                  <Globe className="w-4 h-4" />
-                  {publisher.website}
-                </a>
-                <a href={`mailto:${publisher.email}`} className="flex items-center gap-2 text-body text-foreground hover:text-accent">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  {publisher.email}
-                </a>
-                <div className="flex items-center gap-2 text-body text-foreground">
-                  <Instagram className="w-4 h-4 text-muted-foreground" />
-                  {publisher.instagram}
-                </div>
+                {publisher.website_url && (
+                  <a href={publisher.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-body text-accent hover:underline">
+                    <Globe className="w-4 h-4" />
+                    {publisher.website_url}
+                  </a>
+                )}
+                {publisher.instagram_handle && (
+                  <div className="flex items-center gap-2 text-body text-foreground">
+                    <Instagram className="w-4 h-4 text-muted-foreground" />
+                    @{publisher.instagram_handle}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -117,21 +188,19 @@ export const AdminPublisherDetail = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-body text-muted-foreground">Status</span>
-                  <StatusBadge status={publisher.status} label={statusLabels[publisher.status]} />
+                  <StatusBadge status={publisherStatus} label={statusLabels[publisherStatus]} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-body text-muted-foreground">Member Since</span>
-                  <span className="text-body text-foreground">{publisher.memberSince}</span>
+                  <span className="text-body text-foreground">
+                    {publisher.created_at ? format(new Date(publisher.created_at), "MMMM d, yyyy") : 'Unknown'}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-body text-muted-foreground">Last Active</span>
-                  <span className="text-body text-foreground">{publisher.lastActive}</span>
-                </div>
-                <ButtonSecondary 
-                  onClick={() => setShowSuspendModal(true)} 
+                <ButtonSecondary
+                  onClick={() => setShowSuspendModal(true)}
                   className="w-full mt-2 text-status-error-text"
                 >
-                  Suspend Account
+                  {publisher.verified ? 'Suspend Account' : 'Reactivate Account'}
                 </ButtonSecondary>
               </div>
             </InfoCard>
@@ -144,19 +213,15 @@ export const AdminPublisherDetail = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-caption text-muted-foreground">Total Sales</p>
-                  <p className="font-display font-bold text-display-sm text-foreground">${publisher.totalSales.toLocaleString()}</p>
+                  <p className="font-display font-bold text-display-sm text-foreground">
+                    ${(publisher.total_sales || 0).toLocaleString()}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-caption text-muted-foreground">Total Orders</p>
-                  <p className="font-display font-bold text-display-sm text-foreground">{publisher.totalOrders}</p>
-                </div>
-                <div>
-                  <p className="text-caption text-muted-foreground">Avg Order Value</p>
-                  <p className="font-display font-bold text-display-sm text-foreground">${publisher.avgOrderValue.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-caption text-muted-foreground">Current Balance</p>
-                  <p className="font-display font-bold text-display-sm text-accent">${publisher.currentBalance.toFixed(2)}</p>
+                  <p className="text-caption text-muted-foreground">Total Magazines</p>
+                  <p className="font-display font-bold text-display-sm text-foreground">
+                    {publisher.total_magazines || magazines.length}
+                  </p>
                 </div>
               </div>
             </InfoCard>
@@ -164,52 +229,56 @@ export const AdminPublisherDetail = () => {
             {/* Magazines */}
             <div className="card-neesh">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display font-semibold text-heading text-foreground">Magazines ({mockMagazines.length})</h3>
-                <ButtonSecondary className="text-caption py-1">Add Magazine</ButtonSecondary>
+                <h3 className="font-display font-semibold text-heading text-foreground">Magazines ({magazines.length})</h3>
               </div>
-              <div className="grid grid-cols-4 gap-3">
-                {mockMagazines.slice(0, 8).map((mag) => (
-                  <div key={mag.id} className="cursor-pointer">
-                    <img 
-                      src={mag.coverImage} 
-                      alt={mag.title}
-                      className="aspect-[3/4] object-cover rounded bg-secondary"
-                    />
-                  </div>
-                ))}
-              </div>
+              {magazines.length > 0 ? (
+                <div className="grid grid-cols-4 gap-3">
+                  {magazines.slice(0, 8).map((mag) => (
+                    <div key={mag.id} className="cursor-pointer">
+                      <img
+                        src={mag.cover_image_url || "/placeholder.svg"}
+                        alt={mag.title}
+                        className="aspect-[3/4] object-cover rounded bg-secondary"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                  <p className="text-caption text-muted-foreground">No magazines listed yet</p>
+                </div>
+              )}
             </div>
 
             {/* Recent Orders */}
             <div className="card-neesh">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-semibold text-heading text-foreground">Recent Orders</h3>
-                <button 
+                <button
                   onClick={() => navigate("/admin/orders")}
                   className="text-caption text-accent hover:underline"
                 >
                   View all
                 </button>
               </div>
-              <DataTable
-                columns={orderColumns}
-                data={mockRecentOrders}
-                onRowClick={(order) => navigate(`/admin/orders/${String(order.id).replace("#", "")}`)}
-              />
+              {transformedOrders.length > 0 ? (
+                <DataTable
+                  columns={orderColumns}
+                  data={transformedOrders as unknown as Record<string, unknown>[]}
+                  onRowClick={(order) => navigate(`/admin/orders/${order.id}`)}
+                />
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-caption text-muted-foreground">No orders yet</p>
+                </div>
+              )}
             </div>
 
             {/* Admin Actions */}
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">Admin Actions</h3>
               <div className="grid grid-cols-2 gap-3">
-                <ButtonSecondary className="gap-2">
-                  <Edit className="w-4 h-4" />
-                  Edit Profile
-                </ButtonSecondary>
-                <ButtonSecondary onClick={() => setShowAdjustModal(true)} className="gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  Adjust Balance
-                </ButtonSecondary>
                 <ButtonSecondary className="gap-2">
                   <MessageSquare className="w-4 h-4" />
                   Send Message
@@ -228,20 +297,13 @@ export const AdminPublisherDetail = () => {
         isOpen={showSuspendModal}
         onClose={() => setShowSuspendModal(false)}
         onConfirm={handleSuspend}
-        title="Suspend Publisher"
-        message={`Are you sure you want to suspend ${publisher.name}? They will no longer be able to receive orders or access their account.`}
-        confirmLabel="Suspend"
-        confirmVariant="destructive"
-      />
-
-      {/* Adjust Balance Modal */}
-      <ConfirmationModal
-        isOpen={showAdjustModal}
-        onClose={() => setShowAdjustModal(false)}
-        onConfirm={() => setShowAdjustModal(false)}
-        title="Adjust Balance"
-        message="Enter the adjustment amount (positive or negative):"
-        confirmLabel="Apply Adjustment"
+        title={publisher.verified ? "Suspend Publisher" : "Reactivate Publisher"}
+        message={publisher.verified
+          ? `Are you sure you want to suspend ${publisher.company_name}? They will no longer be able to receive orders or access their account.`
+          : `Are you sure you want to reactivate ${publisher.company_name}?`
+        }
+        confirmLabel={publisher.verified ? "Suspend" : "Reactivate"}
+        confirmVariant={publisher.verified ? "destructive" : undefined}
       />
     </AdminLayout>
   );

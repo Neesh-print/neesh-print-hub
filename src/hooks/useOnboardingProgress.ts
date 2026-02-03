@@ -33,6 +33,8 @@ export function useOnboardingProgress(
   contextData?: {
     hasProfile?: boolean;
     hasProfileBio?: boolean;
+    hasProfileDescription?: boolean;
+    hasStoreTypes?: boolean;
     hasProfileWebsite?: boolean;
     hasProfileInstagram?: boolean;
     hasShippingAddress?: boolean;
@@ -41,6 +43,8 @@ export function useOnboardingProgress(
     wishlistCount?: number;
     publisherName?: string;
     storeName?: string;
+    profileCompletedAt?: string | null;
+    hasPayoutSetup?: boolean;
   }
 ): OnboardingState {
   const [dismissed, setDismissed] = useState(false);
@@ -111,6 +115,7 @@ function getPublisherChecklist(
     hasProfileWebsite?: boolean;
     hasProfileInstagram?: boolean;
     titleCount?: number;
+    hasPayoutSetup?: boolean;
   },
   viewedItems?: Set<string>
 ): ChecklistItem[] {
@@ -119,8 +124,8 @@ function getPublisherChecklist(
   const hasTitle = (contextData?.titleCount ?? 0) > 0;
   const hasSharedProfile = viewedItems?.has('share_profile') ?? false;
   
-  // Payout setup - check localStorage for now
-  const hasPayoutSetup = localStorage.getItem(getStorageKey('publisher', 'payout_setup')) === 'true';
+  // Payout setup - check context data first, then localStorage
+  const hasPayoutSetup = contextData?.hasPayoutSetup ?? (localStorage.getItem(getStorageKey('publisher', 'payout_setup')) === 'true');
 
   return [
     {
@@ -193,7 +198,7 @@ function getRetailerChecklist(
   
   // Track catalog browsing
   const catalogViews = parseInt(localStorage.getItem(getStorageKey('retailer', 'catalog_views')) || '0');
-  const hasBrowsedCatalog = catalogViews >= 5;
+  const hasBrowsedCatalog = catalogViews >= 1;
 
   return [
     {
