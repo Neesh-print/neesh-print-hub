@@ -569,6 +569,29 @@ export const PublisherApplication = () => {
       setIsSubmitted(true);
       setCurrentStep(12); // Success Step
 
+      // Send application received confirmation email (fire and forget)
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+              email: formValues.email,
+              firstName: formValues.firstName,
+              businessName: formValues.businessName || formValues.magazineTitle,
+              role: 'publisher',
+            }),
+          }
+        );
+      } catch (emailError) {
+        // Don't fail the submission if email fails
+        console.error('Failed to send confirmation email:', emailError);
+      }
+
     } catch (err) {
       console.error("Submission error:", err);
       toast.error("Failed to submit application. Please try again.");

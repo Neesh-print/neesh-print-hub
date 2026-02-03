@@ -247,13 +247,34 @@ export const RetailerApplication = () => {
 
       if (error) throw error;
 
-      // TODO: Trigger notification to admin on new application
-      
       // Clear localStorage on successful submission
       localStorage.removeItem(STORAGE_KEY);
-      
+
       setIsSubmitted(true);
       setCurrentStep(9);
+
+      // Send application received confirmation email (fire and forget)
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+              email: formValues.email,
+              firstName: formValues.firstName,
+              businessName: formValues.storeName,
+              role: 'retailer',
+            }),
+          }
+        );
+      } catch (emailError) {
+        // Don't fail the submission if email fails
+        console.error('Failed to send confirmation email:', emailError);
+      }
     } catch (error) {
       console.error("Error submitting application:", error);
       toast.error("Failed to submit application. Please try again.");
