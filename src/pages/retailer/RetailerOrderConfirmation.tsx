@@ -149,13 +149,14 @@ export const RetailerOrderConfirmation = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Clear cart once when orders are confirmed
+  // Clear cart immediately on confirmation page load
+  // The user only reaches this page after Stripe redirects back from a successful checkout
   useEffect(() => {
-    if (orders && orders.length > 0 && !hasCleared.current) {
+    if (!hasCleared.current) {
       clearCart();
       hasCleared.current = true;
     }
-  }, [orders, clearCart]);
+  }, [clearCart]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {

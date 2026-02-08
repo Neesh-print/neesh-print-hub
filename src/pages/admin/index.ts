@@ -12,4 +12,5 @@ export { AdminAnalytics } from './AdminAnalytics';
 export { AdminSettings } from './AdminSettings';
 export { AdminFulfillmentQueue } from './AdminFulfillmentQueue';
 export { AdminMagazines } from './AdminMagazines';
+export { AdminBulkImport } from './AdminBulkImport';
 export { PrintSlipsPage } from './PrintSlipsPage';

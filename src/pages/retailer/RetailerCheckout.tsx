@@ -96,7 +96,7 @@ export const RetailerCheckout = () => {
       }
 
       // Success! Redirect to Stripe Checkout
-      // Note: We do NOT clearCart() here - we'll do that on the order success page
+      // Cart is cleared on the order confirmation page after Stripe redirects back
       window.location.href = data.checkout_url;
 
     } catch (err) {

@@ -350,6 +350,7 @@ Deno.serve(async (req) => {
           description: application.description,
           website_url: application.social_website_link,
           instagram_handle: application.instagram_handle?.replace('@', ''),
+          application_status: 'approved',
           verified: true,
           verified_at: new Date().toISOString(),
         })
@@ -366,6 +367,7 @@ Deno.serve(async (req) => {
             description: application.description,
             website_url: application.social_website_link,
             instagram_handle: application.instagram_handle?.replace('@', ''),
+            application_status: 'approved',
             verified: true,
             verified_at: new Date().toISOString(),
           })
@@ -432,7 +434,7 @@ Deno.serve(async (req) => {
         type: 'magiclink',
         email: email,
         options: {
-          redirectTo: `${siteUrl}/${type}`,
+          redirectTo: `${siteUrl}/reset-password`,
         },
       })
 

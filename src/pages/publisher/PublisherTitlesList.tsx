@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
-import { Plus, BookOpen, Loader2 } from "lucide-react";
+import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { Plus, BookOpen, Loader2, Upload } from "lucide-react";
 import { useMagazines } from "@/hooks/useMagazines";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 
@@ -77,10 +77,16 @@ export const PublisherTitlesList = () => {
           title="My Titles"
           onBack={handleBack}
           rightContent={
-            <ButtonPrimary onClick={handleAddTitle}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add New Title
-            </ButtonPrimary>
+            <div className="flex items-center gap-2">
+              <ButtonSecondary onClick={() => navigate('/publisher/titles/import')}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
+              </ButtonSecondary>
+              <ButtonPrimary onClick={handleAddTitle}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Title
+              </ButtonPrimary>
+            </div>
           }
         />
 
