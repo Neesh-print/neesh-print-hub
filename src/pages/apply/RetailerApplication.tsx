@@ -255,6 +255,7 @@ export const RetailerApplication = () => {
 
       // Send application received confirmation email (fire and forget)
       try {
+        const formValues = getValues();
         await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
           {

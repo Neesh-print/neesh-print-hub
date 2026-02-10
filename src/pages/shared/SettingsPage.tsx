@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ContactSupportButton } from "@/components/messaging";
+import { ChangePasswordModal } from "@/components/shared";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Bell, Shield, Download, Trash2, Lock, HelpCircle } from "lucide-react";
 
@@ -43,9 +44,7 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
     });
   };
 
-  const handleChangePassword = () => {
-    navigate('/forgot-password');
-  };
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const handleExportData = () => {
     toast({
@@ -63,6 +62,7 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
   };
 
   return (
+    <>
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <BackNavigation
         title="Settings"
@@ -84,7 +84,7 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
             <div className="pt-2 border-t border-border">
               <Button
                 variant="outline"
-                onClick={handleChangePassword}
+                onClick={() => setShowPasswordModal(true)}
                 className="w-full sm:w-auto"
               >
                 <Lock className="w-4 h-4 mr-2" />
@@ -201,6 +201,12 @@ export const SettingsPage = ({ userRole }: SettingsPageProps) => {
         </InfoCard>
       </div>
     </div>
+
+    <ChangePasswordModal
+      isOpen={showPasswordModal}
+      onClose={() => setShowPasswordModal(false)}
+    />
+    </>
   );
 };
 

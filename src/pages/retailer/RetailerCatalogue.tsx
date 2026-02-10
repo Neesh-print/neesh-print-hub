@@ -7,6 +7,7 @@ import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
+import { useShippingAddresses } from "@/hooks/useShippingAddresses";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
@@ -43,18 +44,20 @@ export const RetailerCatalogue = () => {
   });
 
   const { retailer } = useRetailerProfile();
+  const { data: shippingAddresses } = useShippingAddresses();
 
   // Onboarding progress for retailers
   const onboarding = useOnboardingProgress('retailer', {
     hasProfile: !!retailer?.shop_name,
-    hasProfileDescription: !!retailer?.shop_description, // Added
-    hasStoreTypes: (retailer?.store_types?.length ?? 0) > 0, // Added
+    hasProfileDescription: !!retailer?.shop_description,
+    hasStoreTypes: (retailer?.store_types?.length ?? 0) > 0,
     hasProfileWebsite: !!retailer?.shop_url,
     hasProfileInstagram: !!retailer?.instagram_handle,
-    hasShippingAddress: !!retailer?.address,
+    hasShippingAddress: (shippingAddresses?.length ?? 0) > 0,
     orderCount: retailer?.total_orders || 0,
     wishlistCount: wishlistCount,
     storeName: retailer?.shop_name || undefined,
+    profileCompletedAt: retailer?.profile_completed_at,
   });
 
   // Extract unique categories and publishers from magazines

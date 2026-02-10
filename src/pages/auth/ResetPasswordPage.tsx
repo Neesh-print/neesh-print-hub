@@ -16,13 +16,22 @@ const passwordSchema = z
 
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
-  const { session, isLoading: authLoading, updatePassword } = useAuth();
+  const { session, isLoading: authLoading, updatePassword, userRole } = useAuth();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const getDashboardPath = () => {
+    switch (userRole) {
+      case 'publisher': return '/publisher';
+      case 'retailer': return '/retailer';
+      case 'admin': return '/admin';
+      default: return '/';
+    }
+  };
 
   // Password strength indicators
   const passwordChecks = {
@@ -69,7 +78,7 @@ const ResetPasswordPage = () => {
       } else {
         setSuccess(true);
         setTimeout(() => {
-          navigate('/');
+          navigate(getDashboardPath());
         }, 3000);
       }
     } catch (err) {
@@ -102,7 +111,7 @@ const ResetPasswordPage = () => {
           <p className="text-body text-text-secondary mb-6">
             Your password has been successfully changed. Redirecting you to the dashboard...
           </p>
-          <ButtonPrimary fullWidth onClick={() => navigate('/')}>
+          <ButtonPrimary fullWidth onClick={() => navigate(getDashboardPath())}>
             Go to Dashboard
           </ButtonPrimary>
         </div>

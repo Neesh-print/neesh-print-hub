@@ -37,6 +37,7 @@ import {
   PublisherAnalytics,
   PublisherOnboarding,
   PublisherPayoutSettings,
+  PublisherBulkImport,
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
@@ -78,6 +79,7 @@ import {
   AdminAnalytics,
   AdminFulfillmentQueue,
   AdminMagazines,
+  AdminBulkImport,
   PrintSlipsPage,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
@@ -212,6 +214,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherTitlesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/titles/import"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <PublisherBulkImport />
           </ProtectedRoute>
         }
       />
@@ -590,6 +600,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminMagazines />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/magazines/import"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminBulkImport />
           </ProtectedRoute>
         }
       />

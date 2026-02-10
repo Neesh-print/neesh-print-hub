@@ -342,39 +342,23 @@ Deno.serve(async (req) => {
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
-      // Try to update existing publisher, or create new one
-      const { error: updateError } = await supabaseAdmin
+      const { error: upsertError } = await supabaseAdmin
         .from('publishers')
-        .update({
+        .upsert({
+          user_id: userId,
           company_name: application.business_name || application.magazine_title,
           description: application.description,
           website_url: application.social_website_link,
           instagram_handle: application.instagram_handle?.replace('@', ''),
+          application_status: 'approved',
           verified: true,
           verified_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
         })
-        .eq('user_id', userId)
 
-      if (updateError && updateError.code === 'PGRST116') {
-        // No publisher record exists, create one
-        const { error: insertError } = await supabaseAdmin
-          .from('publishers')
-          .insert({
-            id: userId, // Explicitly set id to match user_id for frontend queries
-            user_id: userId,
-            company_name: application.business_name || application.magazine_title,
-            description: application.description,
-            website_url: application.social_website_link,
-            instagram_handle: application.instagram_handle?.replace('@', ''),
-            verified: true,
-            verified_at: new Date().toISOString(),
-          })
-
-        if (insertError && insertError.code !== '23505') {
-          console.error('Error creating publisher:', insertError)
-        }
-      } else if (updateError) {
-        console.error('Error updating publisher:', updateError)
+      if (upsertError) {
+        console.error('Error creating/updating publisher:', upsertError)
       }
     } else if (type === 'retailer') {
       const { error: upsertError } = await supabaseAdmin
@@ -421,8 +405,6 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully approved ${type} application: ${applicationId}`)
 
-    // Step 7: Send approval email with magic link
-    // We send this AFTER everything else succeeds
     // Step 7: Send approval email with magic link
     // We send this AFTER everything else succeeds
     const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.store'

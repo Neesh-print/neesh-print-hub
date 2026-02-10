@@ -870,6 +870,7 @@ export const PublisherApplication = () => {
                       field.onChange(formatted === "@" ? "" : formatted);
                     }}
                     autoComplete="off"
+                    name="publisher-instagram"
                   />
                 )}
               />
@@ -921,7 +922,8 @@ export const PublisherApplication = () => {
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
                     onChange={field.onChange}
-                    autoComplete="address-level2"
+                    autoComplete="off"
+                    name="publisher-shipping-city"
                   />
                 )}
               />

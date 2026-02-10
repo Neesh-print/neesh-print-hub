@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordModal } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ export const RetailerSettings = () => {
   const { retailer, isLoading, updateProfile } = useRetailerProfile();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -97,6 +99,7 @@ export const RetailerSettings = () => {
   }
 
   return (
+    <>
     <RetailerLayout>
       <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <BackNavigation
@@ -256,7 +259,7 @@ export const RetailerSettings = () => {
                 disabled
               />
 
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setShowPasswordModal(true)}>
                 Change Password
               </Button>
 
@@ -277,6 +280,12 @@ export const RetailerSettings = () => {
         </div>
       </div>
     </RetailerLayout>
+
+    <ChangePasswordModal
+      isOpen={showPasswordModal}
+      onClose={() => setShowPasswordModal(false)}
+    />
+    </>
   );
 };
 

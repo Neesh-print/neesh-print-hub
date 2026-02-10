@@ -23,7 +23,7 @@ export const RetailerOrdersList = () => {
 
   // Fetch retailer profile and orders
   const { retailer } = useRetailerProfile();
-  const { orders, isLoading, error } = useOrders({ retailerId: retailer?.id });
+  const { orders, isLoading, error } = useOrders({ retailerId: retailer?.user_id });
 
   const handleSelectionChange = (selectedIds: string[]) => {
     setSelectedOrders(selectedIds);

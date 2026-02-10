@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SocialLinkInput } from "@/components/ui/social-link-input";
+import { ChangePasswordModal } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ export const PublisherSettings = () => {
   const { publisher, isLoading, updateProfile } = usePublisherProfile();
   const [isSaving, setIsSaving] = useState(false);
   const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -89,6 +91,7 @@ export const PublisherSettings = () => {
   }
 
   return (
+    <>
     <PublisherLayout>
       <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <BackNavigation
@@ -322,7 +325,7 @@ export const PublisherSettings = () => {
                 disabled
               />
 
-              <ButtonSecondary>
+              <ButtonSecondary onClick={() => setShowPasswordModal(true)}>
                 Change Password
               </ButtonSecondary>
 
@@ -343,6 +346,12 @@ export const PublisherSettings = () => {
         </div>
       </div>
     </PublisherLayout>
+
+    <ChangePasswordModal
+      isOpen={showPasswordModal}
+      onClose={() => setShowPasswordModal(false)}
+    />
+    </>
   );
 };
 
