@@ -126,7 +126,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         issue_frequency: item.issue_frequency,
         publication_type: item.publication_type,
         publication_date: item.publication_date,
-        is_active: item.is_active ?? true,
+        is_active: item.is_active ?? false,
         inventory_count: item.inventory_count || 0,
         sold_count: item.sold_count || 0,
         created_at: item.created_at,

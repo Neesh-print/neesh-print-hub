@@ -237,11 +237,11 @@ function getRetailerChecklist(
     {
       id: 'save_to_wishlist',
       title: 'Save titles to your wishlist',
-      description: 'Bookmark titles you want to order later',
+      description: 'Tap the bookmark icon on any magazine cover to save it',
       completed: hasWishlistItem,
       action: {
-        label: 'Browse & Save',
-        href: '/retailer',
+        label: 'View Saved',
+        href: '/retailer/wishlist',
       },
       icon: Bookmark,
     },

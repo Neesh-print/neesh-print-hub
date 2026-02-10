@@ -30,6 +30,14 @@ export interface MagazineCardProps {
   isBookmarked?: boolean;
   /** Show scarcity indicator on card (default: true) */
   showStockIndicator?: boolean;
+  /** Optional custom action handler (replaces bookmark functionality if provided) */
+  onAction?: (e: React.MouseEvent) => void;
+  /** Icon to use for the custom action (defaults to Bookmark) */
+  actionIcon?: React.ElementType;
+  /** Label for the custom action */
+  actionLabel?: string;
+  /** Whether the action button overlay should be forcefully shown on top of other elements */
+  showActionOnData?: boolean;
 }
 
 // Convert Shopify CDN URLs to use our proxy
@@ -56,6 +64,10 @@ export const MagazineCard = ({
   onBookmark,
   isBookmarked = false,
   showStockIndicator = true,
+  onAction,
+  actionIcon: ActionIcon,
+  actionLabel,
+  showActionOnData = false,
 }: MagazineCardProps) => {
   const stockLevel = getStockLevel(inventoryCount);
   const isNew = isCurrentMonth(publicationDate);
@@ -97,41 +109,45 @@ export const MagazineCard = ({
           />
         )}
         
-        {/* New Badge - top right corner on image */}
+        {/* New Badge - top left corner on image (moved from right to avoid colliding with bookmark) */}
         {isNew && (
           <Badge 
-            className="absolute top-2 right-2 bg-status-success text-status-success-text text-[10px] px-1.5"
+            className="absolute top-2 left-2 bg-status-success text-status-success-text text-[10px] px-1.5 z-10"
             aria-label="New release"
           >
             New
           </Badge>
         )}
         
-        {/* Stock Indicator - only show for low/critical/out */}
+        {/* Stock Indicator - below new badge if both present */}
         {showStockIndicator && stockLevel !== 'normal' && (
-          <div className="absolute top-2 left-2">
+          <div className={`absolute ${isNew ? 'top-8' : 'top-2'} left-2`}>
             <StockIndicator quantity={inventoryCount} size="sm" />
           </div>
         )}
         
-        {/* Bookmark button */}
-        {onBookmark && (
+        {/* Action button (Bookmark or Custom Action) - always top-right, never hidden */}
+        {(onBookmark || onAction) && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onBookmark();
+              if (onAction) onAction(e);
+              else if (onBookmark) onBookmark();
             }}
             className={`
-              absolute ${isNew ? 'top-10' : 'top-2'} right-2 p-2 rounded-full
-              backdrop-blur-sm transition-all
-              ${isBookmarked 
-                ? 'bg-accent text-accent-foreground' 
-                : 'bg-background/80 text-foreground hover:bg-background'
-              }
+              absolute top-2 right-2 p-2 rounded-full
+              backdrop-blur-sm transition-all z-20 opacity-100
+              bg-background/80 text-foreground hover:bg-background hover:text-accent
+              ${isBookmarked ? 'bg-accent text-accent-foreground' : ''}
             `}
-            aria-label={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
+            aria-label={actionLabel || (isBookmarked ? 'Remove bookmark' : 'Add bookmark')}
+            title={actionLabel}
           >
-            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
+            {ActionIcon ? (
+              <ActionIcon className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
+            ) : (
+              <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
+            )}
           </button>
         )}
       </div>

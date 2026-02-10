@@ -38,8 +38,8 @@ interface Magazine {
 
 function getMagazineStatus(is_active: boolean | null): MagazineStatus {
   if (is_active === true) return 'active';
-  if (is_active === false) return 'suspended';
-  return 'archived'; // is_active === null
+  if (is_active === false) return 'archived';
+  return 'suspended'; // is_active === null
 }
 
 type FilterType = 'all' | 'active' | 'suspended' | 'archived' | 'low_stock' | 'out_of_stock';
@@ -112,7 +112,7 @@ export function AdminMagazines() {
       return;
     }
 
-    const label = newIsActive === true ? 'reactivated' : newIsActive === false ? 'suspended' : 'archived';
+    const label = newIsActive === true ? 'reactivated' : newIsActive === false ? 'archived' : 'suspended';
     toast.success(`Magazine ${label}`);
     setConfirmAction(null);
     setSelectedMagazine(null);
@@ -465,20 +465,36 @@ export function AdminMagazines() {
                               </>
                             )}
                             {status === 'archived' && (
-                              <button
-                                onClick={() => {
-                                  setConfirmAction({
-                                    magazineId: magazine.id,
-                                    title: magazine.title,
-                                    action: 'reactivate',
-                                  });
-                                  setActionMenuId(null);
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                                Reactivate
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setConfirmAction({
+                                      magazineId: magazine.id,
+                                      title: magazine.title,
+                                      action: 'reactivate',
+                                    });
+                                    setActionMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  Reactivate
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setConfirmAction({
+                                      magazineId: magazine.id,
+                                      title: magazine.title,
+                                      action: 'suspend',
+                                    });
+                                    setActionMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                                >
+                                  <Ban className="h-4 w-4" />
+                                  Suspend
+                                </button>
+                              </>
                             )}
                           </div>
                         )}
@@ -612,6 +628,34 @@ export function AdminMagazines() {
                           Reactivate
                         </button>
                       )}
+                      {status === 'archived' && (
+                        <button
+                          onClick={() => {
+                            setConfirmAction({
+                              magazineId: selectedMagazine.id,
+                              title: selectedMagazine.title,
+                              action: 'suspend',
+                            });
+                          }}
+                          className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 transition-colors"
+                        >
+                          Suspend
+                        </button>
+                      )}
+                      {status === 'suspended' && (
+                        <button
+                          onClick={() => {
+                            setConfirmAction({
+                              magazineId: selectedMagazine.id,
+                              title: selectedMagazine.title,
+                              action: 'archive',
+                            });
+                          }}
+                          className="px-4 py-2 text-sm font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          Archive
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/publisher/titles/${selectedMagazine.id}/edit`)}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
@@ -671,8 +715,8 @@ export function AdminMagazines() {
                   onClick={() => {
                     const newIsActive =
                       confirmAction.action === 'reactivate' ? true :
-                      confirmAction.action === 'suspend' ? false :
-                      null; // archive
+                      confirmAction.action === 'archive' ? false :
+                      null; // suspend
                     updateMagazineStatus(confirmAction.magazineId, newIsActive);
                   }}
                   className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${

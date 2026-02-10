@@ -262,13 +262,81 @@ Deno.serve(async (req) => {
 
     // Create Stripe Checkout Session
     const origin = req.headers.get('origin') || 'http://localhost:8081'
-    
-    const session = await stripe.checkout.sessions.create({
+
+    // Fetch retailer's default shipping address to pre-fill Stripe checkout
+    let stripeCustomerId: string | undefined
+    try {
+      // Check if user already has a Stripe customer ID in their profile
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('user_id', user.id)
+        .single()
+
+      const { data: retailer } = await supabaseClient
+        .from('retailers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (retailer) {
+        const { data: shippingAddr } = await supabaseClient
+          .from('shipping_addresses')
+          .select('recipient_name, company_name, address_line_1, address_line_2, city, state, postal_code, country, phone')
+          .eq('retailer_id', retailer.id)
+          .eq('is_default', true)
+          .single()
+
+        if (shippingAddr) {
+          // Map country name to ISO code for Stripe
+          const countryCode = shippingAddr.country === 'Canada' ? 'CA' : 'US'
+          const shippingData = {
+            name: shippingAddr.recipient_name,
+            phone: shippingAddr.phone || undefined,
+            address: {
+              line1: shippingAddr.address_line_1,
+              line2: shippingAddr.address_line_2 || undefined,
+              city: shippingAddr.city,
+              state: shippingAddr.state,
+              postal_code: shippingAddr.postal_code,
+              country: countryCode,
+            },
+          }
+
+          if (profile?.stripe_customer_id) {
+            // Update existing Stripe customer with latest address
+            await stripe.customers.update(profile.stripe_customer_id, {
+              shipping: shippingData,
+            })
+            stripeCustomerId = profile.stripe_customer_id
+          } else {
+            // Create new Stripe customer and save ID to profile
+            const customer = await stripe.customers.create({
+              email: user.email!,
+              name: shippingAddr.recipient_name,
+              phone: shippingAddr.phone || undefined,
+              shipping: shippingData,
+            })
+            stripeCustomerId = customer.id
+
+            // Save Stripe customer ID for future checkouts
+            await supabaseClient
+              .from('profiles')
+              .update({ stripe_customer_id: customer.id })
+              .eq('user_id', user.id)
+          }
+        }
+      }
+    } catch (addrErr) {
+      // Non-fatal: continue without pre-filled address
+      console.error('Error fetching shipping address for Stripe pre-fill:', addrErr)
+    }
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       line_items: lineItems,
       success_url: checkoutRequest.success_url || `${origin}/retailer/order-confirmation/{CHECKOUT_SESSION_ID}`,
       cancel_url: checkoutRequest.cancel_url || `${origin}/retailer/cart`,
-      customer_email: user.email /* Validated by Auth */,
       metadata,
       payment_intent_data: {
         metadata, // Also add to payment intent
@@ -278,7 +346,16 @@ Deno.serve(async (req) => {
       shipping_address_collection: {
         allowed_countries: ['US', 'CA'],
       },
-    })
+    }
+
+    if (stripeCustomerId) {
+      sessionParams.customer = stripeCustomerId
+      sessionParams.customer_update = { shipping: 'auto' }
+    } else {
+      sessionParams.customer_email = user.email!
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams)
 
     // Store the checkout session in payment_sessions table
     const { error: sessionError } = await supabaseClient
