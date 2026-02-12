@@ -9,40 +9,13 @@ const tabs = [
   { id: "transfers", label: "Transfers" },
 ];
 
-const mockTransactions = [
-  {
-    date: "September 13 2025",
-    items: [
-      { type: "bank", name: "Chase Bank", account: "••••4521", label: "Instant Transfer", amount: -1000.00 },
-      { type: "retailer", name: "Brooklyn Books", label: "Retailer Payment", amount: 450.00 },
-    ]
-  },
-  {
-    date: "September 10 2025",
-    items: [
-      { type: "retailer", name: "Powell's Books", label: "Retailer Payment", amount: 320.00 },
-      { type: "retailer", name: "Strand Bookstore", label: "Retailer Payment", amount: 280.00 },
-    ]
-  },
-  {
-    date: "September 5 2025",
-    items: [
-      { type: "bank", name: "Chase Bank", account: "••••4521", label: "Instant Transfer", amount: -500.00 },
-    ]
-  },
-  {
-    date: "September 1 2025",
-    items: [
-      { type: "retailer", name: "City Lights", label: "Retailer Payment", amount: 560.00 },
-      { type: "retailer", name: "The Last Bookstore", label: "Retailer Payment", amount: 420.00 },
-    ]
-  },
-];
+// Transaction data will come from Stripe/Supabase once payment processing is live
+const transactions: { date: string; items: { type: string; name: string; account?: string; label: string; amount: number }[] }[] = [];
 
 export const PublisherTransactionHistory = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("history");
-  const [expandedDates, setExpandedDates] = useState<string[]>(mockTransactions.map(t => t.date));
+  const [expandedDates, setExpandedDates] = useState<string[]>(transactions.map(t => t.date));
 
   const toggleDate = (date: string) => {
     if (expandedDates.includes(date)) {
@@ -74,7 +47,7 @@ export const PublisherTransactionHistory = () => {
       <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="px-4 md:px-6 py-6">
-        {mockTransactions.length === 0 ? (
+        {transactions.length === 0 ? (
           <EmptyState
             icon={<Receipt className="w-12 h-12" />}
             title="No transactions yet"
@@ -82,7 +55,7 @@ export const PublisherTransactionHistory = () => {
           />
         ) : (
         <div className="space-y-4">
-          {mockTransactions.map((group) => (
+          {transactions.map((group) => (
             <div key={group.date} className="card-neesh">
               <button
                 onClick={() => toggleDate(group.date)}

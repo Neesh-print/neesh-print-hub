@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Heart, Copy, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Copy, AlertCircle, Bell, BellOff } from "lucide-react";
 import { RetailerLayout, useCart, useWishlistContext } from "@/components/retailer";
 import { BackNavigation, MagazineCard, ButtonSecondary, ButtonPrimary, EmptyState } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
@@ -14,6 +14,7 @@ import { getStockLevel, isInStock, STOCK_THRESHOLDS } from "@/lib/inventory";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
+import { useStockNotification } from "@/hooks/useStockNotification";
 import { ImagePlaceholder } from "@/components/shared/ImagePlaceholder";
 
 export const RetailerTitleDetail = () => {
@@ -35,6 +36,7 @@ export const RetailerTitleDetail = () => {
 
   const { magazine, isLoading, error } = useMagazine(id || '');
   const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
+  const { isNotifyRequested, toggleNotification, isLoading: notifyLoading } = useStockNotification(id || '');
 
   // Quantity handlers with stock validation
   const maxQuantity = magazine?.inventory_count || 0;
@@ -277,7 +279,7 @@ export const RetailerTitleDetail = () => {
             {/* Description */}
             {magazine.description && (
               <div className="mb-6">
-                {magazine.description.split('\n\n').map((para, index) => (
+                {magazine.description.replace(/<[^>]*>/g, '').split('\n\n').map((para, index) => (
                   <p key={index} className="text-muted-foreground mb-4 last:mb-0">
                     {para}
                   </p>
@@ -323,9 +325,19 @@ export const RetailerTitleDetail = () => {
             </ButtonPrimary>
 
             {outOfStock && (
-              <p className="text-sm text-muted-foreground text-center mt-2">
-                Check back soon or contact the publisher
-              </p>
+              <div className="mt-3">
+                <ButtonSecondary
+                  fullWidth
+                  icon={isNotifyRequested ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                  onClick={() => {
+                    toggleNotification();
+                    toast.success(isNotifyRequested ? "Notification removed" : "You'll be notified when this is back in stock");
+                  }}
+                  disabled={notifyLoading}
+                >
+                  {isNotifyRequested ? 'Remove Notification' : 'Notify Me When Available'}
+                </ButtonSecondary>
+              </div>
             )}
           </div>
         </div>

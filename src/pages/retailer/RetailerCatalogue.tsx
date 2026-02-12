@@ -213,6 +213,7 @@ export const RetailerCatalogue = () => {
 
       {/* Hero Carousel Section */}
       {featuredMagazines.length > 0 && <section className="px-4 md:px-6 py-8 overflow-hidden">
+          <h2 className="font-display font-semibold text-xl text-foreground mb-4">New Arrivals</h2>
           <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
             {featuredMagazines.map((mag, index) => <div key={mag.id} className={`
                   relative flex-shrink-0 w-48 md:w-56 snap-center

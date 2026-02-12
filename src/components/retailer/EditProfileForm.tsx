@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, Globe } from "lucide-react";
 
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -552,7 +552,7 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
                     <FormControl>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          🌐
+                          <Globe className="w-4 h-4" />
                         </span>
                         <Input 
                           placeholder="https://yourstore.com" 

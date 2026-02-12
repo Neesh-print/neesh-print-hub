@@ -32,6 +32,10 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
 
       {/* Main content */}
       <main className="pt-14 pb-20 md:pt-0 md:pb-0 md:pl-60">
+        {/* Desktop top bar with notifications */}
+        <div className="hidden md:flex items-center justify-end px-6 py-3 border-b border-border">
+          <NotificationCenter userRole="publisher" />
+        </div>
         <div className="md:pt-6">
           {children}
         </div>

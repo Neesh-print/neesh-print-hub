@@ -33,6 +33,7 @@ interface PublicTitle {
   issueNumber: string | null;
   coverImage: string | null;
   price: number;
+  inventoryCount: number;
 }
 
 export const PublisherPublicProfile = () => {
@@ -127,7 +128,8 @@ export const PublisherPublicProfile = () => {
           title: mag.title,
           issueNumber: mag.issue_number,
           coverImage: mag.cover_image_url,
-          price: mag.wholesale_price || 0, // Showing wholesale price as "price" context dependent
+          price: mag.wholesale_price || 0,
+          inventoryCount: mag.inventory_count ?? 0,
         })));
 
       } catch (error) {
@@ -303,6 +305,8 @@ export const PublisherPublicProfile = () => {
                     title={title.title}
                     publisher={title.issueNumber}
                     price={title.price}
+                    inventoryCount={title.inventoryCount}
+                    showStockIndicator={true}
                     onClick={handleTitleClick}
                     onBookmark={() => handleBookmark(title.id)}
                     isBookmarked={isInWishlist(title.id)}

@@ -17,6 +17,7 @@ export interface PublisherProfile {
   created_at: string;
   updated_at: string;
   stripe_account_id: string | null;
+  avatar_url: string | null;
 }
 
 export interface UsePublisherProfileReturn {
@@ -45,7 +46,14 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
     try {
       const { data, error: fetchError } = await supabase
         .from('publishers')
-        .select('*, stripe_account_id') // Explicitly select stripe_account_id to be sure
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      // Fetch avatar_url from profiles separately
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('avatar_url')
         .eq('user_id', user.id)
         .single();
 
@@ -74,6 +82,7 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
           created_at: data.created_at || '',
           updated_at: data.updated_at || '',
           stripe_account_id: data.stripe_account_id,
+          avatar_url: profileData?.avatar_url || null,
         };
         setPublisher(transformed);
       }
