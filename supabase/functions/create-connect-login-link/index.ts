@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const { data: publisherData, error: publisherError } = await supabaseClient
       .from('publishers')
       .select('stripe_account_id')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single()
 
     if (publisherError || !publisherData || !publisherData.stripe_account_id) {

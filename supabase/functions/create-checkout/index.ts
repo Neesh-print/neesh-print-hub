@@ -343,15 +343,16 @@ Deno.serve(async (req) => {
       },
       // Enable automatic tax calculation
       automatic_tax: { enabled: true },
-      shipping_address_collection: {
-        allowed_countries: ['US', 'CA'],
-      },
     }
 
     if (stripeCustomerId) {
       sessionParams.customer = stripeCustomerId
       sessionParams.customer_update = { shipping: 'auto' }
     } else {
+      // Only ask Stripe for shipping address when we don't have a saved customer with address
+      sessionParams.shipping_address_collection = {
+        allowed_countries: ['US', 'CA'],
+      }
       sessionParams.customer_email = user.email!
     }
 

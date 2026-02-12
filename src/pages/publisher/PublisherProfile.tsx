@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, ChevronDown, ChevronUp, Share2, Camera, Loader2, Instagram } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
@@ -6,6 +6,8 @@ import { BackNavigation, WalletDisplay, ButtonSecondary, ShareProfileModal } fro
 import { SocialLinks } from "@/components/ui/social-links";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { slugify } from "@/lib/slugify";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -18,7 +20,15 @@ export const PublisherProfile = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { user } = useAuth();
   const { publisher, isLoading: profileLoading } = usePublisherProfile();
+
+  // Load avatar from publisher profile
+  useEffect(() => {
+    if (publisher?.avatar_url) {
+      setAvatarUrl(publisher.avatar_url);
+    }
+  }, [publisher?.avatar_url]);
   const { magazines, isLoading: magazinesLoading } = useMagazines({ 
     publisherId: publisher?.id 
   });
@@ -29,8 +39,18 @@ export const PublisherProfile = () => {
     bucket: 'magazine-assets',
     folder: 'avatars',
     maxSizeMB: 5,
-    onUploadComplete: (url) => {
+    onUploadComplete: async (url) => {
       setAvatarUrl(url);
+      // Persist avatar URL to profiles table
+      if (user?.id) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: url })
+          .eq('user_id', user.id);
+        if (error) {
+          console.error('Failed to save avatar URL:', error);
+        }
+      }
       toast.success("Profile photo updated successfully");
     },
     onError: (error) => {

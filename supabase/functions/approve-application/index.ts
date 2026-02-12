@@ -53,7 +53,7 @@ const generateApprovalEmail = (data: ApprovalEmailData): string => {
 
               <!-- Welcome Message -->
               <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600;">
-                Welcome to Neesh, ${data.firstName}! 🎉
+                Welcome to Neesh, ${data.firstName}!
               </h2>
 
               <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
-      const { error: upsertError } = await supabaseAdmin
+      const { data: publisherRecord, error: upsertError } = await supabaseAdmin
         .from('publishers')
         .upsert({
           user_id: userId,
@@ -356,9 +356,33 @@ Deno.serve(async (req) => {
         }, {
           onConflict: 'user_id',
         })
+        .select('id')
+        .single()
 
       if (upsertError) {
         console.error('Error creating/updating publisher:', upsertError)
+      }
+
+      // Create initial magazine from application data if magazine_title exists
+      if (publisherRecord?.id && application.magazine_title) {
+        const { error: magError } = await supabaseAdmin
+          .from('magazines')
+          .insert({
+            title: application.magazine_title,
+            publisher_id: publisherRecord.id,
+            cover_image_url: application.cover_image_url || null,
+            description: application.description || null,
+            issue_frequency: application.issue_frequency || null,
+            publication_type: application.publication_type || null,
+            is_active: false, // Publisher should review and activate
+          })
+
+        if (magError) {
+          // Don't fail the approval if magazine creation fails (e.g. duplicate)
+          console.error('Error creating magazine from application:', magError)
+        } else {
+          console.log(`Created magazine "${application.magazine_title}" for publisher ${publisherRecord.id}`)
+        }
       }
     } else if (type === 'retailer') {
       const { error: upsertError } = await supabaseAdmin
@@ -446,7 +470,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               from: 'Neesh <hi@neesh.art>',
               to: email,
-              subject: `Welcome to Neesh - ${businessName} Approved! 🎉`,
+              subject: `Welcome to Neesh - ${businessName} Approved!`,
               html: html,
             }),
           })

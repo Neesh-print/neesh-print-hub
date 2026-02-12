@@ -105,13 +105,19 @@ export const RetailerApplication = () => {
 
   const watchedValues = watch();
 
-  // Load saved data from localStorage
+  // Load saved data from localStorage (clear if stale > 7 days)
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
+        // Clear stale drafts older than 7 days
+        if (parsed._savedAt && Date.now() - parsed._savedAt > 7 * 24 * 60 * 60 * 1000) {
+          localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
         Object.entries(parsed).forEach(([key, value]) => {
+          if (key === "currentStep" || key === "_savedAt") return;
           setValue(key as keyof FormData, value as string | boolean);
         });
         if (parsed.currentStep) {
@@ -119,13 +125,14 @@ export const RetailerApplication = () => {
         }
       } catch (e) {
         console.error("Failed to parse saved application data");
+        localStorage.removeItem(STORAGE_KEY);
       }
     }
   }, [setValue]);
 
   // Save data to localStorage on change
   useEffect(() => {
-    const dataToSave = { ...watchedValues, currentStep };
+    const dataToSave = { ...watchedValues, currentStep, _savedAt: Date.now() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [watchedValues, currentStep]);
 

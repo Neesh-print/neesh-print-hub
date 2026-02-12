@@ -10,16 +10,26 @@ interface MagazineCoverImageProps {
   priority?: boolean;
 }
 
+// Rewrite broken shop.neesh.art URLs to cdn.shopify.com
+const rewriteShopifyUrl = (url: string): string => {
+  if (url.includes("shop.neesh.art")) {
+    return url.replace("shop.neesh.art", "cdn.shopify.com");
+  }
+  return url;
+};
+
 // Convert Shopify CDN URLs to use our proxy
 const getProxiedUrl = (url: string | null | undefined): string => {
   if (!url) return "/placeholder.svg";
-  
+
+  const rewritten = rewriteShopifyUrl(url);
+
   // Check if it's a Shopify CDN URL that needs proxying
-  if (url.includes("cdn.shopify.com") || url.includes("shop.neesh.art/cdn/")) {
-    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
+  if (rewritten.includes("cdn.shopify.com")) {
+    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(rewritten)}`;
   }
-  
-  return url;
+
+  return rewritten;
 };
 
 export const MagazineCoverImage = ({

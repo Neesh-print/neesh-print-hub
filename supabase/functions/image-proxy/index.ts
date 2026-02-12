@@ -99,8 +99,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Rewrite broken shop.neesh.art URLs to cdn.shopify.com
+    let resolvedUrl = imageUrl;
+    if (resolvedUrl.includes('shop.neesh.art')) {
+      resolvedUrl = resolvedUrl.replace('shop.neesh.art', 'cdn.shopify.com');
+    }
+
     // Validate it's a Shopify CDN URL for security
-    const parsedUrl = new URL(imageUrl);
+    const parsedUrl = new URL(resolvedUrl);
 
     if (!allowedHosts.has(parsedUrl.hostname)) {
       return new Response(JSON.stringify({ error: 'URL not allowed' }), {
@@ -109,11 +115,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`Proxying image: ${imageUrl}`);
+    console.log(`Proxying image: ${resolvedUrl}`);
 
     // Fetch the image from Shopify with fallback retries (some Shopify CDNs
     // return 404/403 depending on headers and query-string cache busters).
-    const response = await fetchImageWithFallbacks(imageUrl);
+    const response = await fetchImageWithFallbacks(resolvedUrl);
 
     if (!response.ok) {
       console.error(`Failed to fetch image: ${response.status}`);

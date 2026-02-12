@@ -40,15 +40,25 @@ export interface MagazineCardProps {
   showActionOnData?: boolean;
 }
 
+// Rewrite broken shop.neesh.art URLs to cdn.shopify.com
+const rewriteShopifyUrl = (url: string): string => {
+  if (url.includes("shop.neesh.art")) {
+    return url.replace("shop.neesh.art", "cdn.shopify.com");
+  }
+  return url;
+};
+
 // Convert Shopify CDN URLs to use our proxy
 const getProxiedUrl = (url: string): string => {
   if (!url) return "/placeholder.svg";
-  
-  if (url.includes("cdn.shopify.com") || url.includes("shop.neesh.art/cdn/")) {
-    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
+
+  const rewritten = rewriteShopifyUrl(url);
+
+  if (rewritten.includes("cdn.shopify.com")) {
+    return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(rewritten)}`;
   }
-  
-  return url;
+
+  return rewritten;
 };
 
 export const MagazineCard = ({
@@ -136,9 +146,10 @@ export const MagazineCard = ({
             }}
             className={`
               absolute top-2 right-2 p-2 rounded-full
-              backdrop-blur-sm transition-all z-20 opacity-100
-              bg-background/80 text-foreground hover:bg-background hover:text-accent
-              ${isBookmarked ? 'bg-accent text-accent-foreground' : ''}
+              backdrop-blur-sm transition-all z-20
+              ${isBookmarked
+                ? 'bg-accent text-accent-foreground shadow-md'
+                : 'bg-background/90 text-foreground shadow-sm hover:bg-background hover:text-accent hover:shadow-md'}
             `}
             aria-label={actionLabel || (isBookmarked ? 'Remove bookmark' : 'Add bookmark')}
             title={actionLabel}
