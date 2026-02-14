@@ -240,7 +240,14 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
   };
 
   const onSubmit = async (data: ProfileFormData) => {
-    if (!user?.id || !retailer?.id) return;
+    if (!user?.id) {
+      toast({ title: "Not logged in", description: "Please log in and try again.", variant: "destructive" });
+      return;
+    }
+    if (!retailer?.id) {
+      toast({ title: "Profile not loaded", description: "Your profile couldn't be loaded. Please refresh the page.", variant: "destructive" });
+      return;
+    }
 
     setIsSaving(true);
 
@@ -296,14 +303,15 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
       await refetch();
 
       toast({
-        title: "Profile saved",
-        description: completion.isComplete 
+        title: completion.isComplete ? "Profile complete!" : "Profile saved",
+        description: completion.isComplete
           ? "Your profile is now complete! Publishers can find your store."
           : "Your changes have been saved.",
       });
 
-      // Navigate back to profile view
-      navigate('/retailer/profile');
+      // Navigate back to dashboard
+      window.scrollTo(0, 0);
+      navigate('/retailer');
 
     } catch (error) {
       console.error('Failed to save profile:', error);
@@ -312,6 +320,7 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
         description: "Please try again.",
         variant: "destructive",
       });
+      window.scrollTo(0, 0);
     } finally {
       setIsSaving(false);
     }
