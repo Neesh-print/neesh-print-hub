@@ -36,8 +36,8 @@ export const PublisherPayoutSettings = () => {
       const { data, error } = await supabase
         .from('publishers')
         .select('stripe_account_id')
-        .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle() to handle 0 or 1 rows gracefully
+        .eq('user_id', user.id)
+        .maybeSingle();
 
       // Only log errors that aren't "no rows found"
       if (error && error.code !== 'PGRST116') {
@@ -84,11 +84,14 @@ export const PublisherPayoutSettings = () => {
 
   // Fallback to open Stripe Dashboard directly
   const handleOpenDashboard = async () => {
+    // Open window synchronously to avoid popup blocker (async window.open gets blocked)
+    const newWindow = window.open('', '_blank');
     try {
       setIsOpeningDashboard(true);
       const { data, error } = await supabase.functions.invoke('create-connect-login-link');
-      
+
       if (error) {
+        newWindow?.close();
         if (error instanceof Error && error.message.includes('404')) {
            toast.error("Stripe account not found. Please contact support.");
            setHasStripeAccount(false);
@@ -96,13 +99,20 @@ export const PublisherPayoutSettings = () => {
         }
         throw error;
       }
-      
+
       if (data?.url) {
-        window.open(data.url, '_blank');
+        if (newWindow) {
+          newWindow.location.href = data.url;
+        } else {
+          // Fallback if popup was still blocked
+          window.location.href = data.url;
+        }
       } else {
+        newWindow?.close();
         toast.error("Could not generate dashboard link");
       }
     } catch (error) {
+      newWindow?.close();
       console.error('Error opening dashboard:', error);
       toast.error("Failed to open Stripe Dashboard");
     } finally {

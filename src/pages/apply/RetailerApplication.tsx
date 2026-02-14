@@ -495,6 +495,7 @@ export const RetailerApplication = () => {
                     label="City"
                     placeholder="e.g., New York, London, Berlin"
                     error={errors.city?.message}
+                    autoComplete="address-level2"
                     {...field}
                   />
                 )}
@@ -508,6 +509,7 @@ export const RetailerApplication = () => {
                     label="State / Region / Province"
                     placeholder="e.g., New York, England, Bavaria"
                     error={errors.state?.message}
+                    autoComplete="address-level1"
                     {...field}
                   />
                 )}
@@ -550,6 +552,7 @@ export const RetailerApplication = () => {
                   <FormInput
                     label="Website URL"
                     placeholder="https://yourstore.com"
+                    autoComplete="url"
                     {...field}
                   />
                 )}
@@ -561,6 +564,7 @@ export const RetailerApplication = () => {
                   <FormInput
                     label="Instagram Handle"
                     placeholder="@yourstore"
+                    autoComplete="off"
                     {...field}
                     onChange={(value) => {
                       // Ensure @ prefix
