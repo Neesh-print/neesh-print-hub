@@ -366,14 +366,16 @@ Deno.serve(async (req) => {
       automatic_tax: { enabled: true },
     }
 
+    // Always show shipping address form (pre-filled if customer has one on record)
+    sessionParams.shipping_address_collection = {
+      allowed_countries: ['US', 'CA', 'GB', 'DE', 'FR', 'AU', 'NL', 'NZ', 'IE', 'IT', 'ES', 'JP', 'SG'],
+    }
+
     if (stripeCustomerId) {
       sessionParams.customer = stripeCustomerId
+      // Save any address changes back to the customer record
       sessionParams.customer_update = { shipping: 'auto' }
     } else {
-      // Only ask Stripe for shipping address when we don't have a saved customer with address
-      sessionParams.shipping_address_collection = {
-        allowed_countries: ['US', 'CA', 'GB', 'DE', 'FR', 'AU', 'NL', 'NZ', 'IE', 'IT', 'ES', 'JP', 'SG'],
-      }
       sessionParams.customer_email = user.email!
     }
 
