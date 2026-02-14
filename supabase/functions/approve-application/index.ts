@@ -374,7 +374,7 @@ Deno.serve(async (req) => {
             description: application.description || null,
             issue_frequency: application.issue_frequency || null,
             publication_type: application.publication_type || null,
-            is_active: false, // Publisher should review and activate
+            is_active: true, // Active immediately so publisher sees it in dashboard
           })
 
         if (magError) {
@@ -431,7 +431,7 @@ Deno.serve(async (req) => {
 
     // Step 7: Send approval email with magic link
     // We send this AFTER everything else succeeds
-    const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.store'
+    const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
     try {
       console.log('Generating magic link for approval email...')
       const { data: linkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({

@@ -77,6 +77,12 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           .select('*', { count: 'exact', head: true })
           .eq('retailer_id', user.id);
 
+        // Fetch real shipping address count to fix onboarding tracker
+        const { count: shippingAddressCount } = await supabase
+          .from('shipping_addresses')
+          .select('*', { count: 'exact', head: true })
+          .eq('retailer_id', data.id);
+
         const transformed: RetailerProfile = {
           id: data.id,
           user_id: data.user_id,
@@ -95,9 +101,9 @@ export const useRetailerProfile = (): UseRetailerProfileReturn => {
           store_types: data.store_types || [],
           profile_image_url: data.profile_image_url,
           favorite_publisher_ids: data.favorite_publisher_ids || [],
-          has_shipping_address: data.has_shipping_address || false,
+          has_shipping_address: (shippingAddressCount || 0) > 0,
           total_spent: Number(data.total_spent) || 0,
-          total_orders: countError ? (data.total_orders || 0) : (realOrderCount || 0), // Use real count
+          total_orders: countError ? (data.total_orders || 0) : (realOrderCount || 0),
           average_rating: Number(data.average_rating) || 0,
           verified: data.verified || false,
           verified_at: data.verified_at,

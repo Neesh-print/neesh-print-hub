@@ -64,11 +64,14 @@ const profileFormSchema = z.object({
     .array(z.string())
     .min(1, 'Select at least one store type'),
   
-  shop_url: z
-    .string()
-    .url('Enter a valid URL')
-    .optional()
-    .or(z.literal('')),
+  shop_url: z.preprocess(
+    (val) => {
+      if (!val || typeof val !== 'string' || val.trim() === '') return val;
+      if (!/^https?:\/\//i.test(val)) return `https://${val}`;
+      return val;
+    },
+    z.string().url('Enter a valid URL').optional().or(z.literal(''))
+  ),
   
   instagram_handle: z
     .string()

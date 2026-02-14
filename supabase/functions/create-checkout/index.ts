@@ -8,6 +8,22 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8081',
 ];
 
+const COUNTRY_MAP: Record<string, string> = {
+  'United States': 'US',
+  'United Kingdom': 'GB',
+  'Canada': 'CA',
+  'Germany': 'DE',
+  'France': 'FR',
+  'Australia': 'AU',
+  'Netherlands': 'NL',
+  'New Zealand': 'NZ',
+  'Ireland': 'IE',
+  'Italy': 'IT',
+  'Spain': 'ES',
+  'Japan': 'JP',
+  'Singapore': 'SG',
+};
+
 function getCorsHeaders(origin: string | null) {
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin || '') ? origin : ALLOWED_ORIGINS[0];
   return {
@@ -263,16 +279,21 @@ Deno.serve(async (req) => {
     // Create Stripe Checkout Session
     const origin = req.headers.get('origin') || 'http://localhost:8081'
 
-    // Fetch retailer's default shipping address to pre-fill Stripe checkout
+    // --- Shipping Address & Customer Handling ---
     let stripeCustomerId: string | undefined
     try {
-      // Check if user already has a Stripe customer ID in their profile
+      // 1. Get existing Stripe Customer ID
       const { data: profile } = await supabaseClient
         .from('profiles')
         .select('stripe_customer_id')
         .eq('user_id', user.id)
         .single()
 
+      if (profile?.stripe_customer_id) {
+        stripeCustomerId = profile.stripe_customer_id
+      }
+
+      // 2. Try to sync local shipping address to Stripe Customer
       const { data: retailer } = await supabaseClient
         .from('retailers')
         .select('id')
@@ -280,16 +301,17 @@ Deno.serve(async (req) => {
         .single()
 
       if (retailer) {
+        // Use maybeSingle to avoid error if no default address exists
         const { data: shippingAddr } = await supabaseClient
           .from('shipping_addresses')
           .select('recipient_name, company_name, address_line_1, address_line_2, city, state, postal_code, country, phone')
           .eq('retailer_id', retailer.id)
           .eq('is_default', true)
-          .single()
+          .maybeSingle()
 
         if (shippingAddr) {
-          // Map country name to ISO code for Stripe
-          const countryCode = shippingAddr.country === 'Canada' ? 'CA' : 'US'
+          // Map country name to ISO code for Stripe (expanded mapping)
+          const countryCode = COUNTRY_MAP[shippingAddr.country] || shippingAddr.country || 'US'
           const shippingData = {
             name: shippingAddr.recipient_name,
             phone: shippingAddr.phone || undefined,
@@ -303,12 +325,11 @@ Deno.serve(async (req) => {
             },
           }
 
-          if (profile?.stripe_customer_id) {
+          if (stripeCustomerId) {
             // Update existing Stripe customer with latest address
-            await stripe.customers.update(profile.stripe_customer_id, {
+            await stripe.customers.update(stripeCustomerId, {
               shipping: shippingData,
             })
-            stripeCustomerId = profile.stripe_customer_id
           } else {
             // Create new Stripe customer and save ID to profile
             const customer = await stripe.customers.create({
@@ -329,7 +350,7 @@ Deno.serve(async (req) => {
       }
     } catch (addrErr) {
       // Non-fatal: continue without pre-filled address
-      console.error('Error fetching shipping address for Stripe pre-fill:', addrErr)
+      console.warn('Address sync failed, proceeding with existing customer ID if available:', addrErr)
     }
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -351,7 +372,7 @@ Deno.serve(async (req) => {
     } else {
       // Only ask Stripe for shipping address when we don't have a saved customer with address
       sessionParams.shipping_address_collection = {
-        allowed_countries: ['US', 'CA'],
+        allowed_countries: ['US', 'CA', 'GB', 'DE', 'FR', 'AU', 'NL', 'NZ', 'IE', 'IT', 'ES', 'JP', 'SG'],
       }
       sessionParams.customer_email = user.email!
     }

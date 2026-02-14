@@ -108,6 +108,7 @@ export const RetailerWishlist = () => {
                   publisher={mag.publisher?.company_name || "Unknown Publisher"}
                   region={mag.category || undefined}
                   price={mag.wholesale_price || mag.price}
+                  inventoryCount={mag.inventory_count}
                   onClick={() => navigate(`/retailer/catalogue/${mag.id}`)}
                   onBookmark={() => handleRemoveFromWishlist(mag.id)}
                   isBookmarked={true}
