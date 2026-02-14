@@ -184,78 +184,119 @@ export type Database = {
           cover_image_url: string | null
           created_at: string | null
           description: string | null
+          discount_structure: string | null
+          fulfillment_method: string | null
+          height_mm: number | null
           id: string
           inventory_count: number | null
           is_active: boolean | null
+          isbn: string | null
           issue_frequency: string | null
           issue_number: string | null
+          logo_url: string | null
+          metadata: string | null
+          minimum_order_quantity: number | null
           origin_country_code: string | null
-          price: number
+          page_count: number | null
+          payment_terms: string | null
+          price: number | null
+          print_run: string | null
           publication_date: string | null
           publication_type: string | null
           publisher_id: string
+          restock_timeline: string | null
+          sample_spread_url: string | null
           sold_count: number | null
           specs: string | null
+          subcategory: string | null
           suggested_retail_price: number | null
           title: string
           updated_at: string | null
           volume_pricing_tiers: Json | null
+          warehouse_location: string | null
+          weight_grams: number | null
           wholesale_price: number | null
+          width_mm: number | null
         }
         Insert: {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
+          discount_structure?: string | null
+          fulfillment_method?: string | null
+          height_mm?: number | null
           id?: string
           inventory_count?: number | null
           is_active?: boolean | null
+          isbn?: string | null
           issue_frequency?: string | null
           issue_number?: string | null
+          logo_url?: string | null
+          metadata?: string | null
+          minimum_order_quantity?: number | null
           origin_country_code?: string | null
-          price: number
+          page_count?: number | null
+          payment_terms?: string | null
+          price?: number | null
+          print_run?: string | null
           publication_date?: string | null
           publication_type?: string | null
           publisher_id: string
+          restock_timeline?: string | null
+          sample_spread_url?: string | null
           sold_count?: number | null
           specs?: string | null
+          subcategory?: string | null
           suggested_retail_price?: number | null
           title: string
           updated_at?: string | null
           volume_pricing_tiers?: Json | null
+          warehouse_location?: string | null
+          weight_grams?: number | null
           wholesale_price?: number | null
+          width_mm?: number | null
         }
         Update: {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
+          discount_structure?: string | null
+          fulfillment_method?: string | null
+          height_mm?: number | null
           id?: string
           inventory_count?: number | null
           is_active?: boolean | null
+          isbn?: string | null
           issue_frequency?: string | null
           issue_number?: string | null
+          logo_url?: string | null
+          metadata?: string | null
+          minimum_order_quantity?: number | null
           origin_country_code?: string | null
-          price?: number
+          page_count?: number | null
+          payment_terms?: string | null
+          price?: number | null
+          print_run?: string | null
           publication_date?: string | null
           publication_type?: string | null
           publisher_id?: string
+          restock_timeline?: string | null
+          sample_spread_url?: string | null
           sold_count?: number | null
           specs?: string | null
+          subcategory?: string | null
           suggested_retail_price?: number | null
           title?: string
           updated_at?: string | null
           volume_pricing_tiers?: Json | null
+          warehouse_location?: string | null
+          weight_grams?: number | null
           wholesale_price?: number | null
+          width_mm?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "magazines_publisher_id_fkey"
-            columns: ["publisher_id"]
-            isOneToOne: false
-            referencedRelation: "order_details_with_pricing"
-            referencedColumns: ["publisher_id"]
-          },
           {
             foreignKeyName: "magazines_publisher_id_fkey"
             columns: ["publisher_id"]
@@ -580,6 +621,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          carrier: string | null
           created_at: string | null
           id: string
           magazine_id: string
@@ -589,12 +631,15 @@ export type Database = {
           retailer_id: string
           shipping_address: string | null
           status: string
+          stripe_payment_metadata: Json | null
+          stripe_session_id: string | null
           total_price: number
           tracking_number: string | null
           unit_price: number
           updated_at: string | null
         }
         Insert: {
+          carrier?: string | null
           created_at?: string | null
           id?: string
           magazine_id: string
@@ -604,12 +649,15 @@ export type Database = {
           retailer_id: string
           shipping_address?: string | null
           status?: string
+          stripe_payment_metadata?: Json | null
+          stripe_session_id?: string | null
           total_price: number
           tracking_number?: string | null
           unit_price: number
           updated_at?: string | null
         }
         Update: {
+          carrier?: string | null
           created_at?: string | null
           id?: string
           magazine_id?: string
@@ -619,6 +667,8 @@ export type Database = {
           retailer_id?: string
           shipping_address?: string | null
           status?: string
+          stripe_payment_metadata?: Json | null
+          stripe_session_id?: string | null
           total_price?: number
           tracking_number?: string | null
           unit_price?: number
@@ -1371,13 +1421,6 @@ export type Database = {
             foreignKeyName: "shipping_addresses_retailer_id_fkey"
             columns: ["retailer_id"]
             isOneToOne: false
-            referencedRelation: "order_details_with_pricing"
-            referencedColumns: ["retailer_id"]
-          },
-          {
-            foreignKeyName: "shipping_addresses_retailer_id_fkey"
-            columns: ["retailer_id"]
-            isOneToOne: false
             referencedRelation: "retailers"
             referencedColumns: ["id"]
           },
@@ -1415,6 +1458,52 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      stock_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          magazine_id: string
+          notified_at: string | null
+          retailer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          magazine_id: string
+          notified_at?: string | null
+          retailer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          magazine_id?: string
+          notified_at?: string | null
+          retailer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_notifications_magazine_id_fkey"
+            columns: ["magazine_id"]
+            isOneToOne: false
+            referencedRelation: "magazines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_notifications_magazine_id_fkey"
+            columns: ["magazine_id"]
+            isOneToOne: false
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["magazine_id"]
+          },
+          {
+            foreignKeyName: "stock_notifications_retailer_id_fkey"
+            columns: ["retailer_id"]
+            isOneToOne: false
+            referencedRelation: "retailers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_wishlists: {
         Row: {
@@ -1508,11 +1597,13 @@ export type Database = {
       }
       order_details_with_pricing: {
         Row: {
+          carrier: string | null
           cover_image_url: string | null
           created_at: string | null
           id: string | null
           magazine_id: string | null
           magazine_title: string | null
+          payment_intent_id: string | null
           publisher_email: string | null
           publisher_id: string | null
           publisher_name: string | null
@@ -1520,12 +1611,30 @@ export type Database = {
           retailer_email: string | null
           retailer_id: string | null
           retailer_shop_name: string | null
+          shipping_address: string | null
           status: string | null
+          stripe_session_id: string | null
           total_price: number | null
+          tracking_number: string | null
           unit_price: number | null
           wholesale_price: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "magazines_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_retailer_id_fkey"
+            columns: ["retailer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -1534,12 +1643,29 @@ export type Database = {
         Args: { application_id: string }
         Returns: number
       }
+      calculate_retailer_price: {
+        Args: { wholesale_price: number }
+        Returns: number
+      }
+      create_conversation: {
+        Args: {
+          p_other_avatar_url?: string
+          p_other_display_name?: string
+          p_other_user_id: string
+          p_other_user_type: string
+        }
+        Returns: string
+      }
       create_publisher_application: {
         Args: { p_email: string; p_first_name: string; p_last_name: string }
         Returns: {
           access_token: string
           id: string
         }[]
+      }
+      decrease_inventory: {
+        Args: { p_magazine_id: string; p_quantity: number }
+        Returns: undefined
       }
       find_conversation: {
         Args: {
