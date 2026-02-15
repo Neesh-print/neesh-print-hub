@@ -909,6 +909,7 @@ export const PublisherApplication = () => {
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.shippingCountry?.message}
+                    autoComplete="country-name"
                     required
                   />
                 )}
@@ -922,7 +923,7 @@ export const PublisherApplication = () => {
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
                     onChange={field.onChange}
-                    autoComplete="off"
+                    autoComplete="address-level2"
                     name="publisher-shipping-city"
                   />
                 )}
