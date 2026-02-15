@@ -22,7 +22,14 @@ interface CartItem {
   quantity: number
 }
 
+// Also accept minimized format from create-checkout metadata
+interface MinimizedCartItem {
+  id: string
+  qty: number
+}
+
 Deno.serve(async (req) => {
+  console.log('Stripe webhook request received');
   const corsHeaders = getCorsHeaders(req.headers.get('origin'));
 
   // Handle CORS preflight requests
@@ -43,7 +50,12 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!stripeKey || !webhookSecret || !supabaseUrl || !supabaseServiceKey) {
-      console.error('Configuration missing')
+      console.error('Configuration missing:', {
+        stripeKey: !!stripeKey,
+        webhookSecret: !!webhookSecret,
+        supabaseUrl: !!supabaseUrl,
+        supabaseServiceKey: !!supabaseServiceKey
+      })
       return new Response('Configuration Error', { status: 500, headers: corsHeaders })
     }
 
@@ -54,10 +66,12 @@ Deno.serve(async (req) => {
     })
 
     const body = await req.text()
+    console.log('Request body length:', body.length);
     let event
 
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret)
+      console.log('Event constructed successfully:', event.type);
     } catch (err) {
       console.warn(`Webhook signature verification failed: ${err.message}`)
       return new Response(`Webhook Error: ${err.message}`, { status: 400, headers: corsHeaders })
@@ -103,7 +117,12 @@ Deno.serve(async (req) => {
 
         let cartItems: CartItem[];
         try {
-             cartItems = JSON.parse(cartItemsJson);
+             const parsed = JSON.parse(cartItemsJson);
+             // Support both minimized format ({id, qty}) and full format ({magazine_id, quantity})
+             cartItems = parsed.map((item: CartItem | MinimizedCartItem) => ({
+               magazine_id: (item as CartItem).magazine_id || (item as MinimizedCartItem).id,
+               quantity: (item as CartItem).quantity ?? (item as MinimizedCartItem).qty,
+             }));
         } catch (e) {
              console.error('Failed to parse cart items JSON:', cartItemsJson);
              return new Response(JSON.stringify({ error: 'Invalid cart format' }), { status: 400, headers: corsHeaders });

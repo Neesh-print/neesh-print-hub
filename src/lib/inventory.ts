@@ -17,7 +17,8 @@ export type StockLevel = 'out' | 'critical' | 'low' | 'normal';
  * Determine stock level based on quantity
  */
 export function getStockLevel(quantity: number | null | undefined): StockLevel {
-  if (quantity === null || quantity === undefined || quantity <= 0) return 'out';
+  if (quantity === null || quantity === undefined) return 'normal'; // Not tracked = available
+  if (quantity <= 0) return 'out';
   if (quantity <= STOCK_THRESHOLDS.CRITICAL) return 'critical';
   if (quantity <= STOCK_THRESHOLDS.LOW) return 'low';
   return 'normal';

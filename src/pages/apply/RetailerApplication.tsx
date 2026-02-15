@@ -551,7 +551,7 @@ export const RetailerApplication = () => {
                 render={({ field }) => (
                   <FormInput
                     label="Website URL"
-                    placeholder="https://yourstore.com"
+                    placeholder="yourstore.com"
                     autoComplete="url"
                     {...field}
                   />

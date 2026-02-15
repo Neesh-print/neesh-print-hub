@@ -66,11 +66,12 @@ const profileFormSchema = z.object({
   
   shop_url: z.preprocess(
     (val) => {
-      if (!val || typeof val !== 'string' || val.trim() === '') return val;
-      if (!/^https?:\/\//i.test(val)) return `https://${val}`;
-      return val;
+      if (!val || typeof val !== 'string' || val.trim() === '') return '';
+      const trimmed = val.trim();
+      if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`;
+      return trimmed;
     },
-    z.string().url('Enter a valid URL').optional().or(z.literal(''))
+    z.string().url('Enter a valid website (e.g. yourstore.com)').optional().or(z.literal(''))
   ),
   
   instagram_handle: z
@@ -566,10 +567,10 @@ export function EditProfileForm({ isFirstTime = false }: EditProfileFormProps) {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                           <Globe className="w-4 h-4" />
                         </span>
-                        <Input 
-                          placeholder="https://yourstore.com" 
+                        <Input
+                          placeholder="yourstore.com"
                           className="pl-10"
-                          {...field} 
+                          {...field}
                         />
                       </div>
                     </FormControl>
