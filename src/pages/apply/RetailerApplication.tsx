@@ -811,7 +811,9 @@ export const RetailerApplication = () => {
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 md:px-6 pt-20 pb-8">
         <div className="w-full max-w-md">
-          {renderStep()}
+          <div key={currentStep}>
+            {renderStep()}
+          </div>
         </div>
       </main>
     </div>

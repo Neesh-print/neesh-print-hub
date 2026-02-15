@@ -909,7 +909,7 @@ export const PublisherApplication = () => {
                     value={field.value}
                     onChange={field.onChange}
                     error={errors.shippingCountry?.message}
-                    autoComplete="country-name"
+                    autoComplete="off"
                     required
                   />
                 )}
@@ -923,7 +923,7 @@ export const PublisherApplication = () => {
                     placeholder="e.g., Los Angeles, London"
                     value={field.value}
                     onChange={field.onChange}
-                    autoComplete="address-level2"
+                    autoComplete="off"
                     name="publisher-shipping-city"
                   />
                 )}
@@ -1287,7 +1287,13 @@ export const PublisherApplication = () => {
               </div>
             )}
 
-            {renderStep()}
+            {/* key={currentStep} forces React to fully unmount/remount DOM nodes
+                between steps. Without this, React reuses <input> DOM nodes across
+                steps (same tree position), and browser autofill carries values
+                from one step's inputs into the next (e.g., Instagram → City). */}
+            <div key={currentStep}>
+              {renderStep()}
+            </div>
           </form>
         </div>
       </main>
