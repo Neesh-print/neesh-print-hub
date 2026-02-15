@@ -1269,7 +1269,12 @@ export const PublisherApplication = () => {
 
 
           {/* Form content */}
-          <div className="flex-1 max-w-md mx-auto">
+          <form 
+            className="flex-1 max-w-md mx-auto" 
+            autoComplete="off" 
+            onSubmit={(e) => e.preventDefault()}
+            data-lpignore="true"
+          >
             {/* Progress card - Mobile only */}
             {/* Progress bar - Mobile only (simplified) */}
             {currentStep < 12 && (
@@ -1283,7 +1288,7 @@ export const PublisherApplication = () => {
             )}
 
             {renderStep()}
-          </div>
+          </form>
         </div>
       </main>
     </div>
