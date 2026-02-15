@@ -131,7 +131,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
         body: {
           applicationId: id,
           type: type,
-          redirectUrl: window.location.origin,
+          redirectUrl: 'https://neesh.art',
         },
       });
 

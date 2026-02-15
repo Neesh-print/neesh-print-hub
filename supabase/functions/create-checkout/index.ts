@@ -254,16 +254,16 @@ Deno.serve(async (req) => {
 
     // Prepare metadata for the checkout session
     // SECURITY: Limit metadata size and only include necessary fields
+    // Use minimized keys to fit more items within Stripe's 500 char metadata limit
     const minimizedCart = checkoutRequest.cart_items.map(item => ({
         id: item.magazine_id,
         qty: item.quantity
     }));
-    
+
     const cartString = JSON.stringify(minimizedCart);
-    
-    // Check if metadata is too large for Stripe (limit is 500 chars)
+
+    // Check if metadata is too large for Stripe (limit is 500 chars per value)
     if (cartString.length > 480) {
-         // Fallback or error - for now, error to prevent data loss
          return new Response(
             JSON.stringify({ error: 'Cart too large for payment processing. Please reduce the number of items.' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
 
     const metadata: Record<string, string> = {
       retailer_id: user.id,
-      cart_items: JSON.stringify(checkoutRequest.cart_items), // We validated the original cart items earlier
+      cart_items: cartString, // Use minimized format to stay within Stripe's 500 char limit
       order_type: 'magazine_purchase',
     }
 
@@ -291,6 +291,18 @@ Deno.serve(async (req) => {
 
       if (profile?.stripe_customer_id) {
         stripeCustomerId = profile.stripe_customer_id
+        
+        // Verify customer exists in current mode (Test vs Live)
+        try {
+            const customer = await stripe.customers.retrieve(stripeCustomerId);
+            if (customer.deleted) {
+                console.warn(`Customer ${stripeCustomerId} was deleted in Stripe. Creating new one.`);
+                stripeCustomerId = undefined;
+            }
+        } catch (error) {
+            console.warn(`Customer ${stripeCustomerId} not found in Stripe (likely mode mismatch). Creating new one.`);
+            stripeCustomerId = undefined;
+        }
       }
 
       // 2. Try to sync local shipping address to Stripe Customer
