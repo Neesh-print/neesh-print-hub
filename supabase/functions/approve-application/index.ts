@@ -319,6 +319,7 @@ Deno.serve(async (req) => {
           full_name: application.first_name && application.last_name
             ? `${application.first_name} ${application.last_name}`
             : application.buyer_name || email.split('@')[0],
+          has_set_password: false,
         })
 
       if (profileError && profileError.code !== '23505') {

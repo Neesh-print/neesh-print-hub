@@ -1,7 +1,9 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { NavigationMenu, MobileBottomNav, SidebarNav, NotificationCenter } from "@/components/shared";
+import { NavigationMenu, MobileBottomNav, SidebarNav, NotificationCenter, ChangePasswordModal } from "@/components/shared";
 import { Logo } from "@/components/neesh/Logo";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PublisherLayoutProps {
   children: ReactNode;
@@ -9,7 +11,24 @@ interface PublisherLayoutProps {
 
 export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkPassword = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('has_set_password')
+        .eq('user_id', user.id)
+        .single();
+      if (data && data.has_set_password === false) {
+        setNeedsPasswordSetup(true);
+      }
+    };
+    checkPassword();
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,6 +71,14 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         userRole="publisher"
+      />
+
+      {/* Forced password setup for new users */}
+      <ChangePasswordModal
+        isOpen={needsPasswordSetup}
+        onClose={() => setNeedsPasswordSetup(false)}
+        forced
+        onPasswordSet={() => setNeedsPasswordSetup(false)}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, Store, Check, X, Pause, ClipboardList, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import { AdminLayout, StatCard, ConfirmationModal, EmailPreviewModal, type EmailPreviewData } from "@/components/admin";
+import { AdminLayout, StatCard, ConfirmationModal } from "@/components/admin";
 import { ApplicationDetailSlideOver, ApplicationData, ApplicationNote } from "@/components/admin/ApplicationDetailSlideOver";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState, FormTextarea } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
@@ -49,11 +49,9 @@ export const AdminApplications = () => {
   const [showBulkHold, setShowBulkHold] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Email preview state
-  const [showEmailPreview, setShowEmailPreview] = useState(false);
-  const [emailPreviewData, setEmailPreviewData] = useState<EmailPreviewData | null>(null);
+  // Quick approve confirmation state
+  const [showQuickApprove, setShowQuickApprove] = useState(false);
   const [pendingApprovalId, setPendingApprovalId] = useState<{id: string, type: 'publisher' | 'retailer'} | null>(null);
-  const [pendingRejection, setPendingRejection] = useState<{id: string, type: 'publisher' | 'retailer', reason: string} | null>(null);
   
   // Slide-over state
   const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
@@ -69,8 +67,6 @@ export const AdminApplications = () => {
     error,
     approveApplication,
     rejectApplication,
-    getApprovalEmailPreview,
-    getRejectionEmailPreview,
     refetch
   } = useApplications();
 
@@ -304,48 +300,30 @@ export const AdminApplications = () => {
     setSelectedRows([]);
   };
 
-  // Quick action handlers - show email preview first
+  // Quick action handlers
   const handleQuickApprove = async (id: string, type: 'publisher' | 'retailer') => {
-    const emailData = await getApprovalEmailPreview(id, type);
-    if (emailData) {
-      setEmailPreviewData(emailData);
-      setPendingApprovalId({ id, type });
-      setShowEmailPreview(true);
-    } else {
-      toast.error('Failed to generate email preview');
+    setPendingApprovalId({ id, type });
+    setShowQuickApprove(true);
+    return false;
+  };
+
+  const handleConfirmQuickApprove = async () => {
+    if (!pendingApprovalId) return;
+    const { id, type } = pendingApprovalId;
+    const success = await approveApplication(id, type);
+    if (success) {
+      toast.success('Application approved and welcome email sent');
     }
-    return false; // Return false since we're showing preview, not completing action
+    setShowQuickApprove(false);
+    setPendingApprovalId(null);
   };
 
   const handleQuickReject = async (id: string, type: 'publisher' | 'retailer', reason: string) => {
-    const emailData = await getRejectionEmailPreview(id, type, reason);
-    if (emailData) {
-      setEmailPreviewData(emailData);
-      setPendingRejection({ id, type, reason });
-      setShowEmailPreview(true);
-    } else {
-      toast.error('Failed to generate email preview');
+    const success = await rejectApplication(id, type, reason);
+    if (success) {
+      toast.success('Application declined');
     }
-    return false; // Return false since we're showing preview, not completing action
-  };
-
-  // Handle actual approval/rejection after email is sent
-  const handleEmailSent = async () => {
-    if (pendingApprovalId) {
-      const { id, type } = pendingApprovalId;
-      const success = await approveApplication(id, type);
-      if (success) {
-        toast.success('Application approved');
-        setPendingApprovalId(null);
-      }
-    } else if (pendingRejection) {
-      const { id, type, reason } = pendingRejection;
-      const success = await rejectApplication(id, type, reason);
-      if (success) {
-        toast.success('Application rejected');
-        setPendingRejection(null);
-      }
-    }
+    return success;
   };
 
   // TODO: Implement hold functionality in useApplications
@@ -412,7 +390,7 @@ export const AdminApplications = () => {
       header: "",
       align: "right" as const,
       render: (_: unknown, row: ApplicationRow) => (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
           {row.originalStatus === 'pending' && (
             <>
               <button
@@ -659,7 +637,11 @@ export const AdminApplications = () => {
           setIsSlideOverOpen(false);
           setSelectedApplication(null);
         }}
-        onApprove={handleQuickApprove}
+        onApprove={async (id, type) => {
+          const success = await approveApplication(id, type);
+          if (success) toast.success('Application approved and welcome email sent');
+          return success;
+        }}
         onReject={handleQuickReject}
         onHold={handleHold}
         onAddNote={handleAddNote}
@@ -703,17 +685,17 @@ export const AdminApplications = () => {
         confirmLabel="Place On Hold"
       />
 
-      {/* Email Preview Modal */}
-      <EmailPreviewModal
-        isOpen={showEmailPreview}
+      {/* Quick Approve Confirmation */}
+      <ConfirmationModal
+        isOpen={showQuickApprove}
         onClose={() => {
-          setShowEmailPreview(false);
-          setEmailPreviewData(null);
+          setShowQuickApprove(false);
           setPendingApprovalId(null);
-          setPendingRejection(null);
         }}
-        emailData={emailPreviewData}
-        onSend={handleEmailSent}
+        onConfirm={handleConfirmQuickApprove}
+        title="Approve Application"
+        message="Approve this application? A welcome email with account setup instructions will be sent automatically."
+        confirmLabel="Approve & Send Email"
       />
     </AdminLayout>
   );
