@@ -132,6 +132,16 @@ export const PublisherApplication = () => {
 
           if (data && !error) {
              const dbData = data as unknown as PublisherApplicationDB;
+
+             // If the application was already submitted/approved, clear tokens and start fresh
+             if (dbData.status === 'submitted' || dbData.status === 'approved') {
+               localStorage.removeItem('publisherAppId');
+               localStorage.removeItem('publisherAccessToken');
+               setPublisherId(null);
+               setAccessToken(null);
+               setIsLoadingResume(false);
+               return;
+             }
              // Map DB snake_case to form camelCase
              // Map DB fields to form fields explicitly - don't spread additional_info
              // as it can override explicitly mapped fields and cause data leakage between fields
@@ -177,6 +187,13 @@ export const PublisherApplication = () => {
              setCurrentStep(restoreStep);
              setIsLoadingResume(false);
              return;
+          } else {
+            // Token didn't match any record - clear stale tokens
+            console.warn("No matching application found for stored token, clearing");
+            localStorage.removeItem('publisherAppId');
+            localStorage.removeItem('publisherAccessToken');
+            setPublisherId(null);
+            setAccessToken(null);
           }
         } catch (err) {
            console.error("Resume error:", err);

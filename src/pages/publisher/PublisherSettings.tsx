@@ -21,6 +21,7 @@ export const PublisherSettings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [hasStripeAccount, setHasStripeAccount] = useState<boolean | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -42,6 +43,8 @@ export const PublisherSettings = () => {
       });
       setInstagramHandle(publisher.instagram_handle);
       setWebsiteUrl(publisher.website_url);
+      // Check Stripe status from publisher record
+      setHasStripeAccount(!!publisher.stripe_account_id);
     }
   }, [publisher]);
 
@@ -238,77 +241,75 @@ export const PublisherSettings = () => {
               Payout Settings
             </h3>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-2">
-                Update your bank account details for receiving periodic payouts.
-              </p>
-              
-              <FormInput
-                label="Bank Name"
-                value="Stripe Connected Account"
-                onChange={() => {}}
-                disabled
-                helperText="Managed via Stripe Connect"
-              />
+              {hasStripeAccount ? (
+                <>
+                  <div className="p-4 bg-secondary/50 rounded-lg border border-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">Stripe Connect Status</p>
+                        <p className="text-sm text-muted-foreground">Account connected and ready for payouts</p>
+                      </div>
+                      <ButtonSecondary
+                        onClick={async () => {
+                          try {
+                            setIsOpeningDashboard(true);
+                            const { data, error } = await supabase.functions.invoke('create-connect-login-link');
 
-              <div className="p-4 bg-secondary/50 rounded-lg border border-border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">Stripe Connect Status</p>
-                    <p className="text-sm text-muted-foreground">Account active and ready for payouts</p>
-                  </div>
-                  <ButtonSecondary 
-                    onClick={async () => {
-                      try {
-                        setIsOpeningDashboard(true);
-                        const { data, error } = await supabase.functions.invoke('create-connect-login-link');
-                        
-                        if (error) {
-                          // Check if it's a 404 (no Stripe account)
-                          if (error.message?.includes('404') || error.message?.includes('not found')) {
-                            toast.error("No Stripe account connected. Please contact support to set up payouts.");
-                            return;
+                            if (error) {
+                              if (error.message?.includes('404') || error.message?.includes('not found')) {
+                                toast.error("Stripe account not found. Please set up a new payout method.");
+                                setHasStripeAccount(false);
+                                return;
+                              }
+                              throw error;
+                            }
+
+                            if (data?.needs_reconnect || data?.error === 'stripe_account_invalid') {
+                              toast.error("Your Stripe account needs to be reconnected.");
+                              setHasStripeAccount(false);
+                              return;
+                            }
+
+                            if (data?.url) {
+                              window.open(data.url, '_blank');
+                            } else {
+                              toast.error("Could not generate dashboard link");
+                            }
+                          } catch (error) {
+                            console.error('Error opening dashboard:', error);
+                            toast.error("Failed to open Stripe Dashboard");
+                          } finally {
+                            setIsOpeningDashboard(false);
                           }
-                          throw error;
-                        }
-                        
-                        if (data?.url) {
-                          window.open(data.url, '_blank');
-                        } else {
-                          toast.error("Could not generate dashboard link");
-                        }
-                      } catch (error) {
-                        console.error('Error opening dashboard:', error);
-                        toast.error("Failed to open Stripe Dashboard");
-                      } finally {
-                        setIsOpeningDashboard(false);
-                      }
-                    }}
-                    disabled={isOpeningDashboard}
-                  >
-                    {isOpeningDashboard ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Opening...
-                      </>
-                    ) : (
-                      "View Dashboard"
-                    )}
+                        }}
+                        disabled={isOpeningDashboard}
+                      >
+                        {isOpeningDashboard ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Opening...
+                          </>
+                        ) : (
+                          "View Dashboard"
+                        )}
+                      </ButtonSecondary>
+                    </div>
+                  </div>
+
+                  <ButtonSecondary onClick={() => navigate("/publisher/settings/payout")}>
+                    Manage Payout Settings
                   </ButtonSecondary>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground">Payout schedule</p>
-                <p className="text-foreground">Monthly, on the 15th</p>
-              </div>
-
-              <ButtonSecondary onClick={() => navigate("/publisher/settings/payout")}>
-                Update Payout Method
-              </ButtonSecondary>
-
-              <p className="text-sm text-muted-foreground">
-                To update your bank account details, please visit your Stripe Express dashboard.
-              </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Connect your bank account with Stripe to receive payments from retailers.
+                  </p>
+                  <ButtonPrimary onClick={() => navigate("/publisher/settings/payout")}>
+                    Set Up Payouts
+                  </ButtonPrimary>
+                </>
+              )}
             </div>
           </div>
 

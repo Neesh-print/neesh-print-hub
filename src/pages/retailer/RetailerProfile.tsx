@@ -373,7 +373,8 @@ export const RetailerProfile = () => {
         isOpen={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         publisherName={retailer?.shop_name || "Your Store"}
-        slug={`r/${shopSlug}`}
+        slug={shopSlug}
+        profileType="retailer"
       />
     </RetailerLayout>
   );

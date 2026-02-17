@@ -42,7 +42,10 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav userRole="publisher" />
+      <MobileBottomNav 
+        userRole="publisher" 
+        onMoreClick={() => setIsMenuOpen(true)} 
+      />
 
       {/* Slide-out menu (kept for mobile hamburger fallback) */}
       <NavigationMenu

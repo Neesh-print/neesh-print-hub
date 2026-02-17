@@ -63,7 +63,7 @@ import { RetailerSettings } from "./pages/retailer/RetailerSettings";
 
 // Admin pages
 // Public pages
-import { PublisherPublicProfile } from "./pages/public";
+import { PublisherPublicProfile, RetailerPublicProfile } from "./pages/public";
 
 import {
   AdminDashboard,
@@ -167,6 +167,7 @@ const AppRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/p/:slug" element={<PublisherPublicProfile />} />
+      <Route path="/r/:slug" element={<RetailerPublicProfile />} />
 
       {/* Publisher routes */}
       <Route

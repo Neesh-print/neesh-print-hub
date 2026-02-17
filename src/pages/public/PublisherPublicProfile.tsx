@@ -216,16 +216,18 @@ export const PublisherPublicProfile = () => {
               </div>
 
               {/* Website */}
-              <a
-                href={`https://${publisher.website}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-accent hover:underline mb-6"
-              >
-                <Globe className="w-4 h-4" />
-                <span className="text-body">{publisher.website}</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              {publisher.website && (
+                <a
+                  href={publisher.website.startsWith('http') ? publisher.website : `https://${publisher.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-accent hover:underline mb-6"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span className="text-body">{publisher.website}</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
 
               {/* Social Links */}
               <div className="flex items-center gap-3 mb-6">

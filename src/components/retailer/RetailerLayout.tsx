@@ -65,6 +65,7 @@ export const RetailerLayout = ({ children }: RetailerLayoutProps) => {
         userRole="retailer" 
         cartItemCount={cartItemCount} 
         wishlistCount={wishlistCount}
+        onMoreClick={() => setIsMenuOpen(true)}
       />
 
       {/* Slide-out menu (kept for mobile hamburger fallback) */}

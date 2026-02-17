@@ -93,11 +93,19 @@ export const PublisherPayoutSettings = () => {
       if (error) {
         newWindow?.close();
         if (error instanceof Error && error.message.includes('404')) {
-           toast.error("Stripe account not found. Please contact support.");
+           toast.error("Stripe account not found. Please set up a new payout method.");
            setHasStripeAccount(false);
            return;
         }
         throw error;
+      }
+
+      // Check if account needs reconnection
+      if (data?.needs_reconnect || data?.error === 'stripe_account_invalid') {
+        newWindow?.close();
+        toast.error("Your Stripe account is no longer valid. Please set up a new payout method.");
+        setHasStripeAccount(false);
+        return;
       }
 
       if (data?.url) {
@@ -156,15 +164,24 @@ export const PublisherPayoutSettings = () => {
                       
                       if (error) {
                         console.error('Error creating Stripe account:', error);
-                        // Try to get the actual error message from the response
                         let errorMessage = "Failed to create Stripe account";
-                        
-                        if (data?.error) {
-                          errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-                        } else if (error.message) {
-                          errorMessage = error.message;
+
+                        // Extract the actual error from the response body
+                        try {
+                          if (error.context) {
+                            const errorBody = await error.context.json();
+                            console.error('Server error details:', errorBody);
+                            errorMessage = errorBody?.error || errorMessage;
+                          }
+                        } catch {
+                          // Fallback if we can't parse the response
+                          if (data?.error) {
+                            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                          } else if (error.message) {
+                            errorMessage = error.message;
+                          }
                         }
-                        
+
                         console.error('Displaying error:', errorMessage);
                         toast.error(errorMessage);
                         return;
@@ -222,7 +239,10 @@ export const PublisherPayoutSettings = () => {
                           Update your bank account details, business information, and tax forms.
                         </p>
                       </div>
-                      <StripeAccountManagement component="account_management" />
+                      <StripeAccountManagement
+                        component="account_management"
+                        onAccountInvalid={() => setHasStripeAccount(false)}
+                      />
                     </div>
                   </TabsContent>
 
@@ -236,7 +256,10 @@ export const PublisherPayoutSettings = () => {
                           View your payout history, upcoming payouts, and manage your payout schedule.
                         </p>
                       </div>
-                      <StripeAccountManagement component="payouts" />
+                      <StripeAccountManagement
+                        component="payouts"
+                        onAccountInvalid={() => setHasStripeAccount(false)}
+                      />
                     </div>
                   </TabsContent>
                 </Tabs>

@@ -15,7 +15,7 @@ interface ApprovalEmailData {
   firstName: string
   businessName: string
   role: 'publisher' | 'retailer'
-  magicLinkUrl: string
+  recoveryLinkUrl: string
 }
 
 const generateApprovalEmail = (data: ApprovalEmailData): string => {
@@ -61,15 +61,15 @@ const generateApprovalEmail = (data: ApprovalEmailData): string => {
               </p>
 
               <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Click the button below to access your ${roleTitle} dashboard and get started.
+                We've created your account. Click the button below to <strong>set your password</strong> and access your ${roleTitle} dashboard.
               </p>
 
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${data.magicLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                      Access Your Dashboard
+                    <a href="${data.recoveryLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                      Set Your Password
                     </a>
                   </td>
                 </tr>
@@ -79,7 +79,7 @@ const generateApprovalEmail = (data: ApprovalEmailData): string => {
                 This link will expire in 24 hours. You can also copy and paste this URL into your browser:
               </p>
               <p style="margin: 8px 0 0; color: #C49A6C; font-size: 14px; word-break: break-all;">
-                ${data.magicLinkUrl}
+                ${data.recoveryLinkUrl}
               </p>
 
               <!-- Divider -->
@@ -433,17 +433,17 @@ Deno.serve(async (req) => {
     // We send this AFTER everything else succeeds
     const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
     try {
-      console.log('Generating magic link for approval email...')
-      const { data: linkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
+      console.log('Generating recovery link for approval email...')
+      const { data: linkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
         email: email,
         options: {
-          redirectTo: `${siteUrl}/${type}`,
+          redirectTo: `${siteUrl}/reset-password`,
         },
       })
 
-      if (magicLinkError) {
-        console.error('Error generating magic link:', magicLinkError)
+      if (recoveryLinkError) {
+        console.error('Error generating recovery link:', recoveryLinkError)
       } else if (linkData?.properties?.action_link) {
         // Send email using Resend
         const resendApiKey = Deno.env.get('RESEND_API_KEY')
@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
             firstName,
             businessName,
             role: type,
-            magicLinkUrl: linkData.properties.action_link,
+            recoveryLinkUrl: linkData.properties.action_link,
           })
 
           console.log(`Sending approval email to ${email}...`)
@@ -486,7 +486,7 @@ Deno.serve(async (req) => {
         }
       }
     } catch (emailError) {
-      console.error('Error with magic link / email:', emailError)
+      console.error('Error with recovery link / email:', emailError)
     }
 
     return new Response(

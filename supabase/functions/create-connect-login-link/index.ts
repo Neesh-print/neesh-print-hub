@@ -95,6 +95,25 @@ Deno.serve(async (req) => {
       )
     } catch (stripeError) {
       console.error('Stripe error:', stripeError)
+
+      // Handle invalid/deleted Stripe account - clear stale ID from DB
+      if (stripeError.code === 'resource_missing' || stripeError.message?.includes('No such account')) {
+        console.log('Stripe account no longer exists, clearing stale ID from database')
+        const supabaseAdmin = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        )
+        await supabaseAdmin
+          .from('publishers')
+          .update({ stripe_account_id: null })
+          .eq('user_id', user.id)
+
+        return new Response(
+          JSON.stringify({ error: 'stripe_account_invalid', needs_reconnect: true }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       return new Response(
         JSON.stringify({ error: 'Failed to create Stripe login link: ' + stripeError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

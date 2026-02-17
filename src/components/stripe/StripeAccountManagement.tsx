@@ -16,24 +16,37 @@ type ComponentType = 'account_management' | 'payouts';
 
 interface StripeAccountManagementProps {
   component?: ComponentType;
+  onAccountInvalid?: () => void;
 }
 
-export const StripeAccountManagement = ({ component = 'account_management' }: StripeAccountManagementProps) => {
+export const StripeAccountManagement = ({ component = 'account_management', onAccountInvalid }: StripeAccountManagementProps) => {
   const [stripeConnectInstance, setStripeConnectInstance] = useState<StripeConnectInstance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
 
   const fetchClientSecret = async (): Promise<string> => {
     const { data, error } = await supabase.functions.invoke('create-account-session');
-    
+
     if (error) {
+      // Check if the response body indicates invalid account
+      if (data?.needs_reconnect || data?.error === 'stripe_account_invalid') {
+        setNeedsReconnect(true);
+        onAccountInvalid?.();
+        throw new Error('Stripe account needs to be reconnected');
+      }
       throw new Error(error.message || 'Failed to create account session');
     }
-    
+
     if (!data?.client_secret) {
+      if (data?.needs_reconnect || data?.error === 'stripe_account_invalid') {
+        setNeedsReconnect(true);
+        onAccountInvalid?.();
+        throw new Error('Stripe account needs to be reconnected');
+      }
       throw new Error('No client secret returned from server');
     }
-    
+
     return data.client_secret;
   };
 
@@ -78,6 +91,20 @@ export const StripeAccountManagement = ({ component = 'account_management' }: St
       <div className="flex flex-col items-center justify-center p-12 space-y-3">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Loading account management...</p>
+      </div>
+    );
+  }
+
+  if (needsReconnect) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 space-y-4 bg-orange-500/10 rounded-lg border border-orange-500/30">
+        <AlertCircle className="h-8 w-8 text-orange-500" />
+        <div className="text-center">
+          <p className="font-medium text-foreground">Stripe account needs to be reconnected</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your previously connected Stripe account is no longer valid. Please set up a new payout method.
+          </p>
+        </div>
       </div>
     );
   }
