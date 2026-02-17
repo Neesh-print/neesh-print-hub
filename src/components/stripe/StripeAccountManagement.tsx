@@ -53,8 +53,9 @@ export const StripeAccountManagement = ({ component = 'account_management', onAc
   const initializeConnect = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
+      console.log('[StripeConnect] Using publishable key prefix:', STRIPE_PUBLISHABLE_KEY.substring(0, 20) + '...');
       const instance = await loadConnectAndInitialize({
         publishableKey: STRIPE_PUBLISHABLE_KEY,
         fetchClientSecret,

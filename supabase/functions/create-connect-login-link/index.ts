@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('[create-connect-login-link] STRIPE_SECRET_KEY prefix:', stripeKey.substring(0, 20) + '...')
+    console.log('[create-connect-login-link] Connected account ID:', publisherData.stripe_account_id)
+
     const stripe = new Stripe(stripeKey, {
       // @ts-ignore: User specified version
       apiVersion: '2026-01-28.clover',
@@ -80,6 +83,7 @@ Deno.serve(async (req) => {
     // Create login link
     // Note: This only works for Express accounts
     try {
+      console.log('[create-connect-login-link] Creating login link for:', publisherData.stripe_account_id)
       const loginLink = await stripe.accounts.createLoginLink(
         publisherData.stripe_account_id
       )

@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('[create-account-session] STRIPE_SECRET_KEY prefix:', stripeKey.substring(0, 20) + '...')
+    console.log('[create-account-session] Connected account ID:', publisherData.stripe_account_id)
+
     const stripe = new Stripe(stripeKey, {
       // @ts-ignore: User specified version
       apiVersion: '2026-01-28.clover',
@@ -80,6 +83,7 @@ Deno.serve(async (req) => {
     // Create an Account Session for embedded components
     // This allows the frontend to use Stripe Connect embedded components
     try {
+      console.log('[create-account-session] Creating account session for:', publisherData.stripe_account_id)
       const accountSession = await stripe.accountSessions.create({
         account: publisherData.stripe_account_id,
         components: {
@@ -100,6 +104,8 @@ Deno.serve(async (req) => {
           },
         },
       })
+
+      console.log('[create-account-session] SUCCESS - client_secret generated, length:', accountSession.client_secret?.length)
 
       return new Response(
         JSON.stringify({
