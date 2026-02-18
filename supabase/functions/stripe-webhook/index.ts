@@ -46,13 +46,15 @@ Deno.serve(async (req) => {
   try {
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    const webhookSecretDirect = Deno.env.get('STRIPE_WEBHOOK_SECRET_DIRECT')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!stripeKey || !webhookSecret || !supabaseUrl || !supabaseServiceKey) {
+    if (!stripeKey || (!webhookSecret && !webhookSecretDirect) || !supabaseUrl || !supabaseServiceKey) {
       console.error('Configuration missing:', {
         stripeKey: !!stripeKey,
         webhookSecret: !!webhookSecret,
+        webhookSecretDirect: !!webhookSecretDirect,
         supabaseUrl: !!supabaseUrl,
         supabaseServiceKey: !!supabaseServiceKey
       })
@@ -69,12 +71,23 @@ Deno.serve(async (req) => {
     console.log('Request body length:', body.length);
     let event
 
-    try {
-      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret)
-      console.log('Event constructed successfully:', event.type);
-    } catch (err) {
-      console.warn(`Webhook signature verification failed: ${err.message}`)
-      return new Response(`Webhook Error: ${err.message}`, { status: 400, headers: corsHeaders })
+    // Try both webhook secrets: one for Connect events, one for direct account events
+    const secrets = [webhookSecret, webhookSecretDirect].filter(Boolean) as string[]
+    let verified = false
+    for (const secret of secrets) {
+      try {
+        event = await stripe.webhooks.constructEventAsync(body, signature, secret)
+        console.log('Event constructed successfully:', event.type);
+        verified = true
+        break
+      } catch (err) {
+        console.log(`Signature check failed with secret ending ...${secret.slice(-4)}: ${err.message}`)
+      }
+    }
+
+    if (!verified || !event) {
+      console.warn('Webhook signature verification failed with all secrets')
+      return new Response('Webhook Error: Signature verification failed', { status: 400, headers: corsHeaders })
     }
 
     // Initialize Supabase Admin client
@@ -631,7 +644,7 @@ async function sendOrderNotificationToPublisher(
               <div style="margin: 24px 0; padding: 20px; background-color: #FFF9F5; border-radius: 8px; border-left: 4px solid #C49A6C;">
                 <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
                   <strong>Next Steps:</strong><br>
-                  The Neesh team will handle fulfillment coordination. We'll keep you updated on the shipping status.
+                  Please prepare this order for shipping. Once it's ready, log in to your Neesh dashboard and add the tracking number to mark it as shipped.
                 </p>
               </div>
             </td>

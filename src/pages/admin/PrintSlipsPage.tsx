@@ -37,14 +37,7 @@ export const PrintSlipsPage = () => {
           quantity,
           created_at,
           shipping_address,
-          retailers (
-            shop_name,
-            address,
-            city,
-            state,
-            postal_code,
-            country
-          ),
+          retailer_id,
           magazines (
             title,
             publishers (
@@ -56,29 +49,19 @@ export const PrintSlipsPage = () => {
 
       if (fetchError) throw fetchError;
 
-      type RawOrderRow = {
-        id: string;
-        created_at: string;
-        quantity: number;
-        shipping_address: string | null;
-        retailers: {
-          shop_name: string | null;
-          address: string | null;
-          city: string | null;
-          state: string | null;
-          postal_code: string | null;
-          country: string | null;
-        } | null;
-        magazines: {
-          title: string;
-          publishers: {
-            company_name: string | null;
-          } | null;
-        } | null;
-      };
+      // Fetch retailer info separately (retailer_id references users.id, not retailers.id)
+      const retailerIds = [...new Set((data || []).map(o => o.retailer_id).filter(Boolean))];
+      const retailerMap = new Map<string, { shop_name: string | null; address: string | null; city: string | null; state: string | null; postal_code: string | null; country: string | null }>();
+      if (retailerIds.length > 0) {
+        const { data: retailers } = await supabase
+          .from('retailers')
+          .select('user_id, shop_name, address, city, state, postal_code, country')
+          .in('user_id', retailerIds);
+        (retailers || []).forEach(r => retailerMap.set(r.user_id, r));
+      }
 
       const transformed: PackingSlipOrder[] = (data || []).map((order) => {
-        const orderData = order as unknown as RawOrderRow;
+        const retailer = order.retailer_id ? retailerMap.get(order.retailer_id) || null : null;
         // Parse shipping address: try to use structured retailer data if no shipping_address
         let shippingAddress = {
           street: '',
@@ -88,27 +71,24 @@ export const PrintSlipsPage = () => {
         };
 
         if (order.shipping_address) {
-          // If shipping_address is a single string, split by newlines/commas
-          const parts = order.shipping_address.split(/[,\n]+/).map((s: string) => s.trim());
+          // If shipping_address is a JSON object with structured data
+          const addr = typeof order.shipping_address === 'string'
+            ? (() => { const parts = order.shipping_address.split(/[,\n]+/).map((s: string) => s.trim()); return { street: parts[0] || '', city: parts[1] || '', state: parts[2] || '', zip: parts[3] || '' }; })()
+            : { street: (order.shipping_address as any)?.address?.line1 || '', city: (order.shipping_address as any)?.address?.city || '', state: (order.shipping_address as any)?.address?.state || '', zip: (order.shipping_address as any)?.address?.postal_code || '' };
+          shippingAddress = addr;
+        } else if (retailer) {
           shippingAddress = {
-            street: parts[0] || '',
-            city: parts[1] || '',
-            state: parts[2] || '',
-            zip: parts[3] || '',
-          };
-        } else if (order.retailers) {
-          shippingAddress = {
-            street: order.retailers.address || '',
-            city: order.retailers.city || '',
-            state: order.retailers.state || '',
-            zip: order.retailers.postal_code || '',
+            street: retailer.address || '',
+            city: retailer.city || '',
+            state: retailer.state || '',
+            zip: retailer.postal_code || '',
           };
         }
 
         return {
           orderNumber: order.id.slice(0, 8).toUpperCase(),
           createdAt: order.created_at || new Date().toISOString(),
-          retailerName: order.retailers?.shop_name || 'Unknown Retailer',
+          retailerName: retailer?.shop_name || 'Unknown Retailer',
           shippingAddress,
           items: [{
             title: order.magazines?.title || 'Unknown Magazine',
