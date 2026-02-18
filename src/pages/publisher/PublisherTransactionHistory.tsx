@@ -1,21 +1,69 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, Building2, Store, ArrowRight, Receipt } from "lucide-react";
+import { ChevronDown, ChevronUp, Building2, Store, ArrowRight, Receipt, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, TabNavigation, EmptyState } from "@/components/neesh";
+import { usePublisherTransfers } from "@/hooks/usePublisherTransfers";
+import { format } from "date-fns";
 
 const tabs = [
   { id: "history", label: "Transaction History" },
   { id: "transfers", label: "Transfers" },
 ];
 
-// Transaction data will come from Stripe/Supabase once payment processing is live
-const transactions: { date: string; items: { type: string; name: string; account?: string; label: string; amount: number }[] }[] = [];
+interface TransactionGroup {
+  date: string;
+  items: {
+    type: string;
+    name: string;
+    account?: string;
+    label: string;
+    amount: number;
+    status: string;
+  }[];
+}
 
 export const PublisherTransactionHistory = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("history");
-  const [expandedDates, setExpandedDates] = useState<string[]>(transactions.map(t => t.date));
+  const { transfers, isLoading } = usePublisherTransfers();
+
+  // Group transfers by date
+  const transactions: TransactionGroup[] = useMemo(() => {
+    const groupMap = new Map<string, TransactionGroup>();
+
+    for (const t of transfers) {
+      const dateKey = format(new Date(t.created_at), "MMMM d, yyyy");
+      if (!groupMap.has(dateKey)) {
+        groupMap.set(dateKey, { date: dateKey, items: [] });
+      }
+
+      const statusLabel = t.status === "transferred"
+        ? "Completed"
+        : t.status === "failed"
+          ? "Failed"
+          : "Pending";
+
+      groupMap.get(dateKey)!.items.push({
+        type: t.status === "transferred" ? "bank" : "store",
+        name: t.order_number || "Order",
+        label: statusLabel,
+        amount: t.status === "transferred" ? t.net_amount : t.net_amount,
+        status: t.status,
+      });
+    }
+
+    return Array.from(groupMap.values());
+  }, [transfers]);
+
+  const [expandedDates, setExpandedDates] = useState<string[]>([]);
+
+  // Expand all dates when data loads
+  useMemo(() => {
+    if (transactions.length > 0 && expandedDates.length === 0) {
+      setExpandedDates(transactions.map(t => t.date));
+    }
+  }, [transactions]);
 
   const toggleDate = (date: string) => {
     if (expandedDates.includes(date)) {
@@ -34,7 +82,18 @@ export const PublisherTransactionHistory = () => {
 
   const formatAmount = (amount: number) => {
     const formatted = Math.abs(amount).toFixed(2);
-    return amount < 0 ? `-$${formatted}` : `+$${formatted}`;
+    return `+$${formatted}`;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "transferred":
+        return "text-chart-green";
+      case "failed":
+        return "text-destructive";
+      default:
+        return "text-muted-foreground";
+    }
   };
 
   return (
@@ -47,7 +106,11 @@ export const PublisherTransactionHistory = () => {
       <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="px-4 md:px-6 py-6">
-        {transactions.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : transactions.length === 0 ? (
           <EmptyState
             icon={<Receipt className="w-12 h-12" />}
             title="No transactions yet"
@@ -88,16 +151,19 @@ export const PublisherTransactionHistory = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-body text-foreground font-medium">{item.name}</span>
-                          {item.account && (
-                            <span className="text-caption text-muted-foreground">{item.account}</span>
-                          )}
                           <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-body text-muted-foreground">{item.label}</span>
+                          <span className={`text-body ${
+                            item.status === "pending"
+                              ? "text-status-warning-text"
+                              : item.status === "failed"
+                                ? "text-destructive"
+                                : "text-muted-foreground"
+                          }`}>
+                            {item.label}
+                          </span>
                         </div>
                       </div>
-                      <span className={`font-display font-medium text-body ${
-                        item.amount < 0 ? "text-destructive" : "text-chart-green"
-                      }`}>
+                      <span className={`font-display font-medium text-body ${getStatusColor(item.status)}`}>
                         {formatAmount(item.amount)}
                       </span>
                     </div>

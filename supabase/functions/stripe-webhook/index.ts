@@ -265,6 +265,53 @@ Deno.serve(async (req) => {
           }
         }
 
+        // --- Insert pending publisher transfer records ---
+        try {
+          for (const item of cartItems) {
+            const magazine = magazineMap.get(item.magazine_id)
+            if (!magazine) continue
+
+            // Find the order we just created for this magazine
+            const { data: matchedOrder } = await supabaseAdmin
+              .from('orders')
+              .select('id')
+              .eq('stripe_session_id', session.id)
+              .eq('magazine_id', item.magazine_id)
+              .single()
+
+            if (!matchedOrder) {
+              console.error(`No order found for magazine ${item.magazine_id} in session ${session.id}`)
+              continue
+            }
+
+            const wholesalePrice = magazine.wholesale_price || 0
+            const grossAmount = Math.round(wholesalePrice * 1.10 * item.quantity * 100) / 100
+            const netAmount = Math.round(wholesalePrice * item.quantity * 100) / 100
+            const platformFee = Math.round((grossAmount - netAmount) * 100) / 100
+
+            const { error: transferError } = await supabaseAdmin
+              .from('publisher_transfers')
+              .insert({
+                publisher_id: magazine.publisher_id,
+                order_id: matchedOrder.id,
+                stripe_session_id: session.id,
+                gross_amount: grossAmount,
+                platform_fee: platformFee,
+                net_amount: netAmount,
+                status: 'pending',
+              })
+
+            if (transferError) {
+              console.error(`Failed to insert publisher transfer for order ${matchedOrder.id}:`, transferError)
+            } else {
+              console.log(`Created pending transfer for publisher ${magazine.publisher_id}, order ${matchedOrder.id}, net $${netAmount}`)
+            }
+          }
+        } catch (transferInsertError) {
+          // Non-blocking: log but don't fail the webhook
+          console.error('Error inserting publisher transfer records:', transferInsertError)
+        }
+
         // Update payment session status
         await supabaseAdmin
           .from('payment_sessions')
