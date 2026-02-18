@@ -30,10 +30,18 @@ const STATUS_CONFIG = {
 };
 
 const CARRIER_URLS: Record<string, string> = {
-  USPS: "https://tools.usps.com/go/TrackConfirmAction?tLabels=",
-  UPS: "https://www.ups.com/track?tracknum=",
-  FedEx: "https://www.fedex.com/fedextrack/?trknbr=",
-  DHL: "https://www.dhl.com/en/express/tracking.html?AWB=",
+  usps: "https://tools.usps.com/go/TrackConfirmAction?tLabels=",
+  ups: "https://www.ups.com/track?tracknum=",
+  fedex: "https://www.fedex.com/fedextrack/?trknbr=",
+  dhl: "https://www.dhl.com/en/express/tracking.html?AWB=",
+};
+
+const CARRIER_DISPLAY: Record<string, string> = {
+  usps: "USPS",
+  ups: "UPS",
+  fedex: "FedEx",
+  dhl: "DHL",
+  other: "Other",
 };
 
 export const OrderStatusTimeline = ({
@@ -54,9 +62,17 @@ export const OrderStatusTimeline = ({
   };
 
   const openTracking = () => {
-    const baseUrl = CARRIER_URLS[carrier] || CARRIER_URLS.USPS;
-    window.open(`${baseUrl}${trackingNumber}`, "_blank");
+    const carrierKey = carrier?.toLowerCase() || "";
+    const baseUrl = CARRIER_URLS[carrierKey];
+    if (baseUrl) {
+      window.open(`${baseUrl}${trackingNumber}`, "_blank");
+    } else {
+      // For "other" or unknown carriers, search Google for the tracking number
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(trackingNumber || "")}+tracking`, "_blank");
+    }
   };
+
+  const displayCarrier = CARRIER_DISPLAY[carrier?.toLowerCase() || ""] || carrier || "Other";
 
   const getStepState = (stepIndex: number) => {
     if (stepIndex < currentIndex) return "completed";
@@ -208,7 +224,7 @@ export const OrderStatusTimeline = ({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Carrier</p>
-                  <p className="font-medium">{carrier}</p>
+                  <p className="font-medium">{displayCarrier}</p>
                 </div>
               </div>
 
