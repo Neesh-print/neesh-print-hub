@@ -42,7 +42,7 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
         .select(`
           *,
           publishers!inner ( company_name ),
-          orders!inner ( order_number )
+          orders!inner ( id )
         `)
         .order('created_at', { ascending: false });
 
@@ -82,7 +82,7 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
           created_at: row.created_at as string,
           updated_at: row.updated_at as string,
           publisher_name: (publishers?.company_name as string) || 'Unknown',
-          order_number: (orders?.order_number as string) || 'N/A',
+          order_number: orders?.id ? `#${(orders.id as string).slice(0, 8).toUpperCase()}` : 'N/A',
         };
       });
 

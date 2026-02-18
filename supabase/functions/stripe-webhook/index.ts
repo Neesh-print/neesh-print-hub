@@ -100,9 +100,20 @@ Deno.serve(async (req) => {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
+        let session = event.data.object as Stripe.Checkout.Session
+
+        // Re-retrieve the session to guarantee shipping_details is populated
+        // (webhook event payload may not always include all fields)
+        try {
+          session = await stripe.checkout.sessions.retrieve(session.id, {
+            expand: ['shipping_details'],
+          }) as Stripe.Checkout.Session
+        } catch (retrieveErr) {
+          console.warn('Failed to re-retrieve session, using event data:', retrieveErr)
+        }
 
         console.log(`Processing checkout session: ${session.id}`)
+        console.log(`Shipping details present: ${!!session.shipping_details}`)
 
         // Get metadata from the session
         const retailerId = session.metadata?.retailer_id

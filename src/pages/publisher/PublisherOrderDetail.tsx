@@ -188,7 +188,7 @@ export const PublisherOrderDetail = () => {
   // Format shipping address for display
   const formatShippingAddress = (address: ShippingAddress | null) => {
     if (!address) {
-      return <p className="text-muted-foreground">Address provided during checkout</p>;
+      return <p className="text-muted-foreground italic">No shipping address on file for this order</p>;
     }
 
     const { name, address: addr } = address;
