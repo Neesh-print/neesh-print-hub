@@ -429,9 +429,9 @@ export const ApplicationDetailSlideOver = ({
           {application.status === 'pending' && (
             <div className="p-4 border-t border-border bg-background">
               <div className="flex gap-2 flex-wrap">
-                <ButtonPrimary 
-                  onClick={() => setShowApproveModal(true)} 
-                  className="flex-1 gap-1.5 bg-status-success hover:bg-status-success/90 text-black"
+                <ButtonPrimary
+                  onClick={() => setShowApproveModal(true)}
+                  className="flex-1 gap-1.5 bg-status-success hover:bg-status-success/90 !text-black"
                   disabled={isProcessing}
                 >
                   <Check className="w-4 h-4" />

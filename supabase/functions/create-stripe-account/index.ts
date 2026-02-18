@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
     }
 
     // Get publisher data
+    console.log('[STEP 1] Looking up publisher for user:', user.id)
     const { data: publisherData, error: publisherError } = await supabaseClient
       .from('publishers')
       .select('id, user_id, company_name, stripe_account_id')
@@ -54,19 +55,21 @@ Deno.serve(async (req) => {
       .single()
 
     if (publisherError || !publisherData) {
-      console.error('Publisher error:', publisherError)
+      console.error('[STEP 1 FAILED] Publisher error:', publisherError)
       return new Response(
         JSON.stringify({ error: 'Publisher not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+    console.log('[STEP 1 OK] Found publisher:', publisherData.id, 'stripe_account_id:', publisherData.stripe_account_id)
 
     // Check if they already have a Stripe account
     if (publisherData.stripe_account_id) {
+      console.log('[STEP 2] Publisher already has stripe_account_id:', publisherData.stripe_account_id)
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Stripe account already exists',
-          stripe_account_id: publisherData.stripe_account_id 
+          stripe_account_id: publisherData.stripe_account_id
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -75,12 +78,13 @@ Deno.serve(async (req) => {
     // Get Stripe API key from environment
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
     if (!stripeKey) {
-      console.error('STRIPE_SECRET_KEY not configured')
+      console.error('[STEP 3 FAILED] STRIPE_SECRET_KEY not configured')
       return new Response(
         JSON.stringify({ error: 'Payment service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+    console.log('[STEP 3 OK] STRIPE_SECRET_KEY present, starts with:', stripeKey.substring(0, 7))
 
     const stripe = new Stripe(stripeKey, {
       // @ts-ignore: User specified version
@@ -90,11 +94,11 @@ Deno.serve(async (req) => {
 
     // Create Stripe Connect Express account
     try {
-      console.log(`Creating Stripe account for publisher: ${publisherData.id}`)
-      
+      console.log(`[STEP 4] Creating Stripe Express account for publisher: ${publisherData.id}, email: ${user.email}`)
+
       const account = await stripe.accounts.create({
         type: 'express',
-        country: 'US', // Default to US, can be made configurable
+        country: 'US',
         email: user.email,
         capabilities: {
           transfers: { requested: true },
@@ -153,7 +157,21 @@ Deno.serve(async (req) => {
         }
       )
     } catch (stripeError) {
-      console.error('Stripe error:', stripeError)
+      console.error('[STEP 4 FAILED] Stripe error creating account:', stripeError.message)
+      console.error('[STEP 4 FAILED] Stripe error code:', stripeError.code)
+      console.error('[STEP 4 FAILED] Stripe error type:', stripeError.type)
+      console.error('[STEP 4 FAILED] Stripe raw error:', JSON.stringify(stripeError, null, 2))
+
+      // Handle specific Stripe errors
+      if (stripeError.code === 'account_invalid' || stripeError.message?.includes('already exists')) {
+        return new Response(
+          JSON.stringify({
+            error: 'A Stripe account may already exist for this email. Please contact support if the issue persists.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       return new Response(
         JSON.stringify({ error: 'Failed to create Stripe account: ' + stripeError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -5,7 +5,7 @@ interface ApprovalEmailData {
   firstName: string
   businessName: string
   role: 'publisher' | 'retailer'
-  magicLinkUrl: string
+  recoveryLinkUrl: string
 }
 
 interface RejectionEmailData {
@@ -61,15 +61,15 @@ export const generateApprovalEmail = (data: ApprovalEmailData): string => {
               </p>
 
               <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Click the button below to access your ${roleTitle} dashboard and get started.
+                We've created your account. Click the button below to <strong>set your password</strong> and access your ${roleTitle} dashboard.
               </p>
 
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${data.magicLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                      Access Your Dashboard
+                    <a href="${data.recoveryLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                      Set Your Password
                     </a>
                   </td>
                 </tr>
@@ -79,7 +79,7 @@ export const generateApprovalEmail = (data: ApprovalEmailData): string => {
                 This link will expire in 24 hours. You can also copy and paste this URL into your browser:
               </p>
               <p style="margin: 8px 0 0; color: #C49A6C; font-size: 14px; word-break: break-all;">
-                ${data.magicLinkUrl}
+                ${data.recoveryLinkUrl}
               </p>
 
               <!-- Divider -->

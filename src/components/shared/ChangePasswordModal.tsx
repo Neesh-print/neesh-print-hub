@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Check } from "lucide-react";
 import { Modal, FormInput, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const passwordSchema = z
   .string()
@@ -14,10 +15,12 @@ const passwordSchema = z
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
+  forced?: boolean;
+  onPasswordSet?: () => void;
 }
 
-export const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProps) => {
-  const { updatePassword } = useAuth();
+export const ChangePasswordModal = ({ isOpen, onClose, forced = false, onPasswordSet }: ChangePasswordModalProps) => {
+  const { updatePassword, user } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -52,7 +55,16 @@ export const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProp
       if (error) {
         setError(error.message);
       } else {
+        // Mark password as set in profile
+        if (user) {
+          await supabase
+            .from('profiles')
+            .update({ has_set_password: true })
+            .eq('user_id', user.id);
+        }
+
         setSuccess(true);
+        onPasswordSet?.();
         setTimeout(() => {
           handleClose();
         }, 2000);
@@ -65,6 +77,7 @@ export const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProp
   };
 
   const handleClose = () => {
+    if (forced && !success) return;
     setPassword("");
     setConfirmPassword("");
     setError("");
@@ -74,7 +87,7 @@ export const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProp
 
   if (success) {
     return (
-      <Modal isOpen={isOpen} onClose={handleClose} title="Password Updated">
+      <Modal isOpen={isOpen} onClose={handleClose} title="Password Updated" preventClose={forced}>
         <div className="text-center py-4">
           <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
             <Check className="w-6 h-6 text-green-600" />
@@ -91,21 +104,27 @@ export const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProp
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Change Password"
+      title={forced ? "Set Your Password" : "Change Password"}
+      preventClose={forced}
       footer={
         <>
-          <ButtonSecondary onClick={handleClose} disabled={isLoading}>
-            Cancel
-          </ButtonSecondary>
+          {!forced && (
+            <ButtonSecondary onClick={handleClose} disabled={isLoading}>
+              Cancel
+            </ButtonSecondary>
+          )}
           <ButtonPrimary onClick={handleSubmit} loading={isLoading} disabled={isLoading}>
-            Update Password
+            {forced ? "Set Password" : "Update Password"}
           </ButtonPrimary>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Set a new password for your account. You can use this to sign in instead of magic links.
+          {forced
+            ? "Welcome! Please set a password for your account before continuing."
+            : "Set a new password for your account. You can use this to sign in instead of magic links."
+          }
         </p>
 
         <FormInput

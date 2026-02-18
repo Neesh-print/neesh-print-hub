@@ -30,11 +30,52 @@ const STATUS_CONFIG = {
 };
 
 const CARRIER_URLS: Record<string, string> = {
-  USPS: "https://tools.usps.com/go/TrackConfirmAction?tLabels=",
-  UPS: "https://www.ups.com/track?tracknum=",
-  FedEx: "https://www.fedex.com/fedextrack/?trknbr=",
-  DHL: "https://www.dhl.com/en/express/tracking.html?AWB=",
+  usps: "https://tools.usps.com/go/TrackConfirmAction?tLabels=",
+  ups: "https://www.ups.com/track?tracknum=",
+  fedex: "https://www.fedex.com/fedextrack/?trknbr=",
+  dhl: "https://www.dhl.com/en/express/tracking.html?AWB=",
+  amazon: "https://track.amazon.com/tracking/",
 };
+
+const CARRIER_DISPLAY: Record<string, string> = {
+  usps: "USPS",
+  ups: "UPS",
+  fedex: "FedEx",
+  dhl: "DHL",
+  amazon: "Amazon Logistics",
+  ontrac: "OnTrac",
+  lasership: "LaserShip",
+  other: "Other",
+};
+
+/** Auto-detect carrier from tracking number patterns */
+export function detectCarrier(trackingNumber: string): string | null {
+  const tn = trackingNumber.trim().toUpperCase();
+  if (!tn) return null;
+
+  // Amazon Logistics: starts with TBA
+  if (/^TBA/.test(tn)) return "amazon";
+
+  // UPS: starts with 1Z (18 chars alphanumeric)
+  if (/^1Z[A-Z0-9]{16}$/i.test(tn)) return "ups";
+
+  // FedEx: 12, 15, 20, or 22 digits
+  if (/^\d{12}$/.test(tn) || /^\d{15}$/.test(tn) || /^\d{20}$/.test(tn) || /^\d{22}$/.test(tn)) return "fedex";
+
+  // DHL: 10 digits or starts with JJD
+  if (/^JJD\d+/.test(tn) || /^\d{10}$/.test(tn)) return "dhl";
+
+  // USPS: 20-22 digits, or starts with 94/92/93 (20+ digits)
+  if (/^(94|92|93|42)\d{18,}$/.test(tn)) return "usps";
+  if (/^\d{20,22}$/.test(tn)) return "usps";
+  // USPS also has 13-char format like XX123456789XX
+  if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(tn)) return "usps";
+
+  // OnTrac: starts with C or D followed by digits (15 chars)
+  if (/^[CD]\d{14}$/.test(tn)) return "ontrac";
+
+  return null;
+}
 
 export const OrderStatusTimeline = ({
   status,
@@ -53,10 +94,25 @@ export const OrderStatusTimeline = ({
     }
   };
 
+  // Resolve the effective carrier: use stored value, or auto-detect from tracking number
+  const resolvedCarrier = (() => {
+    const stored = carrier?.toLowerCase() || "";
+    if (stored && stored !== "other") return stored;
+    // Auto-detect from tracking number when carrier is "other" or missing
+    return detectCarrier(trackingNumber || "") || stored || "other";
+  })();
+
   const openTracking = () => {
-    const baseUrl = CARRIER_URLS[carrier] || CARRIER_URLS.USPS;
-    window.open(`${baseUrl}${trackingNumber}`, "_blank");
+    const baseUrl = CARRIER_URLS[resolvedCarrier];
+    if (baseUrl) {
+      window.open(`${baseUrl}${trackingNumber}`, "_blank");
+    } else {
+      // For unknown carriers, search Google for the tracking number
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(trackingNumber || "")}+tracking`, "_blank");
+    }
   };
+
+  const displayCarrier = CARRIER_DISPLAY[resolvedCarrier] || carrier || "Other";
 
   const getStepState = (stepIndex: number) => {
     if (stepIndex < currentIndex) return "completed";
@@ -208,7 +264,7 @@ export const OrderStatusTimeline = ({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Carrier</p>
-                  <p className="font-medium">{carrier}</p>
+                  <p className="font-medium">{displayCarrier}</p>
                 </div>
               </div>
 

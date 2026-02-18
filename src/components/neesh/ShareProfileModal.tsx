@@ -9,6 +9,7 @@ interface ShareProfileModalProps {
   onClose: () => void;
   publisherName: string;
   slug: string;
+  profileType?: 'publisher' | 'retailer';
 }
 
 export const ShareProfileModal = ({
@@ -16,12 +17,13 @@ export const ShareProfileModal = ({
   onClose,
   publisherName,
   slug,
+  profileType = 'publisher',
 }: ShareProfileModalProps) => {
   const [copied, setCopied] = useState(false);
-  
-  // TODO: Use actual domain from environment
-  const publicUrl = `neesh.art/p/${slug}`;
-  const fullUrl = `/p/${slug}`;
+
+  const prefix = profileType === 'retailer' ? '/r/' : '/p/';
+  const publicUrl = `neesh.art${prefix}${slug}`;
+  const fullUrl = `${prefix}${slug}`;
 
   const handleCopy = async () => {
     try {

@@ -106,8 +106,8 @@ export const MobileBottomNav = ({
           );
         })}
         
-        {/* Admin has a "More" button */}
-        {userRole === 'admin' && onMoreClick && (
+        {/* All roles have a "More" button if onMoreClick is provided */}
+        {onMoreClick && (
           <button
             onClick={onMoreClick}
             className="flex flex-col items-center justify-center gap-1 min-w-[64px] min-h-[44px] px-2 py-1.5 text-muted-foreground transition-colors"

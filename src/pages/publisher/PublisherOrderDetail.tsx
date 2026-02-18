@@ -76,15 +76,12 @@ export const PublisherOrderDetail = () => {
             tracking_number,
             carrier,
             shipping_address,
+            retailer_id,
             magazines (
               id,
               title,
               cover_image_url,
               publisher_id
-            ),
-            retailers (
-              shop_name,
-              user_id
             )
           `)
           .eq('id', id)
@@ -96,10 +93,21 @@ export const PublisherOrderDetail = () => {
           return;
         }
 
-        // We know the structure matches what we asked for.
-        // The inferred type from select() is usually correct but nested arrays/objects can be tricky.
-        // We'll trust the shape for now but cast to unknown first to avoid partial mismatch complaints if any.
-        const orderData = data as unknown as OrderDetail;
+        // Fetch retailer info separately (retailer_id is a user_id, not retailers.id)
+        let retailerInfo: { shop_name: string | null; user_id: string } | null = null;
+        if (data.retailer_id) {
+          const { data: retailer } = await supabase
+            .from('retailers')
+            .select('shop_name, user_id')
+            .eq('user_id', data.retailer_id)
+            .maybeSingle();
+          retailerInfo = retailer;
+        }
+
+        const orderData: OrderDetail = {
+          ...(data as any),
+          retailers: retailerInfo,
+        };
 
         // Security check: Ensure this order belongs to the current publisher
         if (orderData.magazines?.publisher_id !== publisher.id) {
@@ -149,21 +157,29 @@ export const PublisherOrderDetail = () => {
           tracking_number,
           carrier,
           shipping_address,
+          retailer_id,
           magazines (
             id,
             title,
             cover_image_url,
             publisher_id
-          ),
-          retailers (
-            shop_name,
-            user_id
           )
         `)
         .eq('id', order.id)
         .single();
-      
-      if (data) setOrder(data as OrderDetail);
+
+      if (data) {
+        let retailerInfo: { shop_name: string | null; user_id: string } | null = null;
+        if (data.retailer_id) {
+          const { data: retailer } = await supabase
+            .from('retailers')
+            .select('shop_name, user_id')
+            .eq('user_id', data.retailer_id)
+            .maybeSingle();
+          retailerInfo = retailer;
+        }
+        setOrder({ ...(data as any), retailers: retailerInfo });
+      }
     } else {
       toast.error("Failed to update order");
     }
@@ -172,7 +188,7 @@ export const PublisherOrderDetail = () => {
   // Format shipping address for display
   const formatShippingAddress = (address: ShippingAddress | null) => {
     if (!address) {
-      return <p className="text-muted-foreground">Address provided during checkout</p>;
+      return <p className="text-muted-foreground italic">No shipping address on file for this order</p>;
     }
 
     const { name, address: addr } = address;

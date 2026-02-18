@@ -1,4 +1,4 @@
-import { X, LayoutDashboard, ShoppingBag, Package, Receipt, MessageSquare, User, LogOut, Store, ShoppingCart, Users, FileText, BarChart3, Settings } from "lucide-react";
+import { X, LayoutDashboard, ShoppingBag, Package, Receipt, MessageSquare, User, LogOut, Store, ShoppingCart, Users, FileText, BarChart3, Settings, HelpCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -25,7 +25,7 @@ export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProp
     { label: "Transactions", icon: <Receipt className="w-5 h-5" />, path: "/publisher/transactions" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/publisher/messages" },
     { label: "Profile", icon: <User className="w-5 h-5" />, path: "/publisher/profile" },
-    { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/publisher/settings" },
+    { label: "Help", icon: <HelpCircle className="w-5 h-5" />, path: "/publisher/help" },
   ];
 
   const retailerMenuItems: MenuItem[] = [
@@ -33,7 +33,7 @@ export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProp
     { label: "My Orders", icon: <Package className="w-5 h-5" />, path: "/retailer/orders" },
     { label: "My Cart", icon: <ShoppingCart className="w-5 h-5" />, path: "/retailer/cart" },
     { label: "Profile", icon: <User className="w-5 h-5" />, path: "/retailer/profile" },
-    { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/retailer/settings" },
+    { label: "Help", icon: <HelpCircle className="w-5 h-5" />, path: "/retailer/help" },
   ];
 
   const adminMenuItems: MenuItem[] = [

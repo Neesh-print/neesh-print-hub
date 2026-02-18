@@ -1,6 +1,6 @@
 import { Instagram, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getInstagramUrl, formatInstagramHandle, getDisplayDomain } from "@/lib/social-links";
+import { getInstagramUrl, formatInstagramHandle, getDisplayDomain, normalizeWebsiteUrl } from "@/lib/social-links";
 
 interface SocialLinksProps {
   instagramHandle: string | null;
@@ -62,7 +62,7 @@ export function SocialLinks({
       )}
       {websiteUrl && (
         <a
-          href={websiteUrl}
+          href={normalizeWebsiteUrl(websiteUrl) || "#"}
           target="_blank"
           rel="noopener noreferrer"
           className={linkClasses}

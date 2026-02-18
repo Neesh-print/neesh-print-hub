@@ -26,6 +26,7 @@ interface OrderDetail {
   unit_price: number;
   total_price: number;
   tracking_number: string | null;
+  carrier: string | null;
   shipping_address: string | null;
   stripe_payment_metadata: {
     customer_email?: string;
@@ -66,6 +67,7 @@ export const RetailerOrderDetail = () => {
             unit_price,
             total_price,
             tracking_number,
+            carrier,
             shipping_address,
             stripe_payment_metadata,
             magazines (
@@ -195,7 +197,7 @@ export const RetailerOrderDetail = () => {
           status={timelineStatus}
           timestamps={timestamps}
           trackingNumber={order.tracking_number || undefined}
-          carrier={order.tracking_number ? "USPS" : undefined}
+          carrier={order.carrier || undefined}
           estimatedDelivery="5-7 business days"
           lastUpdated={format(new Date(order.created_at), 'MMM d, h:mm a')}
         />

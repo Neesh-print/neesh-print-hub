@@ -9,6 +9,7 @@ export interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  preventClose?: boolean;
 }
 
 const sizeClasses = {
@@ -24,11 +25,12 @@ export const Modal = ({
   children,
   footer,
   size = 'md',
+  preventClose = false,
 }: ModalProps) => {
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !preventClose) onClose();
     };
 
     if (isOpen) {
@@ -49,7 +51,7 @@ export const Modal = ({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-foreground/50 animate-fade-in"
-        onClick={onClose}
+        onClick={preventClose ? undefined : onClose}
         aria-hidden="true"
       />
 
@@ -72,13 +74,15 @@ export const Modal = ({
           >
             {title}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-secondary transition-colors"
-            aria-label="Close modal"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
+          {!preventClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-secondary transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
         </div>
 
         {/* Body */}

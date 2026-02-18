@@ -46,13 +46,15 @@ Deno.serve(async (req) => {
   try {
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    const webhookSecretDirect = Deno.env.get('STRIPE_WEBHOOK_SECRET_DIRECT')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!stripeKey || !webhookSecret || !supabaseUrl || !supabaseServiceKey) {
+    if (!stripeKey || (!webhookSecret && !webhookSecretDirect) || !supabaseUrl || !supabaseServiceKey) {
       console.error('Configuration missing:', {
         stripeKey: !!stripeKey,
         webhookSecret: !!webhookSecret,
+        webhookSecretDirect: !!webhookSecretDirect,
         supabaseUrl: !!supabaseUrl,
         supabaseServiceKey: !!supabaseServiceKey
       })
@@ -69,12 +71,23 @@ Deno.serve(async (req) => {
     console.log('Request body length:', body.length);
     let event
 
-    try {
-      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret)
-      console.log('Event constructed successfully:', event.type);
-    } catch (err) {
-      console.warn(`Webhook signature verification failed: ${err.message}`)
-      return new Response(`Webhook Error: ${err.message}`, { status: 400, headers: corsHeaders })
+    // Try both webhook secrets: one for Connect events, one for direct account events
+    const secrets = [webhookSecret, webhookSecretDirect].filter(Boolean) as string[]
+    let verified = false
+    for (const secret of secrets) {
+      try {
+        event = await stripe.webhooks.constructEventAsync(body, signature, secret)
+        console.log('Event constructed successfully:', event.type);
+        verified = true
+        break
+      } catch (err) {
+        console.log(`Signature check failed with secret ending ...${secret.slice(-4)}: ${err.message}`)
+      }
+    }
+
+    if (!verified || !event) {
+      console.warn('Webhook signature verification failed with all secrets')
+      return new Response('Webhook Error: Signature verification failed', { status: 400, headers: corsHeaders })
     }
 
     // Initialize Supabase Admin client
@@ -87,9 +100,20 @@ Deno.serve(async (req) => {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
+        let session = event.data.object as Stripe.Checkout.Session
+
+        // Re-retrieve the session to guarantee shipping_details is populated
+        // (webhook event payload may not always include all fields)
+        try {
+          session = await stripe.checkout.sessions.retrieve(session.id, {
+            expand: ['shipping_details'],
+          }) as Stripe.Checkout.Session
+        } catch (retrieveErr) {
+          console.warn('Failed to re-retrieve session, using event data:', retrieveErr)
+        }
 
         console.log(`Processing checkout session: ${session.id}`)
+        console.log(`Shipping details present: ${!!session.shipping_details}`)
 
         // Get metadata from the session
         const retailerId = session.metadata?.retailer_id
@@ -252,6 +276,53 @@ Deno.serve(async (req) => {
           }
         }
 
+        // --- Insert pending publisher transfer records ---
+        try {
+          for (const item of cartItems) {
+            const magazine = magazineMap.get(item.magazine_id)
+            if (!magazine) continue
+
+            // Find the order we just created for this magazine
+            const { data: matchedOrder } = await supabaseAdmin
+              .from('orders')
+              .select('id')
+              .eq('stripe_session_id', session.id)
+              .eq('magazine_id', item.magazine_id)
+              .single()
+
+            if (!matchedOrder) {
+              console.error(`No order found for magazine ${item.magazine_id} in session ${session.id}`)
+              continue
+            }
+
+            const wholesalePrice = magazine.wholesale_price || 0
+            const grossAmount = Math.round(wholesalePrice * 1.10 * item.quantity * 100) / 100
+            const netAmount = Math.round(wholesalePrice * item.quantity * 100) / 100
+            const platformFee = Math.round((grossAmount - netAmount) * 100) / 100
+
+            const { error: transferError } = await supabaseAdmin
+              .from('publisher_transfers')
+              .insert({
+                publisher_id: magazine.publisher_id,
+                order_id: matchedOrder.id,
+                stripe_session_id: session.id,
+                gross_amount: grossAmount,
+                platform_fee: platformFee,
+                net_amount: netAmount,
+                status: 'pending',
+              })
+
+            if (transferError) {
+              console.error(`Failed to insert publisher transfer for order ${matchedOrder.id}:`, transferError)
+            } else {
+              console.log(`Created pending transfer for publisher ${magazine.publisher_id}, order ${matchedOrder.id}, net $${netAmount}`)
+            }
+          }
+        } catch (transferInsertError) {
+          // Non-blocking: log but don't fail the webhook
+          console.error('Error inserting publisher transfer records:', transferInsertError)
+        }
+
         // Update payment session status
         await supabaseAdmin
           .from('payment_sessions')
@@ -326,6 +397,119 @@ Deno.serve(async (req) => {
           .eq('session_id', session.id)
 
         console.log(`Checkout session expired: ${session.id}`)
+        break
+      }
+
+      case 'charge.failed': {
+        const charge = event.data.object as Stripe.Charge
+        console.log(`Charge failed: ${charge.id}, reason: ${charge.failure_message}`)
+
+        // Find the associated order(s) by payment_intent
+        if (charge.payment_intent) {
+          const { data: orders } = await supabaseAdmin
+            .from('orders')
+            .select('id, retailer_id')
+            .eq('payment_intent_id', charge.payment_intent as string)
+
+          if (orders && orders.length > 0) {
+            // Update orders to reflect payment failure
+            await supabaseAdmin
+              .from('orders')
+              .update({ status: 'payment_failed' })
+              .eq('payment_intent_id', charge.payment_intent as string)
+
+            console.log(`Marked ${orders.length} order(s) as payment_failed`)
+          }
+
+          // Update payment session
+          await supabaseAdmin
+            .from('payment_sessions')
+            .update({ status: 'failed' })
+            .eq('payment_intent_id', charge.payment_intent as string)
+        }
+
+        // Notify admin
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'Payment Failed',
+          `A payment of $${((charge.amount || 0) / 100).toFixed(2)} failed.\n\nReason: ${charge.failure_message || 'Unknown'}\nCharge ID: ${charge.id}`
+        )
+        break
+      }
+
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute
+        console.log(`Dispute created: ${dispute.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`)
+
+        // Find associated orders
+        if (dispute.payment_intent) {
+          await supabaseAdmin
+            .from('orders')
+            .update({ status: 'disputed' })
+            .eq('payment_intent_id', dispute.payment_intent as string)
+        }
+
+        // Notify admin immediately — disputes are time-sensitive
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'URGENT: Chargeback/Dispute Created',
+          `A dispute has been opened for $${((dispute.amount || 0) / 100).toFixed(2)}.\n\nReason: ${dispute.reason}\nDispute ID: ${dispute.id}\n\nYou have limited time to respond. Please check the Stripe Dashboard immediately.`
+        )
+        break
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+        console.log(`Charge refunded: ${charge.id}, amount refunded: ${charge.amount_refunded}`)
+
+        if (charge.payment_intent) {
+          // Check if fully or partially refunded
+          const isFullRefund = charge.amount_refunded === charge.amount
+
+          await supabaseAdmin
+            .from('orders')
+            .update({ status: isFullRefund ? 'refunded' : 'partially_refunded' })
+            .eq('payment_intent_id', charge.payment_intent as string)
+
+          console.log(`Marked orders as ${isFullRefund ? 'refunded' : 'partially_refunded'}`)
+        }
+
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'Refund Processed',
+          `A refund of $${((charge.amount_refunded || 0) / 100).toFixed(2)} was processed.\n\nCharge ID: ${charge.id}`
+        )
+        break
+      }
+
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account
+        console.log(`Connect account updated: ${account.id}, charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}`)
+
+        // Find the publisher with this Stripe account
+        const { data: publisherRecord } = await supabaseAdmin
+          .from('publishers')
+          .select('id, user_id, company_name')
+          .eq('stripe_account_id', account.id)
+          .maybeSingle()
+
+        if (publisherRecord) {
+          // If account became disabled/restricted, notify admin
+          if (!account.charges_enabled || !account.payouts_enabled) {
+            const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+            await sendSimpleAdminNotification(
+              adminEmail,
+              'Publisher Stripe Account Issue',
+              `The Stripe account for publisher "${publisherRecord.company_name}" (${account.id}) has an issue.\n\nCharges enabled: ${account.charges_enabled}\nPayouts enabled: ${account.payouts_enabled}\n\nThe publisher may need to complete onboarding or provide additional verification.`
+            )
+          }
+          console.log(`Account update for publisher: ${publisherRecord.company_name}`)
+        } else {
+          console.log(`No publisher found for Stripe account: ${account.id}`)
+        }
         break
       }
 
@@ -518,7 +702,7 @@ async function sendOrderNotificationToPublisher(
               <div style="margin: 24px 0; padding: 20px; background-color: #FFF9F5; border-radius: 8px; border-left: 4px solid #C49A6C;">
                 <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
                   <strong>Next Steps:</strong><br>
-                  The Neesh team will handle fulfillment coordination. We'll keep you updated on the shipping status.
+                  Please prepare this order for shipping. Once it's ready, log in to your Neesh dashboard and add the tracking number to mark it as shipped.
                 </p>
               </div>
             </td>
@@ -559,5 +743,86 @@ async function sendOrderNotificationToPublisher(
     }
   } catch (error) {
     console.error('Error sending publisher email:', error)
+  }
+}
+
+// Helper for simple admin notification emails (failures, disputes, refunds)
+async function sendSimpleAdminNotification(
+  adminEmail: string,
+  subject: string,
+  message: string
+) {
+  const resendApiKey = Deno.env.get('RESEND_API_KEY')
+  if (!resendApiKey) {
+    console.error('RESEND_API_KEY not configured')
+    return
+  }
+
+  const isUrgent = subject.includes('URGENT')
+  const accentColor = isUrgent ? '#EF4444' : '#C49A6C'
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F5F5F0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <tr>
+            <td style="background-color: #1A1A1A; padding: 40px; text-align: center; border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; letter-spacing: 0.5px;">NEESH</h1>
+              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">System Alert</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 22px;">${subject}</h2>
+              <div style="margin: 24px 0; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid ${accentColor};">
+                <p style="margin: 0; color: #4A4A4A; font-size: 15px; line-height: 1.8; white-space: pre-line;">${message}</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5; border-radius: 0 0 12px 12px;">
+              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">&copy; ${new Date().getFullYear()} Neesh. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim()
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Neesh <hi@neesh.art>',
+        to: adminEmail,
+        subject: `[Neesh] ${subject}`,
+        html,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      console.error('Failed to send admin notification:', error)
+    } else {
+      console.log(`Admin notification sent: ${subject}`)
+    }
+  } catch (error) {
+    console.error('Error sending admin notification:', error)
   }
 }

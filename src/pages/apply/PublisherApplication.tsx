@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo, AutoSaveIndicator } from "@/components/neesh";
-import { SegmentedProgressBar } from "@/components/shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -132,6 +131,16 @@ export const PublisherApplication = () => {
 
           if (data && !error) {
              const dbData = data as unknown as PublisherApplicationDB;
+
+             // If the application was already submitted/approved, clear tokens and start fresh
+             if (dbData.status === 'submitted' || dbData.status === 'approved') {
+               localStorage.removeItem('publisherAppId');
+               localStorage.removeItem('publisherAccessToken');
+               setPublisherId(null);
+               setAccessToken(null);
+               setIsLoadingResume(false);
+               return;
+             }
              // Map DB snake_case to form camelCase
              // Map DB fields to form fields explicitly - don't spread additional_info
              // as it can override explicitly mapped fields and cause data leakage between fields
@@ -177,6 +186,13 @@ export const PublisherApplication = () => {
              setCurrentStep(restoreStep);
              setIsLoadingResume(false);
              return;
+          } else {
+            // Token didn't match any record - clear stale tokens
+            console.warn("No matching application found for stored token, clearing");
+            localStorage.removeItem('publisherAppId');
+            localStorage.removeItem('publisherAccessToken');
+            setPublisherId(null);
+            setAccessToken(null);
           }
         } catch (err) {
            console.error("Resume error:", err);
@@ -294,8 +310,6 @@ export const PublisherApplication = () => {
       setSaveStatus('error');
     }
   }, [publisherId, accessToken, user, getValues]);
-
-  const progressPercentage = Math.round((currentStep / TOTAL_STEPS) * 100);
 
   const handleFileSelect = async (files: File[]) => {
     if (files.length > 0) {
@@ -459,13 +473,6 @@ export const PublisherApplication = () => {
     await saveProgress();
     toast.success("Progress saved! You can resume anytime.");
     navigate("/");
-  };
-
-  const handleStepClick = (index: number) => {
-    const step = index + 1;
-    if (step < currentStep) {
-      setCurrentStep(step);
-    }
   };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -1219,14 +1226,11 @@ export const PublisherApplication = () => {
             <Logo size="lg" />
           </a>
 
-          {/* Progress Bar (Steps 1-11) */}
-          {currentStep < 12 && (
-            <SegmentedProgressBar 
-              total={TOTAL_STEPS - 1} 
-              current={currentStep}
-              onItemClick={handleStepClick}
-              className="flex-1 max-w-xl mx-8 hidden md:flex"
-            />
+          {/* Progress indicator */}
+          {currentStep > 1 && currentStep < TOTAL_STEPS && (
+            <span className="text-sm text-muted-foreground">
+              Step {currentStep - 1} of {TOTAL_STEPS - 2}
+            </span>
           )}
 
           <div className="flex items-center gap-4">
@@ -1247,10 +1251,20 @@ export const PublisherApplication = () => {
             )}
           </div>
         </div>
+
+        {/* Progress bar */}
+        {currentStep > 1 && currentStep < TOTAL_STEPS && (
+          <div className="h-1 bg-secondary">
+            <div
+              className="h-full bg-accent transition-all duration-300"
+              style={{ width: `${((currentStep - 1) / (TOTAL_STEPS - 2)) * 100}%` }}
+            />
+          </div>
+        )}
       </header>
 
       {/* Back button */}
-      {currentStep > 1 && currentStep < 12 && !(currentStep === 2 && publisherId) && (
+      {currentStep > 1 && currentStep < TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
         <div className="fixed top-20 left-6 md:left-8 z-40">
           <button
             onClick={handleBack}
@@ -1275,17 +1289,7 @@ export const PublisherApplication = () => {
             onSubmit={(e) => e.preventDefault()}
             data-lpignore="true"
           >
-            {/* Progress card - Mobile only */}
-            {/* Progress bar - Mobile only (simplified) */}
-            {currentStep < 12 && (
-              <div className="md:hidden mb-6">
-                <SegmentedProgressBar 
-                    total={TOTAL_STEPS - 1} 
-                    current={currentStep}
-                    onItemClick={handleStepClick}
-                />
-              </div>
-            )}
+            {/* Progress card - Mobile only (removed, using header bar) */}
 
             {/* key={currentStep} forces React to fully unmount/remount DOM nodes
                 between steps. Without this, React reuses <input> DOM nodes across
