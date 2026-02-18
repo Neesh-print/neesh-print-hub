@@ -34,7 +34,7 @@ const CARRIER_URLS: Record<string, string> = {
   ups: "https://www.ups.com/track?tracknum=",
   fedex: "https://www.fedex.com/fedextrack/?trknbr=",
   dhl: "https://www.dhl.com/en/express/tracking.html?AWB=",
-  amazon: "https://www.amazon.com/gp/css/shiptrack/view.html/ref=pe_385040_121528360_TE_SIMP_typ?ie=UTF8&trackId=",
+  amazon: "https://track.amazon.com/tracking/",
 };
 
 const CARRIER_DISPLAY: Record<string, string> = {
