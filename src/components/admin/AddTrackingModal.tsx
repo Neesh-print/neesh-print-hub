@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { FormInput, FormSelect, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { detectCarrier } from "@/components/retailer/OrderStatusTimeline";
 
 export interface AddTrackingModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ const carrierOptions = [
   { value: 'ups', label: 'UPS' },
   { value: 'fedex', label: 'FedEx' },
   { value: 'dhl', label: 'DHL' },
+  { value: 'amazon', label: 'Amazon Logistics' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -27,6 +29,16 @@ export const AddTrackingModal = ({
 }: AddTrackingModalProps) => {
   const [carrier, setCarrier] = useState('usps');
   const [trackingNumber, setTrackingNumber] = useState('');
+  const [manualCarrierOverride, setManualCarrierOverride] = useState(false);
+
+  // Auto-detect carrier from tracking number
+  useEffect(() => {
+    if (manualCarrierOverride) return;
+    const detected = detectCarrier(trackingNumber);
+    if (detected) {
+      setCarrier(detected);
+    }
+  }, [trackingNumber, manualCarrierOverride]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +47,15 @@ export const AddTrackingModal = ({
     }
   };
 
+  const handleCarrierChange = (value: string) => {
+    setCarrier(value);
+    setManualCarrierOverride(true);
+  };
+
   const handleClose = () => {
     setCarrier('usps');
     setTrackingNumber('');
+    setManualCarrierOverride(false);
     onClose();
   };
 
@@ -52,7 +70,7 @@ export const AddTrackingModal = ({
           <FormSelect
             label="Carrier"
             value={carrier}
-            onChange={setCarrier}
+            onChange={handleCarrierChange}
             options={carrierOptions}
           />
           
