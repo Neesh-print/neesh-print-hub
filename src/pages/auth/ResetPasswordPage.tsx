@@ -6,6 +6,7 @@ import { AuthLayout } from '@/components/auth';
 import { FormInput } from '@/components/neesh/FormInput';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const passwordSchema = z
   .string()
@@ -16,7 +17,7 @@ const passwordSchema = z
 
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
-  const { session, isLoading: authLoading, updatePassword, userRole } = useAuth();
+  const { session, user, isLoading: authLoading, updatePassword, userRole } = useAuth();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -76,6 +77,14 @@ const ResetPasswordPage = () => {
       if (error) {
         setError(error.message);
       } else {
+        // Mark password as set in profile (matches ChangePasswordModal behavior)
+        if (user) {
+          await supabase
+            .from('profiles')
+            .update({ has_set_password: true })
+            .eq('user_id', user.id);
+        }
+
         setSuccess(true);
         setTimeout(() => {
           navigate(getDashboardPath());
