@@ -100,9 +100,10 @@ Deno.serve(async (req) => {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        let session = event.data.object as Stripe.Checkout.Session
+        const eventSession = event.data.object as Stripe.Checkout.Session
+        let session = eventSession
 
-        // Re-retrieve the session to guarantee shipping_details is populated
+        // Re-retrieve the session to guarantee all fields are populated
         // (webhook event payload may not always include all fields)
         try {
           session = await stripe.checkout.sessions.retrieve(session.id) as Stripe.Checkout.Session
@@ -110,10 +111,21 @@ Deno.serve(async (req) => {
           console.warn('Failed to re-retrieve session, using event data:', retrieveErr)
         }
 
+        // In API version 2026-01-28.clover, shipping details moved to
+        // collected_information.shipping_details (no longer top-level).
+        // Check both the re-retrieved session AND the original event data
+        // since the API retrieve may not include collected_information without expansion.
+        const shippingInfo = (session as any).collected_information?.shipping_details
+          || (session as any).shipping_details
+          || (eventSession as any).collected_information?.shipping_details
+          || (eventSession as any).shipping_details
+          || null
+
         console.log(`Processing checkout session: ${session.id}`)
-        console.log(`Shipping details present: ${!!session.shipping_details}`)
-        if (session.shipping_details) {
-          console.log(`Shipping to: ${session.shipping_details.name}, ${session.shipping_details.address?.city}, ${session.shipping_details.address?.state}`)
+        console.log(`Shipping details present: ${!!shippingInfo}`)
+        console.log(`Source: re-retrieved collected_info=${!!(session as any).collected_information?.shipping_details}, re-retrieved shipping_details=${!!(session as any).shipping_details}, event collected_info=${!!(eventSession as any).collected_information?.shipping_details}, event shipping_details=${!!(eventSession as any).shipping_details}`)
+        if (shippingInfo) {
+          console.log(`Shipping to: ${shippingInfo.name}, ${shippingInfo.address?.city}, ${shippingInfo.address?.state}`)
         }
 
         // Get metadata from the session
@@ -138,30 +150,34 @@ Deno.serve(async (req) => {
         if (existingSession?.status === 'completed') {
              console.log(`Session ${session.id} already processed.`);
 
-             // Backfill shipping address on existing orders if missing
-             if (session.shipping_details) {
+             // Backfill shipping address on existing orders (overwrite null or bad data)
+             if (shippingInfo) {
                const backfillAddress = {
-                 name: session.shipping_details.name,
+                 name: shippingInfo.name,
                  address: {
-                   line1: session.shipping_details.address?.line1,
-                   line2: session.shipping_details.address?.line2,
-                   city: session.shipping_details.address?.city,
-                   state: session.shipping_details.address?.state,
-                   postal_code: session.shipping_details.address?.postal_code,
-                   country: session.shipping_details.address?.country,
+                   line1: shippingInfo.address?.line1,
+                   line2: shippingInfo.address?.line2,
+                   city: shippingInfo.address?.city,
+                   state: shippingInfo.address?.state,
+                   postal_code: shippingInfo.address?.postal_code,
+                   country: shippingInfo.address?.country,
                  }
                }
+               console.log('Backfill address data:', JSON.stringify(backfillAddress))
                const { data: updated, error: backfillErr } = await supabaseAdmin
                  .from('orders')
                  .update({ shipping_address: backfillAddress })
                  .eq('stripe_session_id', session.id)
-                 .is('shipping_address', null)
                  .select('id')
                if (backfillErr) {
                  console.error('Shipping address backfill failed:', backfillErr)
                } else if (updated && updated.length > 0) {
                  console.log(`Backfilled shipping address on ${updated.length} order(s)`)
+               } else {
+                 console.log('Backfill matched 0 orders for session:', session.id)
                }
+             } else {
+               console.log('No shipping info found — cannot backfill')
              }
 
              return new Response(JSON.stringify({ received: true }), { headers: corsHeaders, status: 200 });
@@ -225,15 +241,16 @@ Deno.serve(async (req) => {
           const totalPrice = retailerUnitPrice * item.quantity
 
           // Extract shipping address from Stripe session
-          const shippingAddress = session.shipping_details ? {
-            name: session.shipping_details.name,
+          // (uses shippingInfo resolved above — supports both old and clover API versions)
+          const shippingAddress = shippingInfo ? {
+            name: shippingInfo.name,
             address: {
-              line1: session.shipping_details.address?.line1,
-              line2: session.shipping_details.address?.line2,
-              city: session.shipping_details.address?.city,
-              state: session.shipping_details.address?.state,
-              postal_code: session.shipping_details.address?.postal_code,
-              country: session.shipping_details.address?.country,
+              line1: shippingInfo.address?.line1,
+              line2: shippingInfo.address?.line2,
+              city: shippingInfo.address?.city,
+              state: shippingInfo.address?.state,
+              postal_code: shippingInfo.address?.postal_code,
+              country: shippingInfo.address?.country,
             }
           } : null
 

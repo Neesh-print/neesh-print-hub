@@ -7,20 +7,9 @@ import { AddTrackingModal } from "@/components/admin/AddTrackingModal";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { supabase } from "@/integrations/supabase/client";
+import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 import { format } from "date-fns";
 import { toast } from "sonner";
-
-interface ShippingAddress {
-  name?: string;
-  address?: {
-    line1?: string;
-    line2?: string;
-    city?: string;
-    state?: string;
-    postal_code?: string;
-    country?: string;
-  };
-}
 
 interface OrderDetail {
   id: string;
@@ -106,6 +95,7 @@ export const PublisherOrderDetail = () => {
 
         const orderData: OrderDetail = {
           ...(data as any),
+          shipping_address: parseShippingAddress((data as any).shipping_address),
           retailers: retailerInfo,
         };
 
@@ -178,7 +168,7 @@ export const PublisherOrderDetail = () => {
             .maybeSingle();
           retailerInfo = retailer;
         }
-        setOrder({ ...(data as any), retailers: retailerInfo });
+        setOrder({ ...(data as any), shipping_address: parseShippingAddress((data as any).shipping_address), retailers: retailerInfo });
       }
     } else {
       toast.error("Failed to update order");
