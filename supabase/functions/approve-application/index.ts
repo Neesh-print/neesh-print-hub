@@ -16,6 +16,7 @@ interface ApprovalEmailData {
   businessName: string
   role: 'publisher' | 'retailer'
   recoveryLinkUrl: string
+  forgotPasswordUrl: string
 }
 
 const generateApprovalEmail = (data: ApprovalEmailData): string => {
@@ -76,10 +77,7 @@ const generateApprovalEmail = (data: ApprovalEmailData): string => {
               </table>
 
               <p style="margin: 24px 0 0; color: #6B6B6B; font-size: 14px; line-height: 1.6;">
-                This link will expire in 24 hours. You can also copy and paste this URL into your browser:
-              </p>
-              <p style="margin: 8px 0 0; color: #C49A6C; font-size: 14px; word-break: break-all;">
-                ${data.recoveryLinkUrl}
+                This link expires in 24 hours.
               </p>
 
               <!-- Divider -->
@@ -123,8 +121,11 @@ const generateApprovalEmail = (data: ApprovalEmailData): string => {
               <p style="margin: 0 0 8px; color: #6B6B6B; font-size: 14px;">
                 Welcome to the future of indie print distribution.
               </p>
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">
+              <p style="margin: 0 0 8px; color: #A0A0A0; font-size: 12px;">
                 © ${new Date().getFullYear()} Neesh. All rights reserved.
+              </p>
+              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">
+                Link expired? <a href="${data.forgotPasswordUrl}" style="color: #C49A6C; text-decoration: underline;">Request a new password reset</a>
               </p>
             </td>
           </tr>
@@ -477,6 +478,7 @@ Deno.serve(async (req) => {
             businessName,
             role: type,
             recoveryLinkUrl: recoveryUrl,
+            forgotPasswordUrl: `${siteUrl}/forgot-password`,
           })
 
           console.log(`Sending approval email to ${email}...`)
