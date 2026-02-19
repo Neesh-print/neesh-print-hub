@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
 
             const { error: transferError } = await supabaseAdmin
               .from('publisher_transfers')
-              .insert({
+              .upsert({
                 publisher_id: magazine.publisher_id,
                 order_id: matchedOrder.id,
                 stripe_session_id: session.id,
@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
                 platform_fee: platformFee,
                 net_amount: netAmount,
                 status: 'pending',
-              })
+              }, { onConflict: 'order_id', ignoreDuplicates: true })
 
             if (transferError) {
               console.error(`Failed to insert publisher transfer for order ${matchedOrder.id}:`, transferError)

@@ -74,6 +74,11 @@ export const AdminPublisherTransfers = () => {
       });
   }, [transfers, searchTerm, activeTab]);
 
+  // Only pending transfers can be released
+  const pendingSelectedRows = selectedRows.filter((id) =>
+    filteredTransfers.some((t) => t.id === id && t.status === "pending")
+  );
+
   const handleReleaseSelected = async () => {
     setShowConfirmModal(false);
     setIsReleasing(true);
@@ -82,7 +87,7 @@ export const AdminPublisherTransfers = () => {
       const { data, error: releaseError } = await supabase.functions.invoke(
         "release-publisher-transfer",
         {
-          body: { transferIds: selectedRows },
+          body: { transferIds: pendingSelectedRows },
         }
       );
 
@@ -238,10 +243,14 @@ export const AdminPublisherTransfers = () => {
       {selectedRows.length > 0 && (
         <div className="px-4 md:px-6 pb-4">
           <div className="flex items-center gap-4 p-3 bg-secondary rounded-lg">
-            <span className="text-body font-medium">{selectedRows.length} selected</span>
+            <span className="text-body font-medium">
+              {selectedRows.length} selected{pendingSelectedRows.length < selectedRows.length
+                ? ` (${pendingSelectedRows.length} pending)`
+                : ""}
+            </span>
             <ButtonPrimary
               onClick={() => setShowConfirmModal(true)}
-              disabled={isReleasing}
+              disabled={isReleasing || pendingSelectedRows.length === 0}
               className="py-1.5 gap-2"
             >
               {isReleasing ? (
@@ -268,8 +277,8 @@ export const AdminPublisherTransfers = () => {
               Confirm Transfer Release
             </h3>
             <p className="text-body text-muted-foreground mb-1">
-              You are about to release <strong>{selectedRows.length}</strong> transfer
-              {selectedRows.length > 1 ? "s" : ""} to publisher Stripe accounts.
+              You are about to release <strong>{pendingSelectedRows.length}</strong> pending transfer
+              {pendingSelectedRows.length > 1 ? "s" : ""} to publisher Stripe accounts.
             </p>
             <p className="text-body text-muted-foreground mb-6">
               This will move real funds. This action cannot be undone.

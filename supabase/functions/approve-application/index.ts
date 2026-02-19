@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
               console.log(`Found existing user with ID: ${userId}`)
             }
           }
-          
+
           if (!userId) {
             console.error('Could not find existing user:', email)
             return new Response(
@@ -294,41 +294,8 @@ Deno.serve(async (req) => {
       } else if (authData?.user) {
         userId = authData.user.id
         console.log(`Created auth user with ID: ${userId}`)
-
-        // Only create user/profile records for new auth users
-        // Step 2: Create user record
-      const { error: userInsertError } = await supabaseAdmin
-        .from('users')
-        .insert({
-          id: userId,
-          email: email,
-          username: email.split('@')[0],
-          role: type,
-          password_hash: 'managed_by_supabase_auth',
-        })
-
-      if (userInsertError && userInsertError.code !== '23505') {
-        console.error('Error creating user record:', userInsertError)
       }
-
-      // Step 3: Create profile
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          user_id: userId,
-          full_name: application.first_name && application.last_name
-            ? `${application.first_name} ${application.last_name}`
-            : application.buyer_name || email.split('@')[0],
-          has_set_password: false,
-        })
-
-      if (profileError && profileError.code !== '23505') {
-        console.error('Error creating profile:', profileError)
-      }
-
-      
-      } // end if (!userId) - new user creation
-    } // end if (!userId) - new user creation
+    }
 
     // Validate we have a userId at this point
     if (!userId) {
@@ -340,6 +307,43 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Proceeding with userId: ${userId}`)
+
+    // Step 2: Ensure user record exists (upsert for both new and existing auth users)
+    const fullName = application.first_name && application.last_name
+      ? `${application.first_name} ${application.last_name}`
+      : application.buyer_name || email.split('@')[0]
+
+    const { error: userUpsertError } = await supabaseAdmin
+      .from('users')
+      .upsert({
+        id: userId,
+        email: email,
+        username: email.split('@')[0],
+        role: type,
+        password_hash: 'managed_by_supabase_auth',
+      }, { onConflict: 'id' })
+
+    if (userUpsertError) {
+      console.error('Error upserting user record:', userUpsertError)
+      return new Response(
+        JSON.stringify({ error: `Failed to create user record: ${userUpsertError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Step 3: Ensure profile exists (upsert for both new and existing auth users)
+    const { error: profileUpsertError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        user_id: userId,
+        full_name: fullName,
+        has_set_password: false,
+      }, { onConflict: 'user_id' })
+
+    if (profileUpsertError) {
+      console.error('Error upserting profile:', profileUpsertError)
+      // Non-fatal — profile is not strictly required for login
+    }
 
     // Step 5: Create/update role-specific record
     if (type === 'publisher') {
@@ -362,6 +366,10 @@ Deno.serve(async (req) => {
 
       if (upsertError) {
         console.error('Error creating/updating publisher:', upsertError)
+        return new Response(
+          JSON.stringify({ error: `Failed to create publisher record: ${upsertError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
 
       // Create initial magazine from application data if magazine_title exists
@@ -407,6 +415,10 @@ Deno.serve(async (req) => {
 
       if (upsertError) {
         console.error('Error creating/updating retailer:', upsertError)
+        return new Response(
+          JSON.stringify({ error: `Failed to create retailer record: ${upsertError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
     }
 

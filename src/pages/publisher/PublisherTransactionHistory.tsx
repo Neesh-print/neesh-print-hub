@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, Building2, Store, ArrowRight, Receipt, Loader2 } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
@@ -59,7 +59,7 @@ export const PublisherTransactionHistory = () => {
   const [expandedDates, setExpandedDates] = useState<string[]>([]);
 
   // Expand all dates when data loads
-  useMemo(() => {
+  useEffect(() => {
     if (transactions.length > 0 && expandedDates.length === 0) {
       setExpandedDates(transactions.map(t => t.date));
     }
