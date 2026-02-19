@@ -457,7 +457,13 @@ Deno.serve(async (req) => {
 
       if (recoveryLinkError) {
         console.error('Error generating recovery link:', recoveryLinkError)
-      } else if (linkData?.properties?.action_link) {
+      } else if (linkData?.properties?.hashed_token) {
+        // Build a link to OUR app with the token_hash as a query parameter.
+        // This avoids email clients (Gmail, Outlook) pre-fetching the Supabase
+        // /auth/v1/verify URL and consuming the single-use token before the
+        // user clicks it. The client-side JS will call verifyOtp() instead.
+        const recoveryUrl = `${siteUrl}/reset-password?token_hash=${linkData.properties.hashed_token}&type=recovery`
+
         // Send email using Resend
         const resendApiKey = Deno.env.get('RESEND_API_KEY')
         if (resendApiKey) {
@@ -465,12 +471,12 @@ Deno.serve(async (req) => {
           const businessName = type === 'publisher'
             ? (application.business_name || application.magazine_title || 'Your Business')
             : (application.shop_name || 'Your Shop')
-          
+
           const html = generateApprovalEmail({
             firstName,
             businessName,
             role: type,
-            recoveryLinkUrl: linkData.properties.action_link,
+            recoveryLinkUrl: recoveryUrl,
           })
 
           console.log(`Sending approval email to ${email}...`)
