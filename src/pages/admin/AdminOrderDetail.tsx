@@ -8,6 +8,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { format } from "date-fns";
 
+interface ShippingAddress {
+  name?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
+}
+
 // Flattened interface for UI consumption
 interface OrderDetail {
   id: string;
@@ -17,7 +29,7 @@ interface OrderDetail {
   quantity: number;
   created_at: string;
   tracking_number: string | null;
-  shipping_address: string | null;
+  shipping_address: ShippingAddress | null;
   notes: string | null;
   retailer: {
     id: string;
@@ -115,7 +127,7 @@ export const AdminOrderDetail = () => {
         quantity: number;
         created_at: string;
         tracking_number: string | null;
-        shipping_address: string | null;
+        shipping_address: ShippingAddress | null;
         notes: string | null;
         retailer_id: string | null;
         magazines: {
@@ -303,9 +315,15 @@ export const AdminOrderDetail = () => {
             <InfoCard title="Shipping Address">
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
-                <pre className="text-body text-foreground whitespace-pre-line font-sans">
-                  {order.shipping_address}
-                </pre>
+                <div className="text-body text-foreground space-y-1">
+                  {order.shipping_address.name && <p className="font-medium">{order.shipping_address.name}</p>}
+                  {order.shipping_address.address?.line1 && <p>{order.shipping_address.address.line1}</p>}
+                  {order.shipping_address.address?.line2 && <p>{order.shipping_address.address.line2}</p>}
+                  {(order.shipping_address.address?.city || order.shipping_address.address?.state || order.shipping_address.address?.postal_code) && (
+                    <p>{[order.shipping_address.address.city, order.shipping_address.address.state, order.shipping_address.address.postal_code].filter(Boolean).join(', ')}</p>
+                  )}
+                  {order.shipping_address.address?.country && <p>{order.shipping_address.address.country}</p>}
+                </div>
               </div>
             </InfoCard>
           </div>

@@ -105,15 +105,16 @@ Deno.serve(async (req) => {
         // Re-retrieve the session to guarantee shipping_details is populated
         // (webhook event payload may not always include all fields)
         try {
-          session = await stripe.checkout.sessions.retrieve(session.id, {
-            expand: ['shipping_details'],
-          }) as Stripe.Checkout.Session
+          session = await stripe.checkout.sessions.retrieve(session.id) as Stripe.Checkout.Session
         } catch (retrieveErr) {
           console.warn('Failed to re-retrieve session, using event data:', retrieveErr)
         }
 
         console.log(`Processing checkout session: ${session.id}`)
         console.log(`Shipping details present: ${!!session.shipping_details}`)
+        if (session.shipping_details) {
+          console.log(`Shipping to: ${session.shipping_details.name}, ${session.shipping_details.address?.city}, ${session.shipping_details.address?.state}`)
+        }
 
         // Get metadata from the session
         const retailerId = session.metadata?.retailer_id
@@ -135,7 +136,34 @@ Deno.serve(async (req) => {
             .single();
         
         if (existingSession?.status === 'completed') {
-             console.log(`Session ${session.id} already processed. Skipping.`);
+             console.log(`Session ${session.id} already processed.`);
+
+             // Backfill shipping address on existing orders if missing
+             if (session.shipping_details) {
+               const backfillAddress = {
+                 name: session.shipping_details.name,
+                 address: {
+                   line1: session.shipping_details.address?.line1,
+                   line2: session.shipping_details.address?.line2,
+                   city: session.shipping_details.address?.city,
+                   state: session.shipping_details.address?.state,
+                   postal_code: session.shipping_details.address?.postal_code,
+                   country: session.shipping_details.address?.country,
+                 }
+               }
+               const { data: updated, error: backfillErr } = await supabaseAdmin
+                 .from('orders')
+                 .update({ shipping_address: backfillAddress })
+                 .eq('stripe_session_id', session.id)
+                 .is('shipping_address', null)
+                 .select('id')
+               if (backfillErr) {
+                 console.error('Shipping address backfill failed:', backfillErr)
+               } else if (updated && updated.length > 0) {
+                 console.log(`Backfilled shipping address on ${updated.length} order(s)`)
+               }
+             }
+
              return new Response(JSON.stringify({ received: true }), { headers: corsHeaders, status: 200 });
         }
 

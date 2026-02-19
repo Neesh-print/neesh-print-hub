@@ -18,6 +18,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface ShippingAddress {
+  name?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
+}
+
 interface OrderDetail {
   id: string;
   status: string;
@@ -27,7 +39,7 @@ interface OrderDetail {
   total_price: number;
   tracking_number: string | null;
   carrier: string | null;
-  shipping_address: string | null;
+  shipping_address: ShippingAddress | null;
   stripe_payment_metadata: {
     customer_email?: string;
     amount_total?: number;
@@ -234,9 +246,19 @@ export const RetailerOrderDetail = () => {
           <div className="flex items-start justify-between mb-4">
             <h3 className="font-display font-semibold text-lg">Shipping Address</h3>
           </div>
-          <p className="text-muted-foreground">
-            {order.shipping_address || "Address provided during checkout"}
-          </p>
+          {order.shipping_address ? (
+            <div className="space-y-1 text-muted-foreground">
+              {order.shipping_address.name && <p className="font-medium text-foreground">{order.shipping_address.name}</p>}
+              {order.shipping_address.address?.line1 && <p>{order.shipping_address.address.line1}</p>}
+              {order.shipping_address.address?.line2 && <p>{order.shipping_address.address.line2}</p>}
+              {(order.shipping_address.address?.city || order.shipping_address.address?.state || order.shipping_address.address?.postal_code) && (
+                <p>{[order.shipping_address.address.city, order.shipping_address.address.state, order.shipping_address.address.postal_code].filter(Boolean).join(', ')}</p>
+              )}
+              {order.shipping_address.address?.country && <p>{order.shipping_address.address.country}</p>}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Address provided during checkout</p>
+          )}
         </div>
 
         {/* Payment Summary */}

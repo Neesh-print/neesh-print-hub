@@ -46,12 +46,13 @@ export const AdminFulfillmentQueue = () => {
     id: order.id,
     orderNumber: order.order_number.replace('#', ''),
     retailerName: order.retailer?.shop_name || 'Unknown Retailer',
-    shippingAddress: {
-      street: order.shipping_address || '',
-      city: '',
-      state: '',
-      zip: '',
-    },
+    shippingAddress: (() => {
+      const addr = order.shipping_address;
+      if (!addr) return { street: '', city: '', state: '', zip: '' };
+      if (typeof addr === 'string') return { street: addr, city: '', state: '', zip: '' };
+      const a = (addr as any)?.address;
+      return { street: a?.line1 || '', city: a?.city || '', state: a?.state || '', zip: a?.postal_code || '' };
+    })(),
     items: [{
       title: order.magazine?.title || 'Unknown',
       quantity: order.quantity,
