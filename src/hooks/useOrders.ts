@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { parseShippingAddress } from "@/utils/parseShippingAddress";
 
 export interface Order {
   [key: string]: unknown; // Index signature for DataTable compatibility
@@ -113,7 +114,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
         shipped_at: item.status === 'shipped' ? item.updated_at : null,
         tracking_number: item.tracking_number,
         carrier: item.carrier,
-        shipping_address: item.shipping_address, // Now available from view
+        shipping_address: parseShippingAddress(item.shipping_address),
         retailer: item.retailer_id ? {
           id: item.retailer_id,
           shop_name: item.retailer_shop_name,

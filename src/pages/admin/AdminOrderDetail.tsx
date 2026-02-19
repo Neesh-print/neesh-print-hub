@@ -6,19 +6,8 @@ import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary, FormTextarea } 
 import { FormSelect } from "@/components/neesh/FormSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
+import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 import { format } from "date-fns";
-
-interface ShippingAddress {
-  name?: string;
-  address?: {
-    line1?: string;
-    line2?: string;
-    city?: string;
-    state?: string;
-    postal_code?: string;
-    country?: string;
-  };
-}
 
 // Flattened interface for UI consumption
 interface OrderDetail {
@@ -150,7 +139,7 @@ export const AdminOrderDetail = () => {
         quantity: rawData.quantity,
         created_at: rawData.created_at || '',
         tracking_number: rawData.tracking_number,
-        shipping_address: rawData.shipping_address,
+        shipping_address: parseShippingAddress(rawData.shipping_address),
         notes: rawData.notes,
         retailer: retailerData ? {
           id: retailerData.id,

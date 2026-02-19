@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 
 export interface OrderDetail {
   id: string;
@@ -14,7 +15,7 @@ export interface OrderDetail {
   shipped_at: string | null;
   tracking_number: string | null;
   carrier: string | null;
-  shipping_address: string | null;
+  shipping_address: ShippingAddress | null;
   notes: string | null;
   payment_intent_id: string | null;
   retailer: {
@@ -150,7 +151,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           shipped_at: null,
           tracking_number: rawData.tracking_number,
           carrier: null,
-          shipping_address: rawData.shipping_address,
+          shipping_address: parseShippingAddress(rawData.shipping_address),
           notes: rawData.notes,
           payment_intent_id: rawData.payment_intent_id,
           retailer: retailerData ? {

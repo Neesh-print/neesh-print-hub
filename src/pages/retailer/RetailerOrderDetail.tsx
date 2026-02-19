@@ -6,7 +6,9 @@ import { RetailerLayout, useCart } from "@/components/retailer";
 import { BackNavigation, StatusBadge, ButtonSecondary } from "@/components/neesh";
 import { OrderStatusTimeline, OrderStatus } from "@/components/retailer/OrderStatusTimeline";
 import { supabase } from "@/integrations/supabase/client";
+import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 import { format } from "date-fns";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,18 +19,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface ShippingAddress {
-  name?: string;
-  address?: {
-    line1?: string;
-    line2?: string;
-    city?: string;
-    state?: string;
-    postal_code?: string;
-    country?: string;
-  };
-}
 
 interface OrderDetail {
   id: string;
@@ -97,7 +87,10 @@ export const RetailerOrderDetail = () => {
           return;
         }
 
-        setOrder(data as OrderDetail);
+        setOrder({
+          ...(data as any),
+          shipping_address: parseShippingAddress((data as any).shipping_address),
+        } as OrderDetail);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch order');
       } finally {
