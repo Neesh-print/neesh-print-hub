@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { Check } from 'lucide-react';
 import { AuthLayout } from '@/components/auth';
@@ -17,6 +17,7 @@ const passwordSchema = z
 
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session, user, isLoading: authLoading, updatePassword, userRole } = useAuth();
 
   const [password, setPassword] = useState('');
@@ -24,6 +25,7 @@ const ResetPasswordPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const getDashboardPath = () => {
     switch (userRole) {
@@ -42,17 +44,40 @@ const ResetPasswordPage = () => {
     number: /[0-9]/.test(password),
   };
 
-  // Redirect if no session (user didn't come from email link)
+  // Handle token_hash query param (from approval emails sent via Resend).
+  // The link goes to our app instead of Supabase's /auth/v1/verify endpoint
+  // so that email client link scanners don't consume the single-use token.
   useEffect(() => {
-    if (!authLoading && !session) {
+    const tokenHash = searchParams.get('token_hash');
+    const type = searchParams.get('type');
+
+    if (tokenHash && type === 'recovery') {
+      setIsVerifying(true);
+      supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: 'recovery',
+      }).then(({ error: verifyError }) => {
+        if (verifyError) {
+          console.error('OTP verification failed:', verifyError);
+          setError('This link has expired or is invalid. Please request a new one.');
+        }
+        setIsVerifying(false);
+      });
+    }
+  }, [searchParams]);
+
+  // Redirect if no session and no token_hash (user navigated here directly)
+  useEffect(() => {
+    const hasTokenHash = searchParams.get('token_hash');
+    if (!authLoading && !session && !hasTokenHash && !isVerifying) {
       const timer = setTimeout(() => {
         if (!session) {
           navigate('/login');
         }
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [session, authLoading, navigate]);
+  }, [session, authLoading, navigate, searchParams, isVerifying]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +98,7 @@ const ResetPasswordPage = () => {
 
     try {
       const { error } = await updatePassword(password);
-      
+
       if (error) {
         setError(error.message);
       } else {
@@ -97,7 +122,7 @@ const ResetPasswordPage = () => {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || isVerifying) {
     return (
       <AuthLayout>
         <div className="flex items-center justify-center py-12">
@@ -185,7 +210,7 @@ const ResetPasswordPage = () => {
           type="submit"
           fullWidth
           loading={isLoading}
-          disabled={isLoading}
+          disabled={isLoading || !session}
         >
           Reset Password
         </ButtonPrimary>
@@ -197,7 +222,7 @@ const ResetPasswordPage = () => {
 // Helper component for password checks
 const PasswordCheck = ({ label, met }: { label: string; met: boolean }) => (
   <div className="flex items-center gap-2">
-    <div 
+    <div
       className={`w-4 h-4 rounded-full flex items-center justify-center ${
         met ? 'bg-chart-green' : 'bg-border'
       }`}
