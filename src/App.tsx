@@ -15,6 +15,7 @@ import {
   RoleSelectionPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  AuthCallback,
   ApplicationSubmittedPage,
   ApplicationPendingPage,
 } from "./pages/auth";
@@ -167,6 +168,7 @@ const AppRoutes = () => {
       <Route path="/rejected" element={<ApplicationRejected />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/p/:slug" element={<PublisherPublicProfile />} />
       <Route path="/r/:slug" element={<RetailerPublicProfile />} />
 
