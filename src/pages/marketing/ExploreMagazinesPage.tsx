@@ -27,27 +27,30 @@ export const ExploreMagazinesPage = () => {
     status: 'active',
   });
 
+  // Only show magazines with cover images
+  const magazinesWithImages = useMemo(() => magazines.filter(mag => mag.cover_image_url), [magazines]);
+
   // Unique categories from the data
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
-    magazines.forEach((mag) => {
+    magazinesWithImages.forEach((mag) => {
       if (mag.category) categories.add(mag.category);
     });
     return ['All', ...Array.from(categories).sort()];
-  }, [magazines]);
+  }, [magazinesWithImages]);
 
   // Filter magazines based on active filter
   const filteredMagazines = useMemo(() => {
-    if (activeFilter === 'All') return magazines;
+    if (activeFilter === 'All') return magazinesWithImages;
     
-    return magazines.filter(mag => 
+    return magazinesWithImages.filter(mag => 
       mag.category?.toLowerCase().includes(activeFilter.toLowerCase()) ||
       activeFilter.toLowerCase().includes(mag.category?.toLowerCase() || '')
     );
-  }, [magazines, activeFilter]);
+  }, [magazinesWithImages, activeFilter]);
 
-  // Featured magazines (first 3 active ones)
-  const featuredMagazines = magazines.slice(0, 3);
+  // Featured magazines (first 3 active ones with images)
+  const featuredMagazines = magazinesWithImages.slice(0, 3);
 
   return (
     <MarketingLayout>
@@ -106,7 +109,7 @@ export const ExploreMagazinesPage = () => {
           )}
 
           {/* Empty State */}
-          {!isLoading && !error && magazines.length === 0 && (
+          {!isLoading && !error && magazinesWithImages.length === 0 && (
             <EmptyState
               icon={<BookOpen className="w-12 h-12" />}
               title="New titles coming soon"
@@ -163,7 +166,7 @@ export const ExploreMagazinesPage = () => {
           )}
 
           {/* No filter results */}
-          {!isLoading && !error && magazines.length > 0 && filteredMagazines.length === 0 && (
+          {!isLoading && !error && magazinesWithImages.length > 0 && filteredMagazines.length === 0 && (
             <div className="text-center py-16">
               <p className="text-muted-foreground text-body-lg">
                 No magazines found for this filter. Try another category.
