@@ -26,8 +26,6 @@ export const PublisherProfile = () => {
     publisherId: publisher?.id,
   });
 
-  // FIX: avatar lives in `profiles`, not `publishers`.
-  // Load it directly from the correct table on mount.
   useEffect(() => {
     if (!user?.id) return;
     supabase
@@ -68,14 +66,12 @@ export const PublisherProfile = () => {
     e.target.value = "";
   };
 
-  // Sort: in-stock with cover image first, then in-stock no image, then out-of-stock
   const sortedMagazines = [...magazines].sort((a, b) => {
     const score = (m: typeof magazines[0]) =>
       (m.cover_image_url ? 2 : 0) + ((m.inventory_count ?? 0) > 0 ? 1 : 0);
     return score(b) - score(a);
   });
 
-  // Profile completeness check
   const missingFields: string[] = [];
   if (!avatarUrl) missingFields.push("profile photo");
   if (!publisher?.description) missingFields.push("description");
@@ -100,7 +96,6 @@ export const PublisherProfile = () => {
 
       <div className="px-4 md:px-6 pb-8">
 
-        {/* Profile completeness nudge */}
         {profileIncomplete && (
           <div className="flex items-start gap-3 mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800">
             <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
@@ -120,10 +115,8 @@ export const PublisherProfile = () => {
         )}
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Column */}
           <div className="space-y-6">
             <div className="flex flex-col items-center md:items-start">
-              {/* Avatar */}
               <div
                 className="relative group cursor-pointer mb-4"
                 onClick={triggerAvatarUpload}
@@ -163,7 +156,7 @@ export const PublisherProfile = () => {
               </h1>
 
               {publisher?.website_url && (
-                
+                <a
                   href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -216,7 +209,6 @@ export const PublisherProfile = () => {
             </div>
           </div>
 
-          {/* Right Column */}
           <div className="space-y-6">
             <div className="card-neesh">
               <WalletDisplay
@@ -227,95 +219,9 @@ export const PublisherProfile = () => {
               />
             </div>
 
-            {/* My Titles */}
             <div className="card-neesh">
               <button
                 onClick={() => setTitlesExpanded(!titlesExpanded)}
                 className="w-full flex items-center justify-between mb-4"
               >
-                <h3 className="font-display font-semibold text-heading text-foreground">
-                  My Titles
-                  {sortedMagazines.length > 0 && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      ({sortedMagazines.length})
-                    </span>
-                  )}
-                </h3>
-                {titlesExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                )}
-              </button>
-
-              {titlesExpanded && (
-                <div className="flex gap-3 overflow-x-auto pb-2">
-                  {sortedMagazines.length === 0 ? (
-                    <p className="text-muted-foreground text-sm p-2">No titles added yet.</p>
-                  ) : (
-                    sortedMagazines.map((title) => {
-                      const outOfStock = (title.inventory_count ?? 0) === 0;
-                      const hasImage = !!title.cover_image_url;
-                      return (
-                        <div
-                          key={title.id}
-                          onClick={() => navigate(`/publisher/titles/${title.id}/edit`)}
-                          className="flex-shrink-0 w-20 cursor-pointer group relative"
-                        >
-                          <div className="aspect-[3/4] rounded bg-secondary overflow-hidden mb-1 relative">
-                            {hasImage ? (
-                              <img
-                                src={title.cover_image_url!}
-                                alt={title.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-secondary">
-                                <Camera className="w-5 h-5 text-muted-foreground/40" />
-                              </div>
-                            )}
-                            {outOfStock && (
-                              <div className="absolute inset-0 bg-black/40 flex items-end justify-center pb-1">
-                                <span className="text-white text-[9px] font-medium leading-tight px-1 text-center">
-                                  Out of stock
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-caption text-muted-foreground truncate">{title.title}</p>
-                          {!hasImage && (
-                            <p className="text-[9px] text-amber-600 truncate">Add cover</p>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* My Retailers */}
-            <div className="card-neesh">
-              <button
-                onClick={() => setRetailersExpanded(!retailersExpanded)}
-                className="w-full flex items-center justify-between mb-4"
-              >
-                <h3 className="font-display font-semibold text-heading text-foreground">My Retailers</h3>
-                {retailersExpanded ? (
-                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                )}
-              </button>
-              {retailersExpanded && (
-                <p className="text-muted-foreground text-sm">Retailer list coming soon</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </PublisherLayout>
-  );
-};
-
-export default PublisherProfile;
+                <h3 className="font-display font-semibold text-heading tex
