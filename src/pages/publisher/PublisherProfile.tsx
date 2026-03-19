@@ -164,7 +164,7 @@ export const PublisherProfile = () => {
 
               {publisher?.website_url && (
                 
-                  href={publisher.website_url.startsWith("http") ? publisher.website_url : `https://${publisher.website_url}`}
+                  href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-body text-accent hover:underline mb-1"
