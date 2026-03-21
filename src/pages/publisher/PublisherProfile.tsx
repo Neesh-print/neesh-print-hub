@@ -154,17 +154,16 @@ export const PublisherProfile = () => {
               <h1 className="font-display font-bold text-display-sm text-foreground mb-2">
                 {publisher?.company_name || "New Publisher"}
               </h1>
-
-              {publisher?.website_url && (
-                <a
-                  href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-body text-accent hover:underline mb-1"
-                >
-                  {publisher.website_url.replace(/^https?:\/\//, "")}
-                </a>
-              )}
+                {publisher?.website_url && (
+                  
+                    <a href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-body text-accent hover:underline mb-1"
+                  >
+                    {publisher.website_url.replace(/^https?:\/\//, "")}
+                  </a>
+                )}
 
               <p className="text-body text-foreground text-center md:text-left mb-4 max-w-md whitespace-pre-wrap">
                 {publisher?.description || (
