@@ -201,7 +201,7 @@ export const PublisherPublicProfile = () => {
 
               {publisher.website && (
                 
-                  href={publisher.website.startsWith('http') ? publisher.website : "https://" + publisher.website}
+                  <a href={publisher.website.startsWith('http') ? publisher.website : "https://" + publisher.website}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-accent hover:underline mb-6"
@@ -215,7 +215,7 @@ export const PublisherPublicProfile = () => {
               <div className="flex items-center gap-3 mb-6">
                 {publisher.socialLinks.instagram && (
                   
-                    href={"https://instagram.com/" + publisher.socialLinks.instagram}
+                    <a href={"https://instagram.com/" + publisher.socialLinks.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
@@ -226,7 +226,7 @@ export const PublisherPublicProfile = () => {
                 )}
                 {publisher.socialLinks.twitter && (
                   
-                    href={"https://x.com/" + publisher.socialLinks.twitter}
+                    <a href={"https://x.com/" + publisher.socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
@@ -239,7 +239,7 @@ export const PublisherPublicProfile = () => {
                 )}
                 {publisher.socialLinks.tiktok && (
                   
-                    href={"https://tiktok.com/@" + publisher.socialLinks.tiktok}
+                    <a href={"https://tiktok.com/@" + publisher.socialLinks.tiktok}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
