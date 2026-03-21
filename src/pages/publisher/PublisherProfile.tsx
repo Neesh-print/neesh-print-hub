@@ -154,16 +154,16 @@ export const PublisherProfile = () => {
               <h1 className="font-display font-bold text-display-sm text-foreground mb-2">
                 {publisher?.company_name || "New Publisher"}
               </h1>
-                {publisher?.website_url && (
-                  
-                    <a href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-body text-accent hover:underline mb-1"
-                  >
-                    {publisher.website_url.replace(/^https?:\/\//, "")}
-                  </a>
-                )}
+
+              {publisher?.website_url && (
+                <a href={publisher.website_url.startsWith("http") ? publisher.website_url : "https://" + publisher.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-body text-accent hover:underline mb-1"
+                >
+                  {publisher.website_url.replace(/^https?:\/\//, "")}
+                </a>
+              )}
 
               <p className="text-body text-foreground text-center md:text-left mb-4 max-w-md whitespace-pre-wrap">
                 {publisher?.description || (
@@ -223,4 +223,88 @@ export const PublisherProfile = () => {
                 onClick={() => setTitlesExpanded(!titlesExpanded)}
                 className="w-full flex items-center justify-between mb-4"
               >
-                <h3 className="font-display font-semibold text-heading tex
+                <h3 className="font-display font-semibold text-heading text-foreground">
+                  My Titles
+                  {sortedMagazines.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      ({sortedMagazines.length})
+                    </span>
+                  )}
+                </h3>
+                {titlesExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                )}
+              </button>
+
+              {titlesExpanded && (
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {sortedMagazines.length === 0 ? (
+                    <p className="text-muted-foreground text-sm p-2">No titles added yet.</p>
+                  ) : (
+                    sortedMagazines.map((title) => {
+                      const outOfStock = (title.inventory_count ?? 0) === 0;
+                      const hasImage = !!title.cover_image_url;
+                      return (
+                        <div
+                          key={title.id}
+                          onClick={() => navigate(`/publisher/titles/${title.id}/edit`)}
+                          className="flex-shrink-0 w-20 cursor-pointer group relative"
+                        >
+                          <div className="aspect-[3/4] rounded bg-secondary overflow-hidden mb-1 relative">
+                            {hasImage ? (
+                              <img
+                                src={title.cover_image_url!}
+                                alt={title.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-secondary">
+                                <Camera className="w-5 h-5 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            {outOfStock && (
+                              <div className="absolute inset-0 bg-black/40 flex items-end justify-center pb-1">
+                                <span className="text-white text-[9px] font-medium leading-tight px-1 text-center">
+                                  Out of stock
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-caption text-muted-foreground truncate">{title.title}</p>
+                          {!hasImage && (
+                            <p className="text-[9px] text-amber-600 truncate">Add cover</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="card-neesh">
+              <button
+                onClick={() => setRetailersExpanded(!retailersExpanded)}
+                className="w-full flex items-center justify-between mb-4"
+              >
+                <h3 className="font-display font-semibold text-heading text-foreground">My Retailers</h3>
+                {retailersExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                )}
+              </button>
+              {retailersExpanded && (
+                <p className="text-muted-foreground text-sm">Retailer list coming soon</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </PublisherLayout>
+  );
+};
+
+export default PublisherProfile;
