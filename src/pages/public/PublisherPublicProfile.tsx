@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MapPin, Instagram, Globe, ExternalLink, Lock, Loader2 } from "lucide-react";
+import { MapPin, Instagram, Globe, ExternalLink, Lock, Loader2, Camera } from "lucide-react";
 import { MagazineCard, ButtonPrimary, ButtonSecondary, Modal, Logo } from "@/components/neesh";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-
-
-// Types for the public profile data
 interface PublicPublisher {
   id: string;
   name: string;
@@ -41,27 +38,24 @@ export const PublisherPublicProfile = () => {
   const { slug } = useParams<{ slug: string }>();
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const { user } = useAuth();
-  
+
   const [publisher, setPublisher] = useState<PublicPublisher | null>(null);
   const [titles, setTitles] = useState<PublicTitle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Use wishlist hook directly (works with localStorage for non-authenticated users)
+
   const { isInWishlist, toggleWishlist, wishlistCount } = useWishlist();
 
   useEffect(() => {
     const fetchPublisherData = async () => {
       if (!slug) return;
-      
+
       setIsLoading(true);
       try {
         let pubData, pubError;
 
-        // Check if slug is a UUID
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
 
         if (isUuid) {
-          // 1. Fetch publisher by ID
           const result = await supabase
             .from('publishers')
             .select('*, users!inner(created_at, profiles(avatar_url, city, state, bio))')
@@ -70,22 +64,12 @@ export const PublisherPublicProfile = () => {
           pubData = result.data;
           pubError = result.error;
         } else {
-          // Fallback: Try to find by legacy slug or company name
-          // Since we don't have a slug column, we'll try to match company_name roughly
-          // converting "some-company-name" -> "Some Company Name" is hard to do perfectly,
-          // so we'll just try a loose match if possible, or maybe just fail for now but cleanly.
-          
-          // Actually, let's try to match exact company_name for now assuming the slug might be the company name
-          // But usually slugs are lowercase-kebab-versions.
-          // Let's try to match `company_name` ilike the slug but with hyphens replaced by %
           const fuzzyName = slug.replace(/-/g, ' ');
-          
           const result = await supabase
             .from('publishers')
             .select('*, users!inner(created_at, profiles(avatar_url, city, state, bio))')
             .ilike('company_name', fuzzyName)
             .maybeSingle();
-            
           pubData = result.data;
           pubError = result.error;
         }
@@ -93,9 +77,8 @@ export const PublisherPublicProfile = () => {
         if (pubError) throw pubError;
         if (!pubData) throw new Error("Publisher not found");
 
-        const profile = pubData.users?.profiles?.[0] || pubData.users?.profiles; // Handle explicit join behavior
+        const profile = pubData.users?.profiles?.[0] || pubData.users?.profiles;
 
-        // Transform to friendly format
         setPublisher({
           id: pubData.id,
           name: pubData.company_name || "Untitled Publisher",
@@ -113,12 +96,13 @@ export const PublisherPublicProfile = () => {
           }
         });
 
-        // 2. Fetch active magazines
+        // FIX: filter out out-of-stock titles
         const { data: magData, error: magError } = await supabase
           .from('magazines')
           .select('*')
           .eq('publisher_id', pubData.id)
           .eq('is_active', true)
+          .gt('inventory_count', 0)
           .order('created_at', { ascending: false });
 
         if (magError) throw magError;
@@ -172,7 +156,6 @@ export const PublisherPublicProfile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - minimal branding */}
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Logo size="lg" />
@@ -189,19 +172,21 @@ export const PublisherPublicProfile = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-8 md:py-12">
         <div className="grid lg:grid-cols-[320px,1fr] gap-8 lg:gap-12">
-          {/* Left Sidebar - Publisher Info (sticky on desktop) */}
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <div className="flex flex-col items-center lg:items-start">
-              {/* Avatar */}
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-secondary overflow-hidden mb-6">
-                <img
-                  src={publisher.avatar}
-                  alt={publisher.name}
-                  className="w-full h-full object-cover"
-                />
+              {/* FIX: handle missing avatar gracefully */}
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-secondary overflow-hidden mb-6 flex items-center justify-center">
+                {publisher.avatar ? (
+                  <img
+                    src={publisher.avatar}
+                    alt={publisher.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Camera className="w-10 h-10 text-muted-foreground/40" />
+                )}
               </div>
 
-              {/* Name & Tagline */}
               <h1 className="font-display font-bold text-display-sm md:text-display text-foreground text-center lg:text-left mb-2">
                 {publisher.name}
               </h1>
@@ -209,16 +194,14 @@ export const PublisherPublicProfile = () => {
                 {publisher.tagline}
               </p>
 
-              {/* Location */}
               <div className="flex items-center gap-2 text-muted-foreground mb-4">
                 <MapPin className="w-4 h-4" />
                 <span className="text-body">{publisher.location}</span>
               </div>
 
-              {/* Website */}
               {publisher.website && (
-                <a
-                  href={publisher.website.startsWith('http') ? publisher.website : `https://${publisher.website}`}
+                
+                  href={publisher.website.startsWith('http') ? publisher.website : "https://" + publisher.website}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-accent hover:underline mb-6"
@@ -229,11 +212,10 @@ export const PublisherPublicProfile = () => {
                 </a>
               )}
 
-              {/* Social Links */}
               <div className="flex items-center gap-3 mb-6">
                 {publisher.socialLinks.instagram && (
-                  <a
-                    href={`https://instagram.com/${publisher.socialLinks.instagram}`}
+                  
+                    href={"https://instagram.com/" + publisher.socialLinks.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
@@ -243,8 +225,8 @@ export const PublisherPublicProfile = () => {
                   </a>
                 )}
                 {publisher.socialLinks.twitter && (
-                  <a
-                    href={`https://x.com/${publisher.socialLinks.twitter}`}
+                  
+                    href={"https://x.com/" + publisher.socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
@@ -256,8 +238,8 @@ export const PublisherPublicProfile = () => {
                   </a>
                 )}
                 {publisher.socialLinks.tiktok && (
-                  <a
-                    href={`https://tiktok.com/@${publisher.socialLinks.tiktok}`}
+                  
+                    href={"https://tiktok.com/@" + publisher.socialLinks.tiktok}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
@@ -270,7 +252,6 @@ export const PublisherPublicProfile = () => {
                 )}
               </div>
 
-              {/* Stats - subtle */}
               <div className="flex flex-wrap gap-x-4 gap-y-2 text-caption text-muted-foreground mb-6">
                 <span>{titles.length} titles available</span>
                 <span>•</span>
@@ -279,43 +260,43 @@ export const PublisherPublicProfile = () => {
                 <span>On Neesh since {publisher.memberSince}</span>
               </div>
 
-              {/* Bio - desktop only */}
               <p className="hidden lg:block text-body text-foreground/80 leading-relaxed">
                 {publisher.bio}
               </p>
             </div>
           </aside>
 
-          {/* Right Content - Titles Grid */}
           <div className="space-y-8">
-            {/* Bio - mobile only */}
             <p className="lg:hidden text-body text-foreground/80 leading-relaxed text-center">
               {publisher.bio}
             </p>
 
-            {/* Titles Section */}
             <section>
               <h2 className="font-display font-semibold text-heading text-foreground mb-6">
                 Available Titles
               </h2>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                {titles.map((title) => (
-                  <MagazineCard
-                    key={title.id}
-                    coverImage={title.coverImage}
-                    title={title.title}
-                    publisher={title.issueNumber}
-                    price={title.price}
-                    inventoryCount={title.inventoryCount}
-                    showStockIndicator={true}
-                    onClick={handleTitleClick}
-                    onBookmark={() => handleBookmark(title.id)}
-                    isBookmarked={isInWishlist(title.id)}
-                  />
-                ))}
-              </div>
-              
+
+              {titles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No titles currently in stock.</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                  {titles.map((title) => (
+                    <MagazineCard
+                      key={title.id}
+                      coverImage={title.coverImage}
+                      title={title.title}
+                      publisher={title.issueNumber}
+                      price={title.price}
+                      inventoryCount={title.inventoryCount}
+                      showStockIndicator={true}
+                      onClick={handleTitleClick}
+                      onBookmark={() => handleBookmark(title.id)}
+                      isBookmarked={isInWishlist(title.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
               {wishlistCount > 0 && (
                 <p className="mt-4 text-sm text-muted-foreground text-center">
                   {wishlistCount} {wishlistCount === 1 ? 'title' : 'titles'} saved • {user ? (
@@ -331,7 +312,6 @@ export const PublisherPublicProfile = () => {
               )}
             </section>
 
-            {/* CTA Section */}
             <section className="bg-secondary/50 rounded-xl p-6 md:p-8 text-center">
               <h3 className="font-display font-bold text-xl md:text-2xl text-foreground mb-2">
                 Stock {publisher.name} at your store
@@ -352,23 +332,18 @@ export const PublisherPublicProfile = () => {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border mt-12 py-8">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <span className="text-caption">Powered by</span>
             <Logo size="sm" />
           </div>
-          <a
-            href="/apply"
-            className="text-caption text-accent hover:underline"
-          >
+          <a href="/apply" className="text-caption text-accent hover:underline">
             Are you a publisher? Join Neesh →
           </a>
         </div>
       </footer>
 
-      {/* Sign Up Modal */}
       <Modal
         isOpen={showSignUpModal}
         onClose={() => setShowSignUpModal(false)}
