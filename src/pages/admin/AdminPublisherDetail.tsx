@@ -15,7 +15,6 @@ interface PublisherData {
   website_url: string | null;
   instagram_handle: string | null;
   verified: boolean | null;
-  total_magazines: number | null;
   total_sales: number | null;
   created_at: string | null;
 }
@@ -220,7 +219,7 @@ export const AdminPublisherDetail = () => {
                 <div>
                   <p className="text-caption text-muted-foreground">Total Magazines</p>
                   <p className="font-display font-bold text-display-sm text-foreground">
-                    {publisher.total_magazines || magazines.length}
+                    {magazines.length}
                   </p>
                 </div>
               </div>

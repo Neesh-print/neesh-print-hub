@@ -5,6 +5,7 @@ import { RetailerLayout, useWishlistContext } from "@/components/retailer";
 import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
+import { isMagazineInStock } from "@/lib/inventory";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useShippingAddresses } from "@/hooks/useShippingAddresses";
@@ -115,7 +116,7 @@ export const RetailerCatalogue = () => {
 
     // In stock filter
     if (filters.inStock) {
-      result = result.filter(mag => mag.inventory_count > 0);
+      result = result.filter(isMagazineInStock);
     }
 
     // Country filter

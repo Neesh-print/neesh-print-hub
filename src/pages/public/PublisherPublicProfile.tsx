@@ -96,13 +96,14 @@ export const PublisherPublicProfile = () => {
           }
         });
 
-        // FIX: filter out out-of-stock titles
+        // Show all active titles here, consistent with the retailer catalogue.
+        // Out-of-stock titles are displayed with a stock badge (via MagazineCard),
+        // not hidden — so a publisher's active catalogue is never silently empty.
         const { data: magData, error: magError } = await supabase
           .from('magazines')
           .select('*')
           .eq('publisher_id', pubData.id)
           .eq('is_active', true)
-          .gt('inventory_count', 0)
           .order('created_at', { ascending: false });
 
         if (magError) throw magError;
