@@ -18,8 +18,12 @@ COMMENT ON COLUMN public.publishers.profile_reminder_sent_at IS
   'When the "your public page exists" reminder email was sent. NULL = not yet sent.';
 
 -- ---------------------------------------------------------------------------
--- Base slug generator — mirrors the JS slugify() in src/lib/slugify.ts,
--- with a fallback for blank/unusable names so the result is never empty.
+-- Base slug generator — standardized, readable slugs from the company name:
+--   1. drop parenthetical/bracketed text  "(You're Not Seeing Things)"
+--   2. keep only the first segment before a separator  / , ; : | – —
+--   3. collapse repeated adjacent words   "different leaf different leaf"
+--   4. strip trailing filler words        llc/inc/co/magazine/publishing/...
+--   5. slugify; fall back to publisher-<id8> so it is never empty
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.publisher_base_slug(_name text, _id uuid)
 RETURNS text
@@ -28,13 +32,39 @@ IMMUTABLE
 AS $$
 DECLARE
   s text;
+  toks text[];
+  cleaned text[] := '{}';
+  t text;
+  prev text := NULL;
+  filler text[] := ARRAY[
+    'llc','inc','ltd','co','corp','company','gmbh','llp',
+    'magazine','mag','zine','journal','quarterly','publishing',
+    'publications','press','media','studio','studios','foundation'
+  ];
 BEGIN
-  s := lower(coalesce(_name, ''));
-  s := regexp_replace(s, '[^a-z0-9_[:space:]-]', '', 'g'); -- strip non-word chars (keep _, space, -)
-  s := regexp_replace(s, '[[:space:]_-]+', '-', 'g');      -- collapse spaces/underscores/hyphens
-  s := regexp_replace(s, '^-+|-+$', '', 'g');              -- trim leading/trailing hyphens
+  s := coalesce(_name, '');
+  s := regexp_replace(s, '\([^)]*\)', ' ', 'g');            -- drop (parenthetical)
+  s := regexp_replace(s, '\[[^\]]*\]', ' ', 'g');           -- drop [bracketed]
+  s := regexp_replace(s, '[/,;:|–—].*$', '');               -- keep first segment
+  s := lower(s);
+  s := regexp_replace(s, '[^a-z0-9_[:space:]-]', '', 'g');  -- strip disallowed chars
+
+  toks := regexp_split_to_array(trim(s), '[[:space:]_-]+');
+  FOREACH t IN ARRAY toks LOOP
+    IF t <> '' AND prev IS DISTINCT FROM t THEN              -- collapse adjacent dups
+      cleaned := array_append(cleaned, t);
+      prev := t;
+    END IF;
+  END LOOP;
+
+  WHILE array_length(cleaned, 1) > 1                          -- strip trailing filler
+        AND cleaned[array_length(cleaned, 1)] = ANY(filler) LOOP
+    cleaned := cleaned[1:array_length(cleaned, 1) - 1];
+  END LOOP;
+
+  s := array_to_string(cleaned, '-');
   IF s IS NULL OR s = '' THEN
-    s := 'publisher-' || substr(_id::text, 1, 8);          -- fallback for nameless publishers
+    s := 'publisher-' || substr(_id::text, 1, 8);            -- fallback for nameless publishers
   END IF;
   RETURN s;
 END;
@@ -65,6 +95,16 @@ BEGIN
   RETURN candidate;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Manual slug overrides for names the general rules cannot infer (taglines
+-- with no separator). Applied before the generic backfill so the loop skips
+-- these rows, and before the trigger exists so it cannot revert them.
+-- ---------------------------------------------------------------------------
+UPDATE public.publishers
+  SET profile_slug = 'pitch-stories'
+  WHERE id = 'c4a02c34-311b-42df-960c-bc68a1f96223'  -- Pitch Stories Of Modern Sport
+    AND profile_slug IS NULL;
 
 -- ---------------------------------------------------------------------------
 -- Backfill existing rows. Ordered by created_at so the earliest publisher
