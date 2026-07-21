@@ -542,6 +542,39 @@ Deno.serve(async (req) => {
           .maybeSingle()
 
         if (publisherRecord) {
+          // Persist the onboarding status so the dashboard, admin view, and nudge
+          // cron can read it without calling Stripe. Stored fields mirror the
+          // Stripe account object; requirements are kept in the shape the UI parses.
+          const requirements = account.requirements
+            ? {
+                currently_due: account.requirements.currently_due ?? [],
+                past_due: account.requirements.past_due ?? [],
+                pending_verification: account.requirements.pending_verification ?? [],
+                disabled_reason: account.requirements.disabled_reason ?? null,
+                current_deadline: account.requirements.current_deadline ?? null,
+              }
+            : null
+
+          const { error: statusError } = await supabaseAdmin
+            .from('publishers')
+            .update({
+              stripe_charges_enabled: !!account.charges_enabled,
+              stripe_payouts_enabled: !!account.payouts_enabled,
+              stripe_details_submitted: !!account.details_submitted,
+              stripe_requirements_due: requirements,
+              stripe_account_created_at: account.created
+                ? new Date(account.created * 1000).toISOString()
+                : null,
+              stripe_status_updated_at: new Date().toISOString(),
+            })
+            .eq('id', publisherRecord.id)
+
+          if (statusError) {
+            console.error('Failed to persist Stripe status for publisher:', statusError)
+          } else {
+            console.log(`Persisted Stripe status for publisher: ${publisherRecord.company_name}`)
+          }
+
           // If account became disabled/restricted, notify admin
           if (!account.charges_enabled || !account.payouts_enabled) {
             const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
