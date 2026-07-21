@@ -86,6 +86,9 @@ import {
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
+// Onboarding pages
+import { OnboardingContinue } from "./pages/onboarding";
+
 // Marketing pages
 import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
 
@@ -307,6 +310,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher']}>
             <PublisherOnboarding />
+          </ProtectedRoute>
+        }
+      />
+      {/* Stripe payout onboarding - full screen redirect, self-heals expired links */}
+      <Route
+        path="/onboarding/continue"
+        element={
+          <ProtectedRoute allowedRoles={['publisher']}>
+            <OnboardingContinue />
           </ProtectedRoute>
         }
       />
