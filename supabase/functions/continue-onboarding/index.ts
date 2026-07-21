@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // Look up the publisher and any account they already have.
     const { data: publisherData, error: publisherError } = await supabaseClient
       .from('publishers')
-      .select('id, company_name, stripe_account_id')
+      .select('id, company_name, stripe_account_id, website_url, description')
       .eq('user_id', user.id)
       .single()
 
@@ -107,18 +107,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // No usable account — create one.
+    // No usable account — create one. Prefill everything we already know so the
+    // publisher types as little as possible during Stripe onboarding.
     if (!accountId) {
       console.log(`Creating Stripe Express account for publisher ${publisherData.id}`)
+
+      const url = normalizeUrl(publisherData.website_url)
+      const productDescription = cleanDescription(publisherData.description)
+
       const account = await stripe.accounts.create({
         type: 'express',
         country: 'US',
-        email: user.email,
+        email: user.email ?? undefined,
         capabilities: {
           transfers: { requested: true },
         },
         business_profile: {
           name: publisherData.company_name || 'Publisher',
+          ...(url ? { url } : {}),
+          ...(productDescription ? { product_description: productDescription } : {}),
         },
       })
       accountId = account.id
@@ -161,3 +168,31 @@ Deno.serve(async (req) => {
     )
   }
 })
+
+// Stripe's business_profile.url must be an absolute http(s) URL. Publisher
+// websites are stored loosely (bare domains, missing scheme), so coerce them
+// into a valid form and drop anything that still doesn't look like a URL.
+function normalizeUrl(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined
+  let value = raw.trim()
+  if (!value) return undefined
+  if (!/^https?:\/\//i.test(value)) {
+    value = `https://${value}`
+  }
+  try {
+    const parsed = new URL(value)
+    // Must have a dotted host (e.g. example.com), not just "https://foo".
+    if (!parsed.hostname.includes('.')) return undefined
+    return parsed.toString()
+  } catch {
+    return undefined
+  }
+}
+
+// Stripe caps product_description length; trim whitespace and cap defensively.
+function cleanDescription(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined
+  const value = raw.trim()
+  if (!value) return undefined
+  return value.length > 500 ? value.slice(0, 500) : value
+}
