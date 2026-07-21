@@ -64,11 +64,13 @@ export const PublisherPublicProfile = () => {
           pubData = result.data;
           pubError = result.error;
         } else {
-          const fuzzyName = slug.replace(/-/g, ' ');
+          // Exact match on the stored slug. This replaces the old lossy
+          // `ilike(company_name)` lookup, which broke for names with
+          // punctuation and crashed on duplicate names.
           const result = await supabase
             .from('publishers')
             .select('*, users!inner(created_at, profiles(avatar_url, city, state, bio))')
-            .ilike('company_name', fuzzyName)
+            .eq('profile_slug', slug)
             .maybeSingle();
           pubData = result.data;
           pubError = result.error;

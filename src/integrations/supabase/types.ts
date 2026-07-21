@@ -1069,6 +1069,8 @@ export type Database = {
           description: string | null
           id: string
           instagram_handle: string | null
+          profile_reminder_sent_at: string | null
+          profile_slug: string
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -1094,6 +1096,8 @@ export type Database = {
           description?: string | null
           id?: string
           instagram_handle?: string | null
+          profile_reminder_sent_at?: string | null
+          profile_slug?: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1119,6 +1123,8 @@ export type Database = {
           description?: string | null
           id?: string
           instagram_handle?: string | null
+          profile_reminder_sent_at?: string | null
+          profile_slug?: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null

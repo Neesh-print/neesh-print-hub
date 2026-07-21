@@ -38,7 +38,9 @@ export const PublisherProfile = () => {
       });
   }, [user?.id]);
 
-  const publisherSlug = slugify(publisher?.company_name || "");
+  // Use the stored slug so the shared link always matches what actually
+  // resolves on /p/:slug. Fall back to slugify only until the row is backfilled.
+  const publisherSlug = publisher?.profile_slug || slugify(publisher?.company_name || "");
 
   const avatarUpload = useFileUpload({
     bucket: "magazine-assets",

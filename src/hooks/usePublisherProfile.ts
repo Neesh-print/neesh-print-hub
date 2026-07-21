@@ -18,6 +18,7 @@ export interface PublisherProfile {
   updated_at: string;
   stripe_account_id: string | null;
   avatar_url: string | null;
+  profile_slug: string | null;
 }
 
 export interface UsePublisherProfileReturn {
@@ -83,6 +84,7 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
           updated_at: data.updated_at || '',
           stripe_account_id: data.stripe_account_id,
           avatar_url: profileData?.avatar_url || null,
+          profile_slug: data.profile_slug ?? null,
         };
         setPublisher(transformed);
       }
