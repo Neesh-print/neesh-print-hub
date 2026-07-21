@@ -154,64 +154,8 @@ export const PublisherPayoutSettings = () => {
                   </div>
                 </div>
 
-                <ButtonPrimary 
-                  onClick={async () => {
-                    try {
-                      setIsLoading(true);
-                      const { data, error } = await supabase.functions.invoke('create-stripe-account');
-                      
-                      console.log('create-stripe-account response:', { data, error });
-                      
-                      if (error) {
-                        console.error('Error creating Stripe account:', error);
-                        let errorMessage = "Failed to create Stripe account";
-
-                        // Extract the actual error from the response body
-                        try {
-                          if (error.context) {
-                            const errorBody = await error.context.json();
-                            console.error('Server error details:', errorBody);
-                            errorMessage = errorBody?.error || errorMessage;
-                          }
-                        } catch {
-                          // Fallback if we can't parse the response
-                          if (data?.error) {
-                            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-                          } else if (error.message) {
-                            errorMessage = error.message;
-                          }
-                        }
-
-                        console.error('Displaying error:', errorMessage);
-                        toast.error(errorMessage);
-                        return;
-                      }
-                      
-                      if (data?.url) {
-                        // Redirect to Stripe onboarding
-                        console.log('Redirecting to Stripe onboarding:', data.url);
-                        window.location.href = data.url;
-                      } else {
-                        console.error('No URL in response:', data);
-                        toast.error("Could not generate onboarding link");
-                      }
-                    } catch (error) {
-                      console.error('Error setting up payouts:', error);
-                      toast.error("Failed to set up payouts");
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Setting up...
-                    </>
-                  ) : (
-                    'Set Up Payouts with Stripe'
-                  )}
+                <ButtonPrimary onClick={() => navigate('/onboarding/start')}>
+                  Set Up Payouts with Stripe
                 </ButtonPrimary>
 
                 <p className="text-sm text-muted-foreground">

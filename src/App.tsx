@@ -87,7 +87,7 @@ import {
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
 // Onboarding pages
-import { OnboardingContinue } from "./pages/onboarding";
+import { OnboardingContinue, OnboardingStart } from "./pages/onboarding";
 
 // Marketing pages
 import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
@@ -310,6 +310,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher']}>
             <PublisherOnboarding />
+          </ProtectedRoute>
+        }
+      />
+      {/* Stripe payout onboarding - full screen pre-flight before the redirect */}
+      <Route
+        path="/onboarding/start"
+        element={
+          <ProtectedRoute allowedRoles={['publisher']}>
+            <OnboardingStart />
           </ProtectedRoute>
         }
       />
