@@ -83,6 +83,7 @@ import {
   AdminBulkImport,
   PrintSlipsPage,
   AdminPublisherTransfers,
+  AdminPayouts,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
@@ -585,6 +586,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminPublisherTransfers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/payouts"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminPayouts />
           </ProtectedRoute>
         }
       />
