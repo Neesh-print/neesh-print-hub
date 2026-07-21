@@ -171,10 +171,17 @@ $$;
 REVOKE ALL ON FUNCTION public.due_profile_reminders() FROM anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- One-time send opt-out: mark LMG as already-reminded so the first run of the
--- reminder job (which sweeps up all currently-due publishers) skips it.
+-- One-time send opt-out: mark these rows as already-reminded so the first run
+-- of the reminder job (which sweeps up all currently-due publishers) skips them.
+--   - LMG (empty profile, requested excluded)
+--   - Neesh Imports (internal Shopify import bucket, not a real publisher)
+--   - the blank-name placeholder row
 -- ---------------------------------------------------------------------------
 UPDATE public.publishers
   SET profile_reminder_sent_at = now()
-  WHERE id = '162c0e71-5206-4150-b712-768179915c52'  -- LMG
+  WHERE id IN (
+      '162c0e71-5206-4150-b712-768179915c52',  -- LMG
+      '00000000-0000-0000-0000-000000000001',  -- Neesh Imports (internal bucket)
+      '044a1963-3f82-4416-b5d6-08fe92e3a97f'   -- blank-name placeholder
+    )
     AND profile_reminder_sent_at IS NULL;
