@@ -177,6 +177,10 @@ CREATE TRIGGER trg_set_publisher_slug
 -- Approved publishers, approved >= 7 days ago, not yet reminded, with a real
 -- external email. @neesh.art addresses (internal/staff/import buckets) are
 -- excluded on purpose.
+--
+-- Approval date = publishers.verified_at (set by approve-application on
+-- approval). publishers.reviewed_at is unused here — the approval flow writes
+-- reviewed_at to the applications table, not to publishers.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.due_profile_reminders()
 RETURNS TABLE (
@@ -201,8 +205,8 @@ AS $$
   LEFT JOIN public.profiles pr ON pr.user_id = p.user_id
   WHERE p.application_status = 'approved'
     AND p.profile_reminder_sent_at IS NULL
-    AND p.reviewed_at IS NOT NULL
-    AND p.reviewed_at <= now() - interval '7 days'
+    AND p.verified_at IS NOT NULL
+    AND p.verified_at <= now() - interval '7 days'
     AND u.email IS NOT NULL
     AND u.email <> ''
     AND u.email NOT ILIKE '%@neesh.art';
