@@ -136,6 +136,72 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          created_at: string
+          due_at: string | null
+          hosted_invoice_url: string | null
+          id: string
+          invoice_pdf_url: string | null
+          issued_at: string | null
+          last_reminder_at: string | null
+          paid_at: string | null
+          retailer_id: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string | null
+          subtotal: number
+          tax: number
+          terms_days: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string
+          due_at?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf_url?: string | null
+          issued_at?: string | null
+          last_reminder_at?: string | null
+          paid_at?: string | null
+          retailer_id: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          subtotal?: number
+          tax?: number
+          terms_days: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string
+          due_at?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf_url?: string | null
+          issued_at?: string | null
+          last_reminder_at?: string | null
+          paid_at?: string | null
+          retailer_id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string | null
+          subtotal?: number
+          tax?: number
+          terms_days?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       landing_page_sections: {
         Row: {
           content: string | null
@@ -188,6 +254,8 @@ export type Database = {
           fulfillment_method: string | null
           height_mm: number | null
           id: string
+          image_reminder_count: number
+          image_reminder_last_sent_at: string | null
           inventory_count: number | null
           is_active: boolean | null
           isbn: string | null
@@ -227,6 +295,8 @@ export type Database = {
           fulfillment_method?: string | null
           height_mm?: number | null
           id?: string
+          image_reminder_count?: number
+          image_reminder_last_sent_at?: string | null
           inventory_count?: number | null
           is_active?: boolean | null
           isbn?: string | null
@@ -266,6 +336,8 @@ export type Database = {
           fulfillment_method?: string | null
           height_mm?: number | null
           id?: string
+          image_reminder_count?: number
+          image_reminder_last_sent_at?: string | null
           inventory_count?: number | null
           is_active?: boolean | null
           isbn?: string | null
@@ -623,13 +695,17 @@ export type Database = {
         Row: {
           carrier: string | null
           created_at: string | null
+          due_date: string | null
           id: string
+          invoice_id: string | null
           magazine_id: string
           notes: string | null
           payment_intent_id: string | null
+          payment_method: string
+          payment_status: string
           quantity: number
           retailer_id: string
-          shipping_address: string | null
+          shipping_address: Json | null
           status: string
           stripe_payment_metadata: Json | null
           stripe_session_id: string | null
@@ -641,13 +717,17 @@ export type Database = {
         Insert: {
           carrier?: string | null
           created_at?: string | null
+          due_date?: string | null
           id?: string
+          invoice_id?: string | null
           magazine_id: string
           notes?: string | null
           payment_intent_id?: string | null
+          payment_method?: string
+          payment_status?: string
           quantity: number
           retailer_id: string
-          shipping_address?: string | null
+          shipping_address?: Json | null
           status?: string
           stripe_payment_metadata?: Json | null
           stripe_session_id?: string | null
@@ -659,13 +739,17 @@ export type Database = {
         Update: {
           carrier?: string | null
           created_at?: string | null
+          due_date?: string | null
           id?: string
+          invoice_id?: string | null
           magazine_id?: string
           notes?: string | null
           payment_intent_id?: string | null
+          payment_method?: string
+          payment_status?: string
           quantity?: number
           retailer_id?: string
-          shipping_address?: string | null
+          shipping_address?: Json | null
           status?: string
           stripe_payment_metadata?: Json | null
           stripe_session_id?: string | null
@@ -675,6 +759,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_magazine_id_fkey"
             columns: ["magazine_id"]
@@ -857,6 +948,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           full_name: string | null
+          has_set_password: boolean | null
           id: string
           phone: string | null
           postal_code: string | null
@@ -875,6 +967,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           full_name?: string | null
+          has_set_password?: boolean | null
           id?: string
           phone?: string | null
           postal_code?: string | null
@@ -893,6 +986,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           full_name?: string | null
+          has_set_password?: boolean | null
           id?: string
           phone?: string | null
           postal_code?: string | null
@@ -1056,6 +1150,95 @@ export type Database = {
         }
         Relationships: []
       }
+      publisher_transfers: {
+        Row: {
+          created_at: string
+          failure_reason: string | null
+          gross_amount: number
+          hold_reason: string | null
+          id: string
+          invoice_id: string | null
+          net_amount: number
+          order_id: string
+          platform_fee: number
+          publisher_id: string
+          released_at: string | null
+          released_by: string | null
+          status: string
+          stripe_session_id: string | null
+          stripe_transfer_id: string | null
+          transferred_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          failure_reason?: string | null
+          gross_amount: number
+          hold_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          net_amount: number
+          order_id: string
+          platform_fee: number
+          publisher_id: string
+          released_at?: string | null
+          released_by?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          stripe_transfer_id?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          failure_reason?: string | null
+          gross_amount?: number
+          hold_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          net_amount?: number
+          order_id?: string
+          platform_fee?: number
+          publisher_id?: string
+          released_at?: string | null
+          released_by?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          stripe_transfer_id?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publisher_transfers_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publisher_transfers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "order_details_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publisher_transfers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publisher_transfers_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publishers: {
         Row: {
           application_data: Json | null
@@ -1074,9 +1257,14 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          stripe_account_created_at: string | null
           stripe_account_id: string | null
+          stripe_charges_enabled: boolean
+          stripe_details_submitted: boolean
+          stripe_payouts_enabled: boolean
+          stripe_requirements_due: Json | null
+          stripe_status_updated_at: string | null
           submitted_at: string | null
-          total_magazines: number | null
           total_sales: number | null
           updated_at: string | null
           user_id: string
@@ -1097,13 +1285,18 @@ export type Database = {
           id?: string
           instagram_handle?: string | null
           profile_reminder_sent_at?: string | null
-          profile_slug?: string
+          profile_slug: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_created_at?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean
+          stripe_details_submitted?: boolean
+          stripe_payouts_enabled?: boolean
+          stripe_requirements_due?: Json | null
+          stripe_status_updated_at?: string | null
           submitted_at?: string | null
-          total_magazines?: number | null
           total_sales?: number | null
           updated_at?: string | null
           user_id: string
@@ -1128,9 +1321,14 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_created_at?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean
+          stripe_details_submitted?: boolean
+          stripe_payouts_enabled?: boolean
+          stripe_requirements_due?: Json | null
+          stripe_status_updated_at?: string | null
           submitted_at?: string | null
-          total_magazines?: number | null
           total_sales?: number | null
           updated_at?: string | null
           user_id?: string
@@ -1240,10 +1438,13 @@ export type Database = {
           contact_name: string | null
           country: string | null
           created_at: string | null
+          credit_limit: number
           favorite_publisher_ids: string[] | null
           has_shipping_address: boolean | null
           id: string
           instagram_handle: string | null
+          net_terms_days: number
+          payment_terms_enabled: boolean
           phone: string | null
           postal_code: string | null
           profile_completed_at: string | null
@@ -1253,6 +1454,9 @@ export type Database = {
           shop_url: string | null
           state: string | null
           store_types: string[] | null
+          terms_approved_at: string | null
+          terms_approved_by: string | null
+          terms_status: string
           total_orders: number | null
           total_spent: number | null
           updated_at: string | null
@@ -1268,10 +1472,13 @@ export type Database = {
           contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          credit_limit?: number
           favorite_publisher_ids?: string[] | null
           has_shipping_address?: boolean | null
           id?: string
           instagram_handle?: string | null
+          net_terms_days?: number
+          payment_terms_enabled?: boolean
           phone?: string | null
           postal_code?: string | null
           profile_completed_at?: string | null
@@ -1281,6 +1488,9 @@ export type Database = {
           shop_url?: string | null
           state?: string | null
           store_types?: string[] | null
+          terms_approved_at?: string | null
+          terms_approved_by?: string | null
+          terms_status?: string
           total_orders?: number | null
           total_spent?: number | null
           updated_at?: string | null
@@ -1296,10 +1506,13 @@ export type Database = {
           contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          credit_limit?: number
           favorite_publisher_ids?: string[] | null
           has_shipping_address?: boolean | null
           id?: string
           instagram_handle?: string | null
+          net_terms_days?: number
+          payment_terms_enabled?: boolean
           phone?: string | null
           postal_code?: string | null
           profile_completed_at?: string | null
@@ -1309,6 +1522,9 @@ export type Database = {
           shop_url?: string | null
           state?: string | null
           store_types?: string[] | null
+          terms_approved_at?: string | null
+          terms_approved_by?: string | null
+          terms_status?: string
           total_orders?: number | null
           total_spent?: number | null
           updated_at?: string | null
@@ -1511,6 +1727,35 @@ export type Database = {
           },
         ]
       }
+      stripe_onboarding_nudges: {
+        Row: {
+          id: string
+          nudge_day: number
+          publisher_id: string
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          nudge_day: number
+          publisher_id: string
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          nudge_day?: number
+          publisher_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_onboarding_nudges_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_wishlists: {
         Row: {
           created_at: string
@@ -1617,7 +1862,7 @@ export type Database = {
           retailer_email: string | null
           retailer_id: string | null
           retailer_shop_name: string | null
-          shipping_address: string | null
+          shipping_address: Json | null
           status: string | null
           stripe_session_id: string | null
           total_price: number | null
@@ -1644,6 +1889,7 @@ export type Database = {
       }
     }
     Functions: {
+      bump_image_reminders: { Args: { mag_ids: string[] }; Returns: undefined }
       bytea_to_text: { Args: { data: string }; Returns: string }
       calculate_application_score: {
         Args: { application_id: string }
@@ -1673,6 +1919,30 @@ export type Database = {
         Args: { p_magazine_id: string; p_quantity: number }
         Returns: undefined
       }
+      due_invoice_reminders: {
+        Args: never
+        Returns: {
+          amount_due: number
+          due_at: string
+          email: string
+          hosted_invoice_url: string
+          invoice_id: string
+          reminder_kind: string
+          retailer_id: string
+          shop_name: string
+          total: number
+        }[]
+      }
+      due_profile_reminders: {
+        Args: never
+        Returns: {
+          company_name: string
+          email: string
+          id: string
+          name: string
+          profile_slug: string
+        }[]
+      }
       find_conversation: {
         Args: {
           user1_id: string
@@ -1694,6 +1964,10 @@ export type Database = {
           current_step: number
           publisher_id: string
         }[]
+      }
+      get_user_conversation_ids: {
+        Args: { p_user_id: string }
+        Returns: string[]
       }
       http: {
         Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
@@ -1825,9 +2099,22 @@ export type Database = {
         Args: { check_user_id: string; conv_id: string }
         Returns: boolean
       }
+      mark_overdue_invoices: { Args: never; Returns: number }
+      publisher_base_slug: {
+        Args: { _id: string; _name: string }
+        Returns: string
+      }
       publisher_has_active_magazines: {
         Args: { _publisher_id: string }
         Returns: boolean
+      }
+      publisher_unique_slug: {
+        Args: { _id: string; _name: string }
+        Returns: string
+      }
+      retailer_outstanding_balance: {
+        Args: { p_retailer_id: string }
+        Returns: number
       }
       text_to_bytea: { Args: { data: string }; Returns: string }
       update_publisher_application: {
