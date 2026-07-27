@@ -54,6 +54,7 @@ import {
   RetailerOrdersList,
   RetailerOrderDetail,
   RetailerOrderInvoice,
+  RetailerInvoices,
   RetailerProfile,
   RetailerEditProfile,
   RetailerWishlist,
@@ -83,6 +84,7 @@ import {
   AdminBulkImport,
   PrintSlipsPage,
   AdminPublisherTransfers,
+  AdminInvoices,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
@@ -429,6 +431,18 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/retailer/invoices"
+        element={
+          <ProtectedRoute allowedRoles={['retailer', 'admin']}>
+            <WishlistProvider>
+              <CartProvider>
+                <RetailerInvoices />
+              </CartProvider>
+            </WishlistProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/retailer/profile"
         element={
           <ProtectedRoute allowedRoles={['retailer', 'admin']}>
@@ -564,6 +578,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminPublisherTransfers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/invoices"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminInvoices />
           </ProtectedRoute>
         }
       />

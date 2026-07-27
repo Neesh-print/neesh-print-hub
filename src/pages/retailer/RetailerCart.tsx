@@ -1,27 +1,85 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { X, ShoppingBag, Loader2 } from "lucide-react";
+import { X, ShoppingBag, Loader2, CalendarClock } from "lucide-react";
 import { RetailerLayout, QuantitySelector, useCart } from "@/components/retailer";
 import { BackNavigation, ButtonPrimary, ButtonSecondary, EmptyState } from "@/components/neesh";
 import { calculateRetailerPrice } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useRetailerCredit } from "@/hooks/useRetailerCredit";
+
+type PaymentMethod = "pay_now" | "net14" | "net30";
 
 export const RetailerCart = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pay_now");
   const { cartItems, removeFromCart, updateQuantity, cartItemCount } = useCart();
+  const { credit } = useRetailerCredit();
 
   const retailerTotal = cartItems.reduce((acc, item) => {
     return acc + (calculateRetailerPrice(item.price) * item.quantity);
   }, 0);
 
+  // Which net-terms options this retailer may use (approved days and within credit).
+  const termsOptions: { value: PaymentMethod; label: string; days: number }[] = [];
+  if (credit?.termsEnabled) {
+    if (credit.netTermsDays >= 14) termsOptions.push({ value: "net14", label: "Net 14", days: 14 });
+    if (credit.netTermsDays >= 30) termsOptions.push({ value: "net30", label: "Net 30", days: 30 });
+  }
+  const exceedsCredit = !!credit?.termsEnabled && retailerTotal > credit.available;
+
+  // Extract a friendly error message from a Supabase edge-function error.
+  const extractError = async (error: unknown): Promise<string> => {
+    const err = error as { context?: { json?: () => Promise<{ error?: string }> }; message?: string };
+    if (err?.context?.json) {
+      try {
+        const body = await err.context.json();
+        if (body?.error) return body.error;
+      } catch { /* ignore */ }
+    }
+    return err?.message || "Please try again later.";
+  };
+
+  const handleNetOrder = async (termsDays: number) => {
+    try {
+      setIsCheckingOut(true);
+      const { data, error } = await supabase.functions.invoke('create-net-order', {
+        body: {
+          cart_items: cartItems.map(item => ({
+            magazine_id: item.magazineId,
+            quantity: item.quantity,
+          })),
+          terms_days: termsDays,
+        },
+      });
+      if (error) throw error;
+      if (!data?.invoice_id) throw new Error('No invoice was created');
+
+      toast({
+        title: `Order placed on Net ${termsDays}`,
+        description: "We've emailed you an invoice. You can pay it any time before the due date.",
+      });
+      navigate('/retailer/invoices');
+    } catch (error) {
+      toast({
+        title: "Could not place order on terms",
+        description: await extractError(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const handleCheckout = async () => {
+    if (paymentMethod === "net14") return handleNetOrder(14);
+    if (paymentMethod === "net30") return handleNetOrder(30);
     try {
       setIsCheckingOut(true);
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { 
+        body: {
           cart_items: cartItems.map(item => ({
             magazine_id: item.magazineId,
             quantity: item.quantity
@@ -175,17 +233,55 @@ export const RetailerCart = () => {
                 </div>
               </div>
 
-              <div className="border-t border-border pt-4 mb-6">
+              <div className="border-t border-border pt-4 mb-4">
                 <div className="flex justify-between font-display font-semibold text-lg text-foreground">
                   <span>Total</span>
                   <span>{formatPrice(retailerTotal)}</span>
                 </div>
               </div>
 
+              {/* Payment method — only shown to terms-approved retailers */}
+              {credit?.termsEnabled && termsOptions.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-2 text-sm font-medium text-foreground">
+                    <CalendarClock className="w-4 h-4" />
+                    <span>Payment method</span>
+                  </div>
+                  <div className="space-y-2">
+                    {[{ value: "pay_now" as PaymentMethod, label: "Pay now", days: 0 }, ...termsOptions].map((opt) => {
+                      const disabled = opt.value !== "pay_now" && exceedsCredit;
+                      const selected = paymentMethod === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setPaymentMethod(opt.value)}
+                          className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                            selected ? "border-foreground bg-secondary" : "border-border hover:border-foreground/40"
+                          } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                        >
+                          <span className="font-medium text-foreground">{opt.label}</span>
+                          <span className="text-muted-foreground">
+                            {opt.value === "pay_now" ? "Card / bank at checkout" : `Due in ${opt.days} days`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Available credit: {formatPrice(credit.available)}
+                    {exceedsCredit && " — this order exceeds your credit; pay now or reduce the cart."}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <ButtonPrimary fullWidth onClick={handleCheckout} disabled={isCheckingOut}>
                   {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Proceed to Checkout
+                  {paymentMethod === "pay_now"
+                    ? "Proceed to Checkout"
+                    : `Place order on ${paymentMethod === "net14" ? "Net 14" : "Net 30"}`}
                 </ButtonPrimary>
                 <ButtonSecondary fullWidth onClick={() => navigate("/retailer")}>
                   Continue Shopping

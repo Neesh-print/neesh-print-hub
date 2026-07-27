@@ -15,3 +15,4 @@ export { AdminMagazines } from './AdminMagazines';
 export { AdminBulkImport } from './AdminBulkImport';
 export { PrintSlipsPage } from './PrintSlipsPage';
 export { AdminPublisherTransfers } from './AdminPublisherTransfers';
+export { AdminInvoices } from './AdminInvoices';

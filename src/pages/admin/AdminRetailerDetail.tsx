@@ -34,6 +34,14 @@ export const AdminRetailerDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
 
+  // Net-terms / credit controls
+  const [termsEnabled, setTermsEnabled] = useState(false);
+  const [netTermsDays, setNetTermsDays] = useState(0);
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [termsStatus, setTermsStatus] = useState<'none' | 'pending' | 'approved' | 'suspended'>('none');
+  const [savingTerms, setSavingTerms] = useState(false);
+  const [termsMessage, setTermsMessage] = useState<string | null>(null);
+
   const fetchRetailer = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
@@ -50,6 +58,11 @@ export const AdminRetailerDetail = () => {
       if (!data) throw new Error('Retailer not found');
 
       setRetailer(data);
+      const row = data as unknown as Record<string, unknown>;
+      setTermsEnabled(Boolean(row.payment_terms_enabled));
+      setNetTermsDays(Number(row.net_terms_days ?? 0));
+      setCreditLimit(Number(row.credit_limit ?? 0));
+      setTermsStatus(((row.terms_status as string) ?? 'none') as 'none' | 'pending' | 'approved' | 'suspended');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch retailer');
     } finally {
@@ -63,6 +76,30 @@ export const AdminRetailerDetail = () => {
 
   // Fetch recent orders for this retailer
   const { orders: recentOrders } = useOrders({ retailerId: retailer?.user_id, limit: 5 });
+
+  const handleSaveTerms = async () => {
+    if (!retailer) return;
+    setSavingTerms(true);
+    setTermsMessage(null);
+    try {
+      const { error: fnError } = await supabase.functions.invoke('set-retailer-terms', {
+        body: {
+          retailer_user_id: retailer.user_id,
+          payment_terms_enabled: termsEnabled,
+          net_terms_days: netTermsDays,
+          credit_limit: creditLimit,
+          terms_status: termsStatus,
+        },
+      });
+      if (fnError) throw fnError;
+      setTermsMessage('Saved.');
+      fetchRetailer();
+    } catch (err) {
+      setTermsMessage(err instanceof Error ? err.message : 'Failed to save terms');
+    } finally {
+      setSavingTerms(false);
+    }
+  };
 
   const handleSuspend = async () => {
     if (!retailer) return;
@@ -208,6 +245,70 @@ export const AdminRetailerDetail = () => {
                 >
                   {retailer.verified ? 'Suspend Account' : 'Reactivate Account'}
                 </ButtonSecondary>
+              </div>
+            </InfoCard>
+
+            {/* Payment Terms / Credit */}
+            <InfoCard title="Payment Terms (Net 14 / Net 30)">
+              <div className="space-y-4">
+                <label className="flex items-center justify-between">
+                  <span className="text-body text-foreground">Enable payment terms</span>
+                  <input
+                    type="checkbox"
+                    checked={termsEnabled}
+                    onChange={(e) => setTermsEnabled(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                </label>
+
+                <div>
+                  <label className="text-caption text-muted-foreground block mb-1">Max term</label>
+                  <select
+                    value={netTermsDays}
+                    onChange={(e) => setNetTermsDays(Number(e.target.value))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-body"
+                  >
+                    <option value={0}>None</option>
+                    <option value={14}>Net 14</option>
+                    <option value={30}>Net 30</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-caption text-muted-foreground block mb-1">Credit limit (USD)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={creditLimit}
+                    onChange={(e) => setCreditLimit(Number(e.target.value))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-body"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-caption text-muted-foreground block mb-1">Terms status</label>
+                  <select
+                    value={termsStatus}
+                    onChange={(e) => setTermsStatus(e.target.value as 'none' | 'pending' | 'approved' | 'suspended')}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-body"
+                  >
+                    <option value="none">None</option>
+                    <option value="pending">Pending review</option>
+                    <option value="approved">Approved</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                  <p className="text-caption text-muted-foreground mt-1">
+                    Terms are only offered at checkout when enabled AND status is “Approved”.
+                  </p>
+                </div>
+
+                <ButtonSecondary onClick={handleSaveTerms} disabled={savingTerms} className="w-full">
+                  {savingTerms ? 'Saving…' : 'Save terms'}
+                </ButtonSecondary>
+                {termsMessage && (
+                  <p className="text-caption text-muted-foreground text-center">{termsMessage}</p>
+                )}
               </div>
             </InfoCard>
           </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, CreditCard, Loader2, Clock, DollarSign } from "lucide-react";
+import { Upload, CreditCard, Loader2, Clock, DollarSign, CalendarClock } from "lucide-react";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, TabNavigation, InfoCard } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,8 @@ export const PublisherTransfers = () => {
     pendingTotal,
     pendingCount,
     transferredTotal,
+    heldTotal,
+    heldCount,
     isLoading: transfersLoading,
   } = usePublisherTransfers();
 
@@ -74,6 +76,24 @@ export const PublisherTransfers = () => {
               </p>
               <p className="text-caption text-muted-foreground mt-1">
                 {pendingCount} transfer{pendingCount > 1 ? "s" : ""} awaiting release
+              </p>
+            </div>
+          )}
+
+          {/* Held on payment terms — awaiting retailer invoice payment */}
+          {!transfersLoading && heldCount > 0 && (
+            <div className="mb-8 p-4 rounded-xl bg-secondary border border-border">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <CalendarClock className="w-4 h-4 text-muted-foreground" />
+                <p className="text-caption font-medium text-muted-foreground">
+                  Awaiting Retailer Payment (Net terms)
+                </p>
+              </div>
+              <p className="font-display font-bold text-display-md text-foreground">
+                ${heldTotal.toFixed(2)}
+              </p>
+              <p className="text-caption text-muted-foreground mt-1">
+                {heldCount} payout{heldCount > 1 ? "s" : ""} on Net 14/30 — released automatically once the retailer pays
               </p>
             </div>
           )}

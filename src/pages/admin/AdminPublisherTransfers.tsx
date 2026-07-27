@@ -46,8 +46,10 @@ export const AdminPublisherTransfers = () => {
     error,
     pendingTotal,
     transferredTotal,
+    heldTotal,
     pendingCount,
     transferredCount,
+    heldCount,
     refetch,
   } = usePublisherTransfers();
 
@@ -62,6 +64,7 @@ export const AdminPublisherTransfers = () => {
         fee: t.platform_fee,
         net: t.net_amount,
         status: t.status,
+        held: t.status === "pending" && t.hold_reason === "awaiting_invoice_payment",
         failureReason: t.failure_reason,
       }))
       .filter((t) => {
@@ -166,7 +169,16 @@ export const AdminPublisherTransfers = () => {
     {
       key: "status",
       header: "Status",
-      render: (value: unknown) => getStatusBadge(value as string),
+      render: (value: unknown, row: Record<string, unknown>) => (
+        <div className="flex items-center gap-2">
+          {getStatusBadge(value as string)}
+          {(row as { held?: boolean }).held && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary text-muted-foreground whitespace-nowrap">
+              Held · Net terms
+            </span>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -206,6 +218,13 @@ export const AdminPublisherTransfers = () => {
             value={`$${pendingTotal.toFixed(2)}`}
             icon={<DollarSign className="w-5 h-5" />}
           />
+          {heldCount > 0 && (
+            <StatCard
+              label="Held (Net terms)"
+              value={`$${heldTotal.toFixed(2)}`}
+              icon={<Clock className="w-5 h-5" />}
+            />
+          )}
           <StatCard
             label="Transferred"
             value={transferredCount}

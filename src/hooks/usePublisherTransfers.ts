@@ -10,6 +10,8 @@ export interface PublisherTransfer {
   platform_fee: number;
   net_amount: number;
   status: 'pending' | 'transferred' | 'failed';
+  /** When 'awaiting_invoice_payment', the payout is held until the retailer pays their net-terms invoice. */
+  hold_reason: string | null;
   stripe_transfer_id: string | null;
   released_by: string | null;
   released_at: string | null;
@@ -74,6 +76,7 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
           platform_fee: Number(row.platform_fee),
           net_amount: Number(row.net_amount),
           status: row.status as 'pending' | 'transferred' | 'failed',
+          hold_reason: (row.hold_reason as string | null) ?? null,
           stripe_transfer_id: row.stripe_transfer_id as string | null,
           released_by: row.released_by as string | null,
           released_at: row.released_at as string | null,
@@ -99,15 +102,25 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
     fetchTransfers();
   }, [fetchTransfers]);
 
+  // "Held" = pending payouts awaiting the retailer's net-terms invoice payment.
+  const isHeld = (t: PublisherTransfer) =>
+    t.status === 'pending' && t.hold_reason === 'awaiting_invoice_payment';
+
+  const heldTotal = transfers
+    .filter(isHeld)
+    .reduce((sum, t) => sum + t.net_amount, 0);
+
+  // pendingTotal counts releasable pending payouts only (excludes held).
   const pendingTotal = transfers
-    .filter(t => t.status === 'pending')
+    .filter(t => t.status === 'pending' && !isHeld(t))
     .reduce((sum, t) => sum + t.net_amount, 0);
 
   const transferredTotal = transfers
     .filter(t => t.status === 'transferred')
     .reduce((sum, t) => sum + t.net_amount, 0);
 
-  const pendingCount = transfers.filter(t => t.status === 'pending').length;
+  const heldCount = transfers.filter(isHeld).length;
+  const pendingCount = transfers.filter(t => t.status === 'pending' && !isHeld(t)).length;
   const transferredCount = transfers.filter(t => t.status === 'transferred').length;
 
   return {
@@ -116,8 +129,10 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
     error,
     pendingTotal,
     transferredTotal,
+    heldTotal,
     pendingCount,
     transferredCount,
+    heldCount,
     refetch: fetchTransfers,
   };
 }

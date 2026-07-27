@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { transferIds } = await req.json()
+    const { transferIds, force = false } = await req.json()
 
     if (!Array.isArray(transferIds) || transferIds.length === 0) {
       return new Response(
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         const { data: transfer, error: fetchError } = await supabaseAdmin
           .from('publisher_transfers')
           .select(`
-            id, order_id, net_amount, status,
+            id, order_id, net_amount, status, hold_reason,
             publishers!inner (
               id, stripe_account_id, company_name
             )
@@ -111,6 +111,17 @@ Deno.serve(async (req) => {
 
         if (transfer.status !== 'pending') {
           results.push({ id: transferId, success: false, error: `Transfer already ${transfer.status}` })
+          continue
+        }
+
+        // Net-terms transfers are held until the retailer pays their invoice.
+        // They auto-release on invoice.paid; block manual release unless forced.
+        if (transfer.hold_reason === 'awaiting_invoice_payment' && !force) {
+          results.push({
+            id: transferId,
+            success: false,
+            error: 'Held until the retailer pays the linked invoice. Use force to override.',
+          })
           continue
         }
 
@@ -148,6 +159,7 @@ Deno.serve(async (req) => {
           .update({
             status: 'transferred',
             stripe_transfer_id: stripeTransfer.id,
+            hold_reason: null,
             released_by: user.id,
             released_at: new Date().toISOString(),
             transferred_at: new Date().toISOString(),

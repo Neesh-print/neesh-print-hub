@@ -60,6 +60,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Browse Catalogue", icon: <Search className="w-5 h-5" />, path: "/retailer" },
     { label: "Saved Titles", icon: <Heart className="w-5 h-5" />, path: "/retailer/wishlist" },
     { label: "My Orders", icon: <Package className="w-5 h-5" />, path: "/retailer/orders" },
+    { label: "Invoices", icon: <FileText className="w-5 h-5" />, path: "/retailer/invoices" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/retailer/messages" },
     { label: "Cart", icon: <ShoppingCart className="w-5 h-5" />, path: "/retailer/cart" },
   ];
@@ -79,6 +80,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Magazines", icon: <BookOpen className="w-5 h-5" />, path: "/admin/magazines" },
     { label: "Orders", icon: <ShoppingBag className="w-5 h-5" />, path: "/admin/orders" },
     { label: "Transfers", icon: <Banknote className="w-5 h-5" />, path: "/admin/transfers" },
+    { label: "Invoices", icon: <FileText className="w-5 h-5" />, path: "/admin/invoices" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/admin/messages" },
     { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/admin/analytics" },
   ];

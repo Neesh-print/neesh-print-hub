@@ -558,6 +558,165 @@ Deno.serve(async (req) => {
         break
       }
 
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice
+        const neeshInvoiceId = invoice.metadata?.neesh_invoice_id
+        if (!neeshInvoiceId) {
+          console.log(`invoice.paid without neesh_invoice_id: ${invoice.id}`)
+          break
+        }
+
+        // Idempotency
+        const { data: existingInvoice } = await supabaseAdmin
+          .from('invoices')
+          .select('status')
+          .eq('id', neeshInvoiceId)
+          .single()
+        if (existingInvoice?.status === 'paid') {
+          console.log(`Invoice ${neeshInvoiceId} already marked paid.`)
+          break
+        }
+
+        await supabaseAdmin
+          .from('invoices')
+          .update({
+            status: 'paid',
+            amount_paid: (invoice.amount_paid ?? 0) / 100,
+            amount_due: (invoice.amount_remaining ?? 0) / 100,
+            paid_at: new Date().toISOString(),
+          })
+          .eq('id', neeshInvoiceId)
+
+        await supabaseAdmin
+          .from('orders')
+          .update({ payment_status: 'paid' })
+          .eq('invoice_id', neeshInvoiceId)
+
+        // Auto-release the held publisher transfers for this invoice.
+        const { data: heldTransfers } = await supabaseAdmin
+          .from('publisher_transfers')
+          .select('id, order_id, net_amount, status, publishers!inner ( stripe_account_id, company_name )')
+          .eq('invoice_id', neeshInvoiceId)
+          .eq('status', 'pending')
+
+        for (const t of heldTransfers ?? []) {
+          const publisher = t.publishers as any
+          if (!publisher?.stripe_account_id) {
+            await supabaseAdmin
+              .from('publisher_transfers')
+              .update({
+                status: 'failed',
+                failure_reason: 'Publisher has no connected Stripe account',
+              })
+              .eq('id', t.id)
+            continue
+          }
+          try {
+            const transfer = await stripe.transfers.create({
+              amount: Math.round(t.net_amount * 100),
+              currency: 'usd',
+              destination: publisher.stripe_account_id,
+              transfer_group: t.order_id,
+              // Tie to the invoice's charge so funds are guaranteed available
+              // (belt-and-braces, important for ACH which settles before this fires).
+              source_transaction: (invoice.charge as string) || undefined,
+              description: `Neesh payout for order ${t.order_id} (invoice ${invoice.number})`,
+            })
+            await supabaseAdmin
+              .from('publisher_transfers')
+              .update({
+                status: 'transferred',
+                stripe_transfer_id: transfer.id,
+                hold_reason: null,
+                transferred_at: new Date().toISOString(),
+                released_at: new Date().toISOString(),
+              })
+              .eq('id', t.id)
+            console.log(`Auto-released transfer ${t.id} → ${publisher.company_name}`)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'transfer error'
+            console.error(`Auto-release failed for transfer ${t.id}:`, msg)
+            await supabaseAdmin
+              .from('publisher_transfers')
+              .update({ status: 'failed', failure_reason: msg })
+              .eq('id', t.id)
+          }
+        }
+
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'Invoice Paid',
+          `Invoice ${invoice.number} was paid ($${((invoice.amount_paid ?? 0) / 100).toFixed(2)}). Publisher payouts have been released.`
+        )
+        console.log(`Invoice ${neeshInvoiceId} paid and transfers released.`)
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice
+        const neeshInvoiceId = invoice.metadata?.neesh_invoice_id
+        if (!neeshInvoiceId) break
+
+        // send_invoice does not auto-charge, but handle for safety / future
+        // auto-charge (charge_automatically) support.
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'Invoice Payment Failed',
+          `A payment attempt failed for invoice ${invoice.number}. Amount due: $${((invoice.amount_remaining ?? 0) / 100).toFixed(2)}.`
+        )
+        console.log(`Invoice payment failed: ${invoice.id}`)
+        break
+      }
+
+      case 'invoice.marked_uncollectible': {
+        const invoice = event.data.object as Stripe.Invoice
+        const neeshInvoiceId = invoice.metadata?.neesh_invoice_id
+        if (!neeshInvoiceId) break
+
+        await supabaseAdmin
+          .from('invoices')
+          .update({ status: 'uncollectible' })
+          .eq('id', neeshInvoiceId)
+        await supabaseAdmin
+          .from('orders')
+          .update({ payment_status: 'written_off' })
+          .eq('invoice_id', neeshInvoiceId)
+        // Held transfers are intentionally left pending (never auto-released).
+
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        await sendSimpleAdminNotification(
+          adminEmail,
+          'URGENT: Invoice Uncollectible',
+          `Invoice ${invoice.number} was marked uncollectible. The publisher has NOT been paid — resolve manually (contact the retailer / decide on the payout).`
+        )
+        console.log(`Invoice marked uncollectible: ${invoice.id}`)
+        break
+      }
+
+      case 'invoice.voided': {
+        const invoice = event.data.object as Stripe.Invoice
+        const neeshInvoiceId = invoice.metadata?.neesh_invoice_id
+        if (!neeshInvoiceId) break
+
+        await supabaseAdmin
+          .from('invoices')
+          .update({ status: 'void' })
+          .eq('id', neeshInvoiceId)
+        await supabaseAdmin
+          .from('orders')
+          .update({ payment_status: 'unpaid', status: 'cancelled' })
+          .eq('invoice_id', neeshInvoiceId)
+        await supabaseAdmin
+          .from('publisher_transfers')
+          .update({ status: 'failed', failure_reason: 'Invoice voided', hold_reason: null })
+          .eq('invoice_id', neeshInvoiceId)
+          .eq('status', 'pending')
+        console.log(`Invoice voided: ${invoice.id}`)
+        break
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`)
     }
