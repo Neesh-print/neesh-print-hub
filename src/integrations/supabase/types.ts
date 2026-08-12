@@ -1240,6 +1240,8 @@ export type Database = {
           contact_name: string | null
           country: string | null
           created_at: string | null
+          email_verification_token_hash: string | null
+          email_verified_at: string | null
           favorite_publisher_ids: string[] | null
           has_shipping_address: boolean | null
           id: string
@@ -1268,6 +1270,8 @@ export type Database = {
           contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          email_verification_token_hash?: string | null
+          email_verified_at?: string | null
           favorite_publisher_ids?: string[] | null
           has_shipping_address?: boolean | null
           id?: string
@@ -1296,6 +1300,8 @@ export type Database = {
           contact_name?: string | null
           country?: string | null
           created_at?: string | null
+          email_verification_token_hash?: string | null
+          email_verified_at?: string | null
           favorite_publisher_ids?: string[] | null
           has_shipping_address?: boolean | null
           id?: string

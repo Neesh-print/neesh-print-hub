@@ -97,6 +97,26 @@ Deno.serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    // Instant-access signups can browse right away but must confirm their
+    // email (retailers.email_verified_at) before placing their first order.
+    const { data: retailerRow, error: retailerRowError } = await supabaseClient
+      .from('retailers')
+      .select('email_verified_at')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (retailerRowError || !retailerRow?.email_verified_at) {
+      if (retailerRowError) console.error('Error checking email verification:', retailerRowError)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: 'email_unverified',
+          error: 'Please confirm your email address before placing your first order. Check your inbox for the confirmation link.',
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     // ============================================================
 
     // Parse request body
