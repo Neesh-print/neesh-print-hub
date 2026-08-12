@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { RetailerLayout, useCart } from "@/components/retailer";
 import { BackNavigation, FormInput, FormSelect, ButtonPrimary } from "@/components/neesh";
 import { toast } from "@/hooks/use-toast";
-import { CreditCard, Lock } from "lucide-react";
+import { CreditCard, Lock, MailWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useEmailVerification } from "@/hooks/useEmailVerification";
 
 const countries = [
   { value: "us", label: "United States" },
@@ -23,7 +25,9 @@ const states = [
 
 export const RetailerCheckout = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
+  const { isVerified, isResending, resend, refetch } = useEmailVerification();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsShipping, setSameAsShipping] = useState(true);
 
@@ -56,8 +60,32 @@ export const RetailerCheckout = () => {
   const tax = cartTotal * 0.08;
   const total = cartTotal + shippingCost + tax;
 
+  const handleResend = async () => {
+    const sent = await resend();
+    if (sent) {
+      toast({
+        title: "Confirmation email sent",
+        description: "Check your inbox and click the link — then come back here.",
+      });
+    } else {
+      toast({
+        title: "Couldn't send the email",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVerified === false) {
+      toast({
+        title: "Confirm your email first",
+        description: "Click the confirmation link we emailed you to place your first order.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -74,11 +102,23 @@ export const RetailerCheckout = () => {
 
       if (error) {
         console.error('Checkout error:', error);
-        toast({
-          title: "Checkout failed",
-          description: error.message || "Unable to create checkout session. Please try again.",
-          variant: "destructive",
-        });
+        let title = "Checkout failed";
+        let description = error.message || "Unable to create checkout session. Please try again.";
+        // Surface the server-side email gate specifically (e.g. if this tab's
+        // verification state was stale) and re-sync the banner.
+        if ("context" in error && error.context instanceof Response) {
+          try {
+            const body = await error.context.json();
+            if (body?.code === 'email_unverified') {
+              title = "Confirm your email first";
+              refetch();
+            }
+            if (body?.error) description = body.error;
+          } catch {
+            // keep the generic message
+          }
+        }
+        toast({ title, description, variant: "destructive" });
         setIsSubmitting(false);
         return;
       }
@@ -268,7 +308,33 @@ export const RetailerCheckout = () => {
               </div>
             </section>
 
-            <ButtonPrimary type="submit" fullWidth loading={isSubmitting}>
+            {isVerified === false && (
+              <section className="card-neesh border border-accent/40 bg-accent/5">
+                <div className="flex items-start gap-3">
+                  <MailWarning className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-display font-semibold text-foreground mb-1">
+                      Confirm your email to place your first order
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      We sent a confirmation link to{" "}
+                      <span className="font-medium text-foreground">{user?.email}</span>.
+                      Click it and come back here — no reload needed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={isResending}
+                      className="text-sm font-medium text-accent hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isResending ? "Sending…" : "Resend confirmation email"}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <ButtonPrimary type="submit" fullWidth loading={isSubmitting} disabled={isVerified === false}>
               Place Order
             </ButtonPrimary>
           </div>

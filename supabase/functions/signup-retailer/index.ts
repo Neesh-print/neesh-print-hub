@@ -9,6 +9,7 @@ interface SignupRetailerRequest {
   firstName: string
   lastName: string
   email: string
+  password: string
   storeName: string
   city: string
   state: string
@@ -21,11 +22,17 @@ interface SignupRetailerRequest {
 // Mirrors the DB-side validate_retailer_application trigger
 const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 
+const sha256Hex = async (input: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 interface WelcomeEmailData {
   firstName: string
   shopName: string
-  recoveryLinkUrl: string
-  forgotPasswordUrl: string
+  verifyEmailUrl: string
 }
 
 const generateWelcomeEmail = (data: WelcomeEmailData): string => {
@@ -64,27 +71,26 @@ const generateWelcomeEmail = (data: WelcomeEmailData): string => {
               </h2>
 
               <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Your account for <strong>${data.shopName}</strong> is live and the catalog is open.
+                Your account for <strong>${data.shopName}</strong> is live, you're signed in, and the catalog is open.
               </p>
 
               <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Click the button below to <strong>set your password</strong> and start browsing independent magazines for your store.
+                One quick step before your first order: <strong>confirm your email address</strong> so order updates reach you.
               </p>
 
               <!-- CTA Button -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${data.recoveryLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                      Set Your Password
+                    <a href="${data.verifyEmailUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                      Confirm Your Email
                     </a>
                   </td>
                 </tr>
               </table>
 
               <p style="margin: 24px 0 0; color: #6B6B6B; font-size: 14px; line-height: 1.6;">
-                This link expires in 24 hours. If it does, you can request a new one at
-                <a href="${data.forgotPasswordUrl}" style="color: #C49A6C;">${data.forgotPasswordUrl}</a>.
+                You can browse the catalog right away — confirming just unlocks ordering. Need a fresh link? You can resend one from checkout at any time.
               </p>
 
               <!-- Divider -->
@@ -135,6 +141,7 @@ Deno.serve(async (req) => {
     const firstName = (body.firstName ?? '').trim()
     const lastName = (body.lastName ?? '').trim()
     const email = (body.email ?? '').trim()
+    const password = body.password ?? ''
     const storeName = (body.storeName ?? '').trim()
     const city = (body.city ?? '').trim()
     const state = (body.state ?? '').trim()
@@ -152,6 +159,12 @@ Deno.serve(async (req) => {
     if (!EMAIL_REGEX.test(email) || email.length > 255) {
       return new Response(
         JSON.stringify({ error: 'Invalid email address' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (password.length < 8 || password.length > 72) {
+      return new Response(
+        JSON.stringify({ error: 'Password must be between 8 and 72 characters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -175,11 +188,13 @@ Deno.serve(async (req) => {
     )
 
     // Step 1: Create the auth user. Doing this first means a duplicate email
-    // fails cleanly before any application row is written.
-    const randomPassword = crypto.randomUUID()
+    // fails cleanly before any application row is written. email_confirm: true
+    // lets the retailer sign in immediately regardless of the project's
+    // "Confirm email" auth setting — first-order gating is handled by our own
+    // email_verified_at column on retailers instead.
     const { data: authData, error: authUserError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
-      password: randomPassword,
+      password: password,
       email_confirm: true,
       user_metadata: {
         role: 'retailer',
@@ -266,7 +281,7 @@ Deno.serve(async (req) => {
       .upsert({
         user_id: userId,
         full_name: buyerName,
-        has_set_password: false,
+        has_set_password: true,
       }, { onConflict: 'user_id' })
 
     if (profileUpsertError) {
@@ -274,7 +289,11 @@ Deno.serve(async (req) => {
       // Non-fatal — profile is not strictly required for login
     }
 
-    // Step 5: Create the retailer record
+    // Step 5: Create the retailer record. The raw verification token only
+    // ever leaves this function inside the confirmation email; the DB keeps
+    // a SHA-256 hash so nobody can self-verify by reading their own row.
+    const verificationToken = crypto.randomUUID()
+    const verificationTokenHash = await sha256Hex(verificationToken)
     const { error: retailerUpsertError } = await supabaseAdmin
       .from('retailers')
       .upsert({
@@ -286,6 +305,8 @@ Deno.serve(async (req) => {
         country: country,
         verified: true,
         verified_at: now,
+        email_verified_at: null,
+        email_verification_token_hash: verificationTokenHash,
       }, { onConflict: 'user_id' })
 
     if (retailerUpsertError) {
@@ -298,59 +319,43 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully signed up retailer: ${email}`)
 
-    // Step 6: Send welcome email with a set-password link (non-fatal on failure)
+    // Step 6: Send welcome email with the confirm-email link (non-fatal on
+    // failure — the retailer can resend it from checkout).
     const siteUrl = body.redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
     try {
-      const { data: linkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: email,
-        options: {
-          redirectTo: `${siteUrl}/reset-password`,
-        },
-      })
+      const resendApiKey = Deno.env.get('RESEND_API_KEY')
+      if (resendApiKey) {
+        const html = generateWelcomeEmail({
+          firstName,
+          shopName: storeName,
+          verifyEmailUrl: `${siteUrl}/verify-email?token=${verificationToken}`,
+        })
 
-      if (recoveryLinkError) {
-        console.error('Error generating recovery link:', recoveryLinkError)
-      } else if (linkData?.properties?.hashed_token) {
-        // Link to our app with the token_hash so email clients pre-fetching
-        // URLs don't consume the single-use token (see approve-application).
-        const recoveryUrl = `${siteUrl}/reset-password?token_hash=${linkData.properties.hashed_token}&type=recovery`
+        const resendResponse = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Neesh <hi@neesh.art>',
+            to: email,
+            subject: 'Welcome to Neesh — confirm your email',
+            html: html,
+          }),
+        })
 
-        const resendApiKey = Deno.env.get('RESEND_API_KEY')
-        if (resendApiKey) {
-          const html = generateWelcomeEmail({
-            firstName,
-            shopName: storeName,
-            recoveryLinkUrl: recoveryUrl,
-            forgotPasswordUrl: `${siteUrl}/forgot-password`,
-          })
-
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Neesh <hi@neesh.art>',
-              to: email,
-              subject: 'Welcome to Neesh — your account is live',
-              html: html,
-            }),
-          })
-
-          if (!resendResponse.ok) {
-            const resendError = await resendResponse.json()
-            console.error('Error sending welcome email:', resendError)
-          } else {
-            console.log('Welcome email sent successfully')
-          }
+        if (!resendResponse.ok) {
+          const resendError = await resendResponse.json()
+          console.error('Error sending welcome email:', resendError)
         } else {
-          console.error('RESEND_API_KEY not found, cannot send welcome email')
+          console.log('Welcome email sent successfully')
         }
+      } else {
+        console.error('RESEND_API_KEY not found, cannot send welcome email')
       }
     } catch (emailError) {
-      console.error('Error with recovery link / email:', emailError)
+      console.error('Error sending welcome email:', emailError)
     }
 
     return new Response(

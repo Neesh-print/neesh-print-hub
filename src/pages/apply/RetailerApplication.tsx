@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { ButtonPrimary, FormInput, FormSelect, Logo } from "@/components/neesh";
 import { Checkbox } from "@/components/ui/checkbox";
 import { normalizeWeb } from "@/lib/normalize-web";
@@ -29,6 +30,7 @@ interface FormData {
   firstName: string;
   lastName: string;
   email: string;
+  password: string;
   storeName: string;
   city: string;
   state: string;
@@ -37,18 +39,21 @@ interface FormData {
   optInUpdates: boolean;
 }
 
+// Fields restored from the localStorage draft — the password is deliberately
+// never saved or restored.
 const FORM_FIELDS: (keyof FormData)[] = [
   "firstName", "lastName", "email", "storeName",
   "city", "state", "country", "websiteUrl", "optInUpdates",
 ];
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
-  1: ["firstName", "lastName", "email", "storeName"],
+  1: ["firstName", "lastName", "email", "password", "storeName"],
   2: ["city", "state", "country", "websiteUrl"],
 };
 
 export const RetailerApplication = () => {
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,6 +62,7 @@ export const RetailerApplication = () => {
       firstName: "",
       lastName: "",
       email: "",
+      password: "",
       storeName: "",
       city: "",
       state: "",
@@ -94,10 +100,12 @@ export const RetailerApplication = () => {
     }
   }, [setValue]);
 
-  // Save data to localStorage on change (only while filling out the form)
+  // Save data to localStorage on change (only while filling out the form).
+  // The password never touches localStorage.
   useEffect(() => {
     if (currentStep > TOTAL_STEPS) return;
-    const dataToSave = { ...watchedValues, currentStep, _savedAt: Date.now() };
+    const { password: _password, ...safeValues } = watchedValues;
+    const dataToSave = { ...safeValues, currentStep, _savedAt: Date.now() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [watchedValues, currentStep]);
 
@@ -145,6 +153,7 @@ export const RetailerApplication = () => {
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
           email: values.email.trim(),
+          password: values.password,
           storeName: values.storeName.trim(),
           city: values.city.trim(),
           state: values.state.trim(),
@@ -175,6 +184,15 @@ export const RetailerApplication = () => {
 
       // Clear localStorage on successful signup
       localStorage.removeItem(STORAGE_KEY);
+
+      // Sign straight in — the catalog should be one click away. If this
+      // somehow fails, the confirmation screen's CTA lands on the login page
+      // via ProtectedRoute, so the account is still usable.
+      const { error: signInError } = await signIn(values.email.trim(), values.password);
+      if (signInError) {
+        console.error("Auto sign-in after signup failed:", signInError);
+      }
+
       setCurrentStep(3);
       window.scrollTo({ top: 0 });
     } catch (error) {
@@ -183,7 +201,7 @@ export const RetailerApplication = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [validateStep, getValues, setError, setFocus]);
+  }, [validateStep, getValues, setError, setFocus, signIn]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key !== "Enter" || isSubmitting) return;
@@ -271,6 +289,27 @@ export const RetailerApplication = () => {
                     autoComplete="email"
                     helperText="We send order confirmations here."
                     error={errors.email?.message}
+                    {...field}
+                  />
+                )}
+              />
+              <Controller
+                name="password"
+                control={control}
+                rules={{
+                  required: "Create a password with at least 8 characters.",
+                  minLength: { value: 8, message: "Password must be at least 8 characters." },
+                  maxLength: { value: 72, message: "Password must be 72 characters or fewer." },
+                }}
+                render={({ field }) => (
+                  <FormInput
+                    id="password"
+                    label="Password"
+                    type="password"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                    helperText="You'll be signed in as soon as you create your account."
+                    error={errors.password?.message}
                     {...field}
                   />
                 )}
@@ -402,8 +441,9 @@ export const RetailerApplication = () => {
               You're in.
             </h1>
             <p className="text-body text-muted-foreground mb-8">
-              Your account is live and the catalog is open. We've sent a confirmation to{" "}
-              <span className="font-medium text-foreground">{getValues("email")}</span>.
+              You're signed in and the catalog is open. We've sent a confirmation link to{" "}
+              <span className="font-medium text-foreground">{getValues("email")}</span> —
+              click it before placing your first order.
             </p>
             <ButtonPrimary onClick={() => navigate("/retailer")} fullWidth>
               Browse the catalog
