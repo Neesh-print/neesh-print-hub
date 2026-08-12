@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Logo } from '@/components/neesh/Logo';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
+import { supabase } from '@/integrations/supabase/client';
 interface MarketingLayoutProps {
   children: ReactNode;
 }
@@ -27,11 +28,20 @@ export const MarketingLayout = ({
 }: MarketingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState('');
+  const [subscribeStatus, setSubscribeStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const location = useLocation();
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement newsletter subscription
-    console.log('Subscribe:', email);
+    setSubscribeStatus('submitting');
+    const { error } = await supabase
+      .from('mailing_list_subscribers')
+      .insert({ email: email.trim() });
+    // unique violation (23505) means already subscribed, which is fine
+    if (error && error.code !== '23505') {
+      setSubscribeStatus('error');
+      return;
+    }
+    setSubscribeStatus('success');
     setEmail('');
   };
   return <div className="min-h-screen bg-background flex flex-col">
@@ -88,12 +98,15 @@ export const MarketingLayout = ({
           <p className="text-muted-foreground text-body-lg mb-8 max-w-md mx-auto">
             Get NEESH updates, magazine reviews, and all things indie print.
           </p>
-          <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email address" className="flex-1 px-4 py-3 bg-white border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent" required />
-            <ButtonPrimary type="submit" variant="black">
-              Subscribe
-            </ButtonPrimary>
-          </form>
+          {subscribeStatus === 'success' ? <p className="text-body-lg font-medium">You're on the list. Thanks for subscribing.</p> : <>
+              <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email address" className="flex-1 px-4 py-3 bg-white border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent" required disabled={subscribeStatus === 'submitting'} />
+                <ButtonPrimary type="submit" variant="black" loading={subscribeStatus === 'submitting'}>
+                  Subscribe
+                </ButtonPrimary>
+              </form>
+              {subscribeStatus === 'error' && <p className="text-destructive text-body mt-3" role="status">Something went wrong. Please try again.</p>}
+            </>}
         </div>
       </section>
 
