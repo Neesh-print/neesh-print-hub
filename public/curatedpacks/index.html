@@ -136,7 +136,10 @@ footer .links a:hover{color:var(--ink)}
   .why .grid,.problem .grid{grid-template-columns:1fr;gap:32px}
   .pack .top{grid-template-columns:1fr}
   .packs .layout{grid-template-columns:1fr;row-gap:26px}
-  .packs .side,.packs .sliderarea,.packs .navarea{grid-column:1;grid-row:auto}
+  .packs .side,.packs .sliderarea,.packs .navarea{grid-column:1}
+  .packs .sliderarea{grid-row:1}
+  .packs .navarea{grid-row:2}
+  .packs .side{grid-row:3}
   .standcard{margin-top:26px}
   .strip img{height:96px}
   .strip,.strip.three{grid-template-columns:repeat(2,1fr)}
@@ -270,7 +273,7 @@ footer .links a:hover{color:var(--ink)}
 <div class="eyebrow" style="color:var(--purple)">Handmade in Portland, Oregon</div><b>Add the stand, +$100</b><p>A small-batch wooden stand sized for the pack, three to four titles face out on a counter or reception desk.</p></div>
 </div>
 <div class="sliderarea">
-<div class="slider"><div class="slide active">
+<div class="slider"><div class="slide active" id="waiting-room" data-slug="waiting-room">
   <div class="pack">
     <div class="top">
       <button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/waitingroom_stack.jpg" alt="The Waiting Room pack"></button>
@@ -278,13 +281,13 @@ footer .links a:hover{color:var(--ink)}
         <h3>The Waiting Room</h3>
         <div class="aud">Spas · Therapy Offices · Clinics · Salons</div>
         <p class="desc">Plants, mushrooms, slow attention, and the body. Print that lowers the heart rate of the room it sits in.</p>
-        <div class="valueline">Retails at <b>$250.00</b></div>
+        <div class="valueline">9 titles &middot; Retails at <b>$250.00</b></div>
         <div class="ctarow"><a class="btn" href="https://buy.stripe.com/8x2eVd50Q0Q34Fa7RNabK00">Order this pack</a><a class="btn ghost" href="https://buy.stripe.com/8x26oH3WM9mzb3y5JFabK01">With stand, $300</a></div>
       </div>
     </div>
     <div class="inside"><div class="label">Inside the pack</div><div class="strip"><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/waitingroom_01_mother-tongue_interior.jpg" alt="The Waiting Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/waitingroom_02_interior.jpg" alt="The Waiting Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/waitingroom_03_elementum_interior.jpg" alt="The Waiting Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/waitingroom_04_pleasant-place_interior.jpg" alt="The Waiting Room spread"></button></div></div>
   </div>
-</div><div class="slide">
+</div><div class="slide" id="studio" data-slug="studio">
   <div class="pack">
     <div class="top">
       <button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/studio_stack.jpg" alt="The Studio pack"></button>
@@ -292,13 +295,13 @@ footer .links a:hover{color:var(--ink)}
         <h3>The Studio</h3>
         <div class="aud">Design · Advertising · Architecture Firms</div>
         <p class="desc">The shelf that tells a client who you are before the meeting starts. Objects, interiors, cities, and craft.</p>
-        <div class="valueline">Retails at <b>$253.50</b></div>
+        <div class="valueline">9 titles &middot; Retails at <b>$253.50</b></div>
         <div class="ctarow"><a class="btn" href="https://buy.stripe.com/4gMcN58d27er5JegojabK02">Order this pack</a><a class="btn ghost" href="https://buy.stripe.com/7sYdR978Y0Q31sYgojabK03">With stand, $300</a></div>
       </div>
     </div>
     <div class="inside"><div class="label">Inside the pack</div><div class="strip"><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/studio_01_the-plant_interior.jpg" alt="The Studio spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/studio_02_backstage-talks_interior.jpg" alt="The Studio spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/studio_03_interior.jpg" alt="The Studio spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/studio_04_interior.jpg" alt="The Studio spread"></button></div></div>
   </div>
-</div><div class="slide">
+</div><div class="slide" id="listening-room" data-slug="listening-room">
   <div class="pack">
     <div class="top">
       <button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/listeningroom_stack.jpg" alt="The Listening Room pack"></button>
@@ -306,13 +309,13 @@ footer .links a:hover{color:var(--ink)}
         <h3>The Listening Room</h3>
         <div class="aud">Record Shops · Coffee Roasters · Hi-fi Bars · Barbershops</div>
         <p class="desc">Music as memory, community and conversation. Give your guests something to lose themselves in.</p>
-        <div class="valueline">Retails at <b>$240.00</b></div>
+        <div class="valueline">10 titles &middot; Retails at <b>$240.00</b></div>
         <div class="ctarow"><a class="btn" href="https://buy.stripe.com/5kQ6oHbpefKX0oUdc7abK04">Order this pack</a><a class="btn ghost" href="https://buy.stripe.com/3cIbJ18d2fKX7RmegbabK05">With stand, $300</a></div>
       </div>
     </div>
     <div class="inside"><div class="label">Inside the pack</div><div class="strip"><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/listeningroom_01_interior.jpg" alt="The Listening Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/listeningroom_02_interior.jpg" alt="The Listening Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/listeningroom_03_off-licence_interior.jpg" alt="The Listening Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/listeningroom_04_get-familiar_interior.jpg" alt="The Listening Room spread"></button></div></div>
   </div>
-</div><div class="slide">
+</div><div class="slide" id="locker-room" data-slug="locker-room">
   <div class="pack">
     <div class="top">
       <button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/lockerroom_stack.jpg" alt="The Locker Room pack"></button>
@@ -320,13 +323,13 @@ footer .links a:hover{color:var(--ink)}
         <h3>The Locker Room</h3>
         <div class="aud">Climbing Gyms · Run Clubs · Boutique Fitness · PT Clinics</div>
         <p class="desc">Sport culture printed at full size. For lobbies where people warm up, cool down, and hang around.</p>
-        <div class="valueline">Retails at <b>$232.00</b></div>
+        <div class="valueline">9 titles &middot; Retails at <b>$232.00</b></div>
         <div class="ctarow"><a class="btn" href="https://buy.stripe.com/6oUaEX78YbuH6Nic83abK06">Order this pack</a><a class="btn ghost" href="https://buy.stripe.com/7sY3cveBqbuH2x2fkfabK07">With stand, $300</a></div>
       </div>
     </div>
     <div class="inside"><div class="label">Inside the pack</div><div class="strip three"><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/lockerroom_01_mountain-gazette_interior.jpg" alt="The Locker Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/lockerroom_02_the-surfer-s-journal_interior.jpg" alt="The Locker Room spread"></button><button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/lockerroom_03_pitch_interior.jpg" alt="The Locker Room spread"></button></div></div>
   </div>
-</div><div class="slide">
+</div><div class="slide" id="table-service" data-slug="table-service">
   <div class="pack">
     <div class="top">
       <button type="button" class="zoombtn"><img loading="lazy" decoding="async" src="/curatedpacks/assets/tableservice_stack.jpg" alt="Table Service pack"></button>
@@ -334,7 +337,7 @@ footer .links a:hover{color:var(--ink)}
         <h3>Table Service</h3>
         <div class="aud">Boutique Hotels · Wine Bars · Cafés</div>
         <p class="desc">Food, wine, and travel print worth lingering over. The stack that makes a guest order one more glass.</p>
-        <div class="valueline">Retails at <b>$249.00</b></div>
+        <div class="valueline">10 titles &middot; Retails at <b>$249.00</b></div>
         <div class="ctarow"><a class="btn" href="https://buy.stripe.com/14A28r3WMbuH6Ni0plabK08">Order this pack</a><a class="btn ghost" href="https://buy.stripe.com/dRmfZh78Y56j2x22xtabK09">With stand, $300</a></div>
       </div>
     </div>
@@ -422,20 +425,42 @@ footer .links a:hover{color:var(--ink)}
   var slides = document.querySelectorAll('.slide');
   var dots = document.querySelectorAll('#dots button');
   var count = document.getElementById('count');
+  var slugs = Array.prototype.map.call(slides, function(s){ return s.dataset.slug; });
   var i = 0;
-  function go(n){
+
+  function go(n, updateHash){
     i = (n + slides.length) % slides.length;
     slides.forEach(function(s, k){ s.classList.toggle('active', k === i); });
     dots.forEach(function(d, k){ d.classList.toggle('on', k === i); });
     count.textContent = (i+1) + ' of ' + slides.length;
+    if (updateHash !== false && history.replaceState) {
+      history.replaceState(null, '', '#' + slugs[i]);
+    }
   }
+
+  function fromHash(scroll){
+    var h = (location.hash || '').replace('#','');
+    var k = slugs.indexOf(h);
+    if (k === -1) return false;
+    go(k, false);
+    if (scroll) {
+      var target = document.getElementById('packs');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    return true;
+  }
+
   document.getElementById('prev').addEventListener('click', function(){ go(i-1); });
   document.getElementById('next').addEventListener('click', function(){ go(i+1); });
   dots.forEach(function(d){ d.addEventListener('click', function(){ go(+d.dataset.i); }); });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'ArrowLeft') go(i-1);
-    if(e.key === 'ArrowRight') go(i+1);
+    if (document.querySelector('.lightbox.open')) return;
+    if (e.key === 'ArrowLeft') go(i-1);
+    if (e.key === 'ArrowRight') go(i+1);
   });
+  window.addEventListener('hashchange', function(){ fromHash(false); });
+
+  if (!fromHash(true)) go(0, false);
 })();
 </script>
 
