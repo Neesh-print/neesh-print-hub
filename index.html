@@ -24,6 +24,40 @@
   <meta name="theme-color" content="#000000">
   <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/llx0gD3e62aVqujAdm0fqcTU3Z63/social-images/social-1768864570954-Logo-4@4x-100.png">
   <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/llx0gD3e62aVqujAdm0fqcTU3Z63/social-images/social-1768864570954-Logo-4@4x-100.png">
+
+  <!-- Structured data. Lives in the served shell on purpose: crawlers that do not
+       run JavaScript never see anything rendered by React. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://neesh.art/#organization",
+        "name": "Neesh",
+        "url": "https://neesh.art/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://neesh.art/icon-512.png",
+          "width": 512,
+          "height": 512
+        },
+        "description": "Neesh is a wholesale marketplace for independent magazines, connecting independent publishers with design-forward retailers.",
+        "email": "hi@neesh.art",
+        "sameAs": ["https://www.instagram.com/neeshprint/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://neesh.art/#website",
+        "url": "https://neesh.art/",
+        "name": "Neesh",
+        "description": "Wholesale marketplace for independent print. Retailers browse curated titles and order at wholesale, publishers ship direct.",
+        "publisher": { "@id": "https://neesh.art/#organization" },
+        "inLanguage": "en"
+      }
+    ]
+  }
+  </script>
 </head>
 
   <body>
