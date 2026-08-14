@@ -28,6 +28,7 @@ import { resolve, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { SITE, APP_ROUTES } from './seo/public-routes.mjs';
+import { publisherRoutes } from './lib/catalog.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = resolve(ROOT, 'dist');
@@ -129,7 +130,7 @@ export async function prerender(routes) {
     await page.goto(`http://localhost:${PORT}${route.path}`, { waitUntil: 'networkidle', timeout: 45000 });
     try {
       await page.waitForFunction((min) => (document.getElementById('root')?.innerText || '').length > min, MIN_TEXT, {
-        timeout: 15000,
+        timeout: 10000,
       });
     } catch {
       // fall through, reported below
@@ -169,8 +170,23 @@ export async function prerender(routes) {
   return thin;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  prerender(APP_ROUTES).then((thin) => {
-    console.log(`  prerendered ${APP_ROUTES.length} routes${thin.length ? `, ${thin.length} thin` : ''}`);
+/**
+ * Publisher profiles, with metadata built from the record itself. Falls back to
+ * the company name alone when a publisher has written no description.
+ */
+async function publisherPages() {
+  const publishers = await publisherRoutes();
+  return publishers.map((p) => {
+    const name = p.name || p.slug;
+    const summary = p.description
+      ? p.description.replace(/\s+/g, ' ').slice(0, 155)
+      : `${name} publishes independent print available to retailers through Neesh.`;
+    return { path: p.path, title: `${name} | Neesh`, description: summary };
   });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const routes = [...APP_ROUTES, ...(await publisherPages())];
+  const thin = await prerender(routes);
+  console.log(`  prerendered ${routes.length} routes${thin.length ? `, ${thin.length} thin` : ''}`);
 }
