@@ -28,6 +28,9 @@ export const APP_ROUTES = [
     title: 'Explore the Catalog | Neesh',
     description:
       'A curated selection of independent magazines available through Neesh. Apply as a retailer to browse the full catalog and place orders.',
+    // The catalog is the point of this page. Page furniture alone clears a text
+    // length bar, so require actual titles to be present.
+    minCatalogItems: 10,
   },
   {
     path: '/publishers',
@@ -60,8 +63,10 @@ export const APP_ROUTES = [
  * and the CI check but are never prerendered or rewritten.
  */
 export const STATIC_PAGES = [
-  { path: '/curatedpacks' },
-  { path: '/newsletter' },
+  // The packs page carries the presale offer in full prose.
+  { path: '/curatedpacks', minText: 2000, requireJsonLd: false },
+  // A single-purpose signup form. Deliberately short, so it gets a lower bar.
+  { path: '/newsletter', minText: 60, requireJsonLd: false },
 ];
 
 /** Every public path, for the sitemap and the crawlability check. */

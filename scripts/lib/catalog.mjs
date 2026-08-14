@@ -35,6 +35,15 @@ async function fetchJson(url, key) {
   return res.json();
 }
 
+/** Titles of every magazine an anonymous visitor can see. */
+export async function magazineTitles() {
+  const base = env('VITE_SUPABASE_URL');
+  const key = env('VITE_SUPABASE_PUBLISHABLE_KEY');
+  if (!base || !key) throw new Error('VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY is not set');
+  const rows = await fetchJson(`${base}/rest/v1/magazines?select=title`, key);
+  return rows.map((r) => r.title).filter(Boolean);
+}
+
 /**
  * Publisher profiles worth indexing.
  *

@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-sitemap.mjs && npm run prerender",
+    "build": "vite build && node scripts/generate-sitemap.mjs && npm run prerender && npm run check:crawlable",
     "build:dev": "vite build --mode development && node scripts/generate-sitemap.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prerender": "node scripts/prerender.mjs"
+    "prerender": "node scripts/prerender.mjs",
+    "check:crawlable": "node scripts/check-crawlable.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
