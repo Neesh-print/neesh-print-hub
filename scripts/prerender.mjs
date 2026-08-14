@@ -134,6 +134,15 @@ export async function prerender(routes) {
     } catch {
       // fall through, reported below
     }
+    // Third-party scripts inject nodes at runtime, and some embed the address of
+    // this prerender server. They are meaningless to a crawler and the app
+    // recreates them on boot, so drop them before capturing.
+    await page.evaluate(() => {
+      document
+        .querySelectorAll('#stripeDataLayerFrame, [src*="localhost:"], [href*="localhost:"], script[src*="connect-js.stripe.com"]')
+        .forEach((el) => el.remove());
+    });
+
     const text = await page.evaluate(() => (document.getElementById('root')?.innerText || '').trim());
     const html = applyMetadata(await page.content(), route);
     const out = outputPath(route.path);
