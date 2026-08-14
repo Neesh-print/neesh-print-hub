@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-sitemap.mjs && PLAYWRIGHT_BROWSERS_PATH=node_modules/.cache/ms-playwright npx playwright install chromium && npm run prerender",
+    "build": "vite build && node scripts/generate-sitemap.mjs && npm run prerender",
     "build:dev": "vite build --mode development && node scripts/generate-sitemap.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prerender": "PLAYWRIGHT_BROWSERS_PATH=node_modules/.cache/ms-playwright node scripts/prerender.mjs"
+    "prerender": "node scripts/prerender.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -70,6 +70,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@sparticuz/chromium": "^149.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
@@ -85,7 +86,7 @@
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
     "lovable-tagger": "^1.1.13",
-    "playwright": "^1.56.1",
+    "playwright-core": "^1.62.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",

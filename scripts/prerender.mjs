@@ -13,15 +13,20 @@
  * Output goes to dist/<route>/index.html. Vercel serves the filesystem before
  * applying the SPA rewrite, which is the same mechanism /curatedpacks already uses.
  *
+ * The browser comes from @sparticuz/chromium, a Chromium build with its shared
+ * libraries bundled. Vercel's build image does not ship libnspr4 or libnss3 and
+ * cannot install them without root, so a stock Playwright download will not launch
+ * there.
+ *
  * Env:
- *   PRERENDER_CHROMIUM  explicit browser path, for sandboxes without a download
+ *   PRERENDER_CHROMIUM  explicit browser path, overrides the bundled build
  *   PRERENDER_ALLOW_THIN=1  warn instead of failing when a page renders no content
  */
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, copyFileSync } from 'node:fs';
 import { resolve, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-core';
 import { SITE, APP_ROUTES } from './seo/public-routes.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -91,6 +96,18 @@ function applyMetadata(html, route) {
   return out;
 }
 
+async function launchBrowser() {
+  if (process.env.PRERENDER_CHROMIUM) {
+    return chromium.launch({ executablePath: process.env.PRERENDER_CHROMIUM });
+  }
+  const bundled = (await import('@sparticuz/chromium')).default;
+  return chromium.launch({
+    executablePath: await bundled.executablePath(),
+    // --single-process ships in the Lambda defaults and deadlocks Playwright.
+    args: bundled.args.filter((a) => a !== '--single-process'),
+  });
+}
+
 function outputPath(routePath) {
   return routePath === '/' ? join(DIST, 'index.html') : join(DIST, routePath, 'index.html');
 }
@@ -104,9 +121,7 @@ export async function prerender(routes) {
   const server = serveDist(shellPath);
   await new Promise((r) => server.listen(PORT, r));
 
-  const browser = await chromium.launch({
-    executablePath: process.env.PRERENDER_CHROMIUM || undefined,
-  });
+  const browser = await launchBrowser();
   const page = await browser.newPage();
   const thin = [];
 
