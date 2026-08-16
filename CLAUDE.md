@@ -63,6 +63,13 @@ Custom hooks in `src/hooks/` wrap Supabase queries using TanStack Query:
 - Database migrations in `supabase/migrations/`
 - Edge functions in `supabase/functions/`
 
+### Magazine availability & counts
+Availability ("is this magazine in stock / orderable?") has ONE definition:
+`isMagazineInStock()` in `src/lib/inventory.ts`. Never re-derive it inline or
+hide out-of-stock titles by filtering the query — show active titles and badge
+their stock. Publisher magazine counts are derived live via `magazines(count)`;
+there is no stored count column. See `docs/magazine-availability.md`.
+
 ### Path Aliases
 The `@/` alias maps to `src/`. Example: `import { Button } from "@/components/ui/button"`.
 

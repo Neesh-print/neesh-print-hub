@@ -32,17 +32,18 @@ export const AdminPublishers = () => {
     try {
       const { data, error: fetchError } = await supabase
         .from('publishers')
-        .select('*')
+        .select('*, magazines(count)')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
       // Transform data to match the table format
-      const transformed: Publisher[] = (data || []).map((pub: Tables<"publishers">) => ({
+      const transformed: Publisher[] = (data || []).map((pub: Tables<"publishers"> & { magazines?: { count: number }[] }) => ({
         id: pub.id,
         name: pub.company_name || 'Unknown Publisher',
         email: pub.description ? `contact@${pub.company_name?.toLowerCase().replace(/\s+/g, '') || "neesh.art"}.com` : 'N/A',
-        magazinesListed: pub.total_magazines || 0,
+        // Live count from the magazines relation (total_magazines column dropped).
+        magazinesListed: pub.magazines?.[0]?.count ?? 0,
         totalSales: Number(pub.total_sales) || 0,
         joinDate: pub.created_at ? new Date(pub.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown',
         status: pub.verified ? 'received' : 'pending',

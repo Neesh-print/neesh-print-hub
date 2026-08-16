@@ -21,6 +21,7 @@ export interface Magazine {
   sold_count: number;
   created_at: string;
   origin_country_code: string | null;
+  fulfillment_method: string | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -81,6 +82,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
           sold_count,
           created_at,
           origin_country_code,
+          fulfillment_method,
           publisher_id,
           publishers (
             id,
@@ -131,6 +133,7 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         sold_count: item.sold_count || 0,
         created_at: item.created_at,
         origin_country_code: item.origin_country_code,
+        fulfillment_method: item.fulfillment_method ?? null,
         publisher: item.publishers ? {
           id: item.publishers.id,
           company_name: item.publishers.company_name,

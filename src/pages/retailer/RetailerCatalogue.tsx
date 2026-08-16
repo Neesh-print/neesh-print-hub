@@ -5,6 +5,8 @@ import { RetailerLayout, useWishlistContext } from "@/components/retailer";
 import { MagazineCard, EmptyState, ButtonPrimary } from "@/components/neesh";
 import { LoadingScreen, OnboardingChecklist } from "@/components/shared";
 import { useMagazines } from "@/hooks/useMagazines";
+import { isMagazineInStock } from "@/lib/inventory";
+import { hasCoverImage } from "@/lib/magazine";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useShippingAddresses } from "@/hooks/useShippingAddresses";
@@ -60,6 +62,14 @@ export const RetailerCatalogue = () => {
     profileCompletedAt: retailer?.profile_completed_at,
   });
 
+  // Customer-facing catalogue only shows magazines with a cover image.
+  // Imageless titles are hidden here (but still visible to their publisher in
+  // the publisher dashboard so they can be fixed).
+  const displayableMagazines = useMemo(
+    () => magazines.filter(hasCoverImage),
+    [magazines]
+  );
+
   // Extract unique categories and publishers from magazines
   const {
     availableCategories,
@@ -69,7 +79,7 @@ export const RetailerCatalogue = () => {
     const categories = new Set<string>();
     const publisherMap = new Map<string, string>();
     let max = 100;
-    magazines.forEach(mag => {
+    displayableMagazines.forEach(mag => {
       if (mag.category) categories.add(mag.category);
       if (mag.publisher?.id && mag.publisher?.company_name) {
         publisherMap.set(mag.publisher.id, mag.publisher.company_name);
@@ -84,7 +94,7 @@ export const RetailerCatalogue = () => {
       })),
       maxPrice: max
     };
-  }, [magazines]);
+  }, [displayableMagazines]);
 
   // Update default price range when maxPrice changes
   useMemo(() => {
@@ -98,7 +108,7 @@ export const RetailerCatalogue = () => {
 
   // Filter and sort magazines
   const filteredMagazines = useMemo(() => {
-    let result = [...magazines];
+    let result = [...displayableMagazines];
 
     // Price filter
     result = result.filter(mag => mag.wholesale_price >= filters.priceRange[0] && mag.wholesale_price <= filters.priceRange[1]);
@@ -115,7 +125,7 @@ export const RetailerCatalogue = () => {
 
     // In stock filter
     if (filters.inStock) {
-      result = result.filter(mag => mag.inventory_count > 0);
+      result = result.filter(isMagazineInStock);
     }
 
     // Country filter
@@ -156,7 +166,7 @@ export const RetailerCatalogue = () => {
         break;
     }
     return result;
-  }, [magazines, filters, sortBy]);
+  }, [displayableMagazines, filters, sortBy]);
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
@@ -175,7 +185,7 @@ export const RetailerCatalogue = () => {
   };
 
   // Get featured magazines (first 6 for the carousel)
-  const featuredMagazines = magazines.slice(0, 6);
+  const featuredMagazines = displayableMagazines.slice(0, 6);
   if (isLoading) {
     return <RetailerLayout>
         <LoadingScreen message="Loading catalogue..." />

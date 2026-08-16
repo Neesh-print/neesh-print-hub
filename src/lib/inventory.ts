@@ -57,3 +57,28 @@ export function isUrgentStock(quantity: number | null | undefined): boolean {
 export function isInStock(quantity: number | null | undefined): boolean {
   return getStockLevel(quantity) !== 'out';
 }
+
+/**
+ * Minimal shape needed to decide magazine availability.
+ */
+export interface MagazineStockInfo {
+  inventory_count?: number | null;
+  fulfillment_method?: string | null;
+}
+
+/**
+ * Single source of truth for "is this magazine available to order".
+ *
+ * Use this anywhere a display surface decides whether to show, hide, grey out,
+ * or disable ordering for a magazine — the retailer catalogue, the title detail
+ * page, and the public publisher profile all go through here so they agree.
+ *
+ * Neesh-fulfilled titles (`neesh_handled`) are fulfilled centrally and are NOT
+ * gated by the publisher's `inventory_count`; publisher-fulfilled titles require
+ * inventory on hand. A null/untracked count is treated as available (see
+ * getStockLevel), a count of 0 is out of stock.
+ */
+export function isMagazineInStock(mag: MagazineStockInfo): boolean {
+  if (mag.fulfillment_method === 'neesh_handled') return true;
+  return isInStock(mag.inventory_count);
+}

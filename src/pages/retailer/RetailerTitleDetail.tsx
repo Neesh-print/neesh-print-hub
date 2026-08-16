@@ -10,7 +10,7 @@ import { SocialLinks } from "@/components/ui/social-links";
 import { DynamicPricing } from "@/components/product/DynamicPricing";
 import { ContactPublisherButton } from "@/components/messaging";
 import { StockIndicator } from "@/components/ui/stock-indicator";
-import { getStockLevel, isInStock, STOCK_THRESHOLDS } from "@/lib/inventory";
+import { getStockLevel, isMagazineInStock, STOCK_THRESHOLDS } from "@/lib/inventory";
 import { toast } from "sonner";
 import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
@@ -38,10 +38,14 @@ export const RetailerTitleDetail = () => {
   const { magazines: similarMagazines } = useMagazines({ limit: 4, status: 'active' });
   const { isNotifyRequested, toggleNotification, isLoading: notifyLoading } = useStockNotification(id || '');
 
-  // Quantity handlers with stock validation
-  const maxQuantity = magazine?.inventory_count || 0;
-  const stockLevel = getStockLevel(maxQuantity);
-  const outOfStock = !isInStock(maxQuantity);
+  // Quantity handlers with stock validation.
+  // Availability goes through the shared rule so neesh-fulfilled titles aren't
+  // gated by inventory_count; publisher-fulfilled titles cap at units on hand.
+  const outOfStock = magazine ? !isMagazineInStock(magazine) : true;
+  const maxQuantity = magazine?.fulfillment_method === 'neesh_handled'
+    ? (magazine?.inventory_count || STOCK_THRESHOLDS.NORMAL)
+    : (magazine?.inventory_count || 0);
+  const stockLevel = getStockLevel(magazine?.inventory_count ?? 0);
 
   // Reset quantity when magazine changes
   useEffect(() => {

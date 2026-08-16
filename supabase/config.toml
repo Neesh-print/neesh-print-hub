@@ -11,3 +11,7 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Cron-invoked; guarded by the REMINDER_SECRET shared secret instead of a JWT.
+[functions.send-image-reminders]
+verify_jwt = false

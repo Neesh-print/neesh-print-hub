@@ -47,7 +47,7 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
     try {
       const { data, error: fetchError } = await supabase
         .from('publishers')
-        .select('*')
+        .select('*, magazines(count)')
         .eq('user_id', user.id)
         .single();
 
@@ -75,7 +75,8 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
           description: data.description,
           website_url: data.website_url,
           instagram_handle: data.instagram_handle,
-          total_magazines: data.total_magazines || 0,
+          // Live count from the magazines relation (total_magazines column dropped).
+          total_magazines: (data as { magazines?: { count: number }[] }).magazines?.[0]?.count ?? 0,
           total_sales: Number(data.total_sales) || 0,
           average_rating: Number(data.average_rating) || 0,
           verified: data.verified || false,

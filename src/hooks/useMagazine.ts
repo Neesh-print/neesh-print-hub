@@ -21,6 +21,7 @@ export interface MagazineDetail {
   issue_frequency: string | null;
   volume_pricing_tiers: any | null;
   origin_country_code: string | null;
+  fulfillment_method: string | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -73,6 +74,7 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency,
           volume_pricing_tiers,
           origin_country_code,
+          fulfillment_method,
           publisher_id,
           publishers (
             id,
@@ -107,6 +109,7 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency: string | null;
           volume_pricing_tiers: unknown;
           origin_country_code: string | null;
+          fulfillment_method: string | null;
           publishers: {
             id: string;
             company_name: string | null;
@@ -144,6 +147,7 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency: rawData.issue_frequency,
           volume_pricing_tiers: rawData.volume_pricing_tiers,
           origin_country_code: rawData.origin_country_code,
+          fulfillment_method: rawData.fulfillment_method ?? null,
           publisher: publisherData ? {
             id: publisherData.id,
             company_name: publisherData.company_name,
