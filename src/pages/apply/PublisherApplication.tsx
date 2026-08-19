@@ -18,6 +18,18 @@ import {
 
 const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
 
+// The wizard keeps prices/quantities as strings so the inputs stay controlled;
+// the DB columns are numeric, so blanks must become null rather than NaN.
+const toNumberOrNull = (value: string | undefined): number | null => {
+  const parsed = parseFloat((value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toIntOrNull = (value: string | undefined): number | null => {
+  const parsed = parseInt((value ?? "").trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 interface FormData {
   // Step 1: Contact Info (no password - account created on approval)
   firstName: string;
@@ -41,11 +53,15 @@ interface FormData {
   issueFrequency: string;
   publicationType: string;
   regionsCurrentlySold: string[];
-  // Step 9: Fulfillment
+  // Step 9: Pricing & Availability
+  wholesalePrice: string;
+  suggestedRetailPrice: string;
+  availableQuantity: string;
+  // Step 10: Fulfillment
   fulfillmentMethod: string;
-  // Step 10: Additional Info
+  // Step 11: Additional Info
   cloudLink: string;
-  // Step 11: Confirmation
+  // Step 12: Confirmation
   confirmRights: boolean;
   acceptTerms: boolean;
   optInUpdates: boolean;
@@ -66,6 +82,9 @@ const defaultFormValues: FormData = {
   issueFrequency: "",
   publicationType: "",
   regionsCurrentlySold: [],
+  wholesalePrice: "",
+  suggestedRetailPrice: "",
+  availableQuantity: "",
   fulfillmentMethod: "",
   cloudLink: "",
   confirmRights: false,
@@ -162,6 +181,9 @@ export const PublisherApplication = () => {
                 issueFrequency: dbData.issue_frequency || '',
                 publicationType: dbData.publication_type || additionalInfo.publicationType || '',
                 regionsCurrentlySold: dbData.distribution_channels || [],
+                wholesalePrice: dbData.wholesale_price?.toString() || '',
+                suggestedRetailPrice: dbData.suggested_retail_price?.toString() || '',
+                availableQuantity: dbData.available_quantity?.toString() || '',
                 fulfillmentMethod: dbData.fulfillment_method || '',
                 cloudLink: dbData.quotes_feedback || '',
                 confirmRights: additionalInfo.confirmRights || false,
@@ -271,6 +293,9 @@ export const PublisherApplication = () => {
           issue_frequency: mergedData.issueFrequency,
           publication_type: mergedData.publicationType,
           distribution_channels: mergedData.regionsCurrentlySold,
+          wholesale_price: toNumberOrNull(mergedData.wholesalePrice),
+          suggested_retail_price: toNumberOrNull(mergedData.suggestedRetailPrice),
+          available_quantity: toIntOrNull(mergedData.availableQuantity),
           fulfillment_method: mergedData.fulfillmentMethod,
           quotes_feedback: mergedData.cloudLink,
           additional_info: mergedData
@@ -419,10 +444,12 @@ export const PublisherApplication = () => {
       case 8:
         return true; // Optional or simple select
       case 9:
-        return true; 
+        return await trigger(["wholesalePrice", "suggestedRetailPrice", "availableQuantity"]);
       case 10:
         return true;
       case 11:
+        return true;
+      case 12:
         return formValues.confirmRights && formValues.acceptTerms;
       default:
         return true;
@@ -447,11 +474,11 @@ export const PublisherApplication = () => {
         toast.error("Please provide either a website or Instagram handle");
         return;
       }
-      if (currentStep === 11 && !formValues.confirmRights) {
+      if (currentStep === 12 && !formValues.confirmRights) {
         toast.error("Please confirm you have distribution rights");
         return;
       }
-      if (currentStep === 11 && !formValues.acceptTerms) {
+      if (currentStep === 12 && !formValues.acceptTerms) {
         toast.error("Please accept the Terms of Service and Publisher Agreement");
         return;
       }
@@ -528,6 +555,9 @@ export const PublisherApplication = () => {
         issue_frequency: formValues.issueFrequency,
         publication_type: formValues.publicationType,
         distribution_channels: formValues.regionsCurrentlySold,
+        wholesale_price: toNumberOrNull(formValues.wholesalePrice),
+        suggested_retail_price: toNumberOrNull(formValues.suggestedRetailPrice),
+        available_quantity: toIntOrNull(formValues.availableQuantity),
         fulfillment_method: formValues.fulfillmentMethod,
         quotes_feedback: formValues.cloudLink,
         status: "submitted",
@@ -563,6 +593,9 @@ export const PublisherApplication = () => {
           issueFrequency: submissionData.issue_frequency,
           publicationType: submissionData.publication_type,
           regionsCurrentlySold: submissionData.distribution_channels, // map back to RPC expected key
+          wholesalePrice: formValues.wholesalePrice,
+          suggestedRetailPrice: formValues.suggestedRetailPrice,
+          availableQuantity: formValues.availableQuantity,
           fulfillmentMethod: submissionData.fulfillment_method,
           cloudLink: submissionData.quotes_feedback,
           status: 'submitted',
@@ -586,7 +619,7 @@ export const PublisherApplication = () => {
       }
 
       setIsSubmitted(true);
-      setCurrentStep(12); // Success Step
+      setCurrentStep(13); // Success Step
 
       // Send application received confirmation email (fire and forget)
       try {
@@ -1054,6 +1087,107 @@ export const PublisherApplication = () => {
           <div className="space-y-6 animate-fade-in">
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Pricing and availability
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Retailers buy at your wholesale price. You can change these later.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Controller
+                  name="wholesalePrice"
+                  control={control}
+                  rules={{
+                    required: "Add your wholesale price.",
+                    pattern: {
+                      value: /^\d+(\.\d{1,2})?$/,
+                      message: "Enter an amount like 12 or 12.50.",
+                    },
+                    validate: (value) =>
+                      parseFloat(value) > 0 || "Wholesale price must be more than 0.",
+                  }}
+                  render={({ field }) => (
+                    <FormInput
+                      id="wholesalePrice"
+                      label="Wholesale price per copy (USD)"
+                      inputMode="decimal"
+                      placeholder="12.00"
+                      error={errors.wholesalePrice?.message}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+                <Controller
+                  name="suggestedRetailPrice"
+                  control={control}
+                  rules={{
+                    required: "Add a suggested retail price.",
+                    pattern: {
+                      value: /^\d+(\.\d{1,2})?$/,
+                      message: "Enter an amount like 20 or 19.99.",
+                    },
+                    validate: (value) => {
+                      const retail = parseFloat(value);
+                      if (!(retail > 0)) return "Retail price must be more than 0.";
+                      const wholesale = parseFloat(getValues("wholesalePrice"));
+                      if (!isNaN(wholesale) && retail < wholesale) {
+                        return "Retail price should be at least the wholesale price.";
+                      }
+                      return true;
+                    },
+                  }}
+                  render={({ field }) => (
+                    <FormInput
+                      id="suggestedRetailPrice"
+                      label="Suggested retail price (USD)"
+                      inputMode="decimal"
+                      placeholder="20.00"
+                      error={errors.suggestedRetailPrice?.message}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+              <Controller
+                name="availableQuantity"
+                control={control}
+                rules={{
+                  required: "Add how many copies you have available.",
+                  pattern: {
+                    value: /^\d+$/,
+                    message: "Enter a whole number of copies.",
+                  },
+                  validate: (value) =>
+                    parseInt(value, 10) > 0 || "You need at least 1 copy available.",
+                }}
+                render={({ field }) => (
+                  <FormInput
+                    id="availableQuantity"
+                    label="Copies available"
+                    inputMode="numeric"
+                    placeholder="100"
+                    helperText="How many copies of this issue you can supply."
+                    error={errors.availableQuantity?.message}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+            <ButtonPrimary onClick={handleNext} fullWidth>
+              Continue
+            </ButtonPrimary>
+          </div>
+        );
+
+      case 10:
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
                 How would you like to ship orders?
               </h1>
               <p className="text-muted-foreground mt-2">
@@ -1109,7 +1243,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 10:
+      case 11:
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1138,7 +1272,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 11:
+      case 12:
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -1210,7 +1344,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 12:
+      case 13:
         return (
           <div className="text-center space-y-6 animate-fade-in">
             <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
