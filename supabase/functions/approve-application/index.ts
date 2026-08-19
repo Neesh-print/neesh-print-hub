@@ -375,6 +375,10 @@ Deno.serve(async (req) => {
 
       // Create initial magazine from application data if magazine_title exists
       if (publisherRecord?.id && application.magazine_title) {
+        // A title with no wholesale price can be added to a cart but not bought
+        // (create-checkout rejects it), so only list it publicly once it's
+        // priced. It still shows in the publisher's dashboard either way.
+        const wholesalePrice = application.wholesale_price ?? null
         const { error: magError } = await supabaseAdmin
           .from('magazines')
           .insert({
@@ -384,7 +388,11 @@ Deno.serve(async (req) => {
             description: application.description || null,
             issue_frequency: application.issue_frequency || null,
             publication_type: application.publication_type || null,
-            is_active: true, // Active immediately so publisher sees it in dashboard
+            wholesale_price: wholesalePrice,
+            price: wholesalePrice,
+            suggested_retail_price: application.suggested_retail_price ?? null,
+            inventory_count: application.available_quantity ?? null,
+            is_active: wholesalePrice !== null,
           })
 
         if (magError) {

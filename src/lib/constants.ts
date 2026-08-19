@@ -133,7 +133,7 @@ export const APPLICATION_STATUS = {
 export type ApplicationStatus = typeof APPLICATION_STATUS[keyof typeof APPLICATION_STATUS];
 
 // Publisher application total steps
-export const PUBLISHER_APPLICATION_STEPS = 13;
+export const PUBLISHER_APPLICATION_STEPS = 14;
 
 // Retailer application total steps
 export const RETAILER_APPLICATION_STEPS = 9;

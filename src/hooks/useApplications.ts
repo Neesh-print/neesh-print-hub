@@ -51,6 +51,14 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
     try {
       const allApplications: Application[] = [];
 
+      // The publisher wizard writes 'submitted' when an application is filed,
+      // but the admin screens only know pending/approved/rejected/on_hold/
+      // waitlisted. Left as-is, a submitted application renders as already
+      // reviewed: no approve/decline buttons, missing from the pending count
+      // and the Pending filter. Treat it as what it is — awaiting review.
+      const normalizeStatus = (status: string | null): string =>
+        status === 'submitted' || !status ? 'pending' : status;
+
       // Fetch publisher applications if not filtered to retailers only
       if (options.type !== 'retailer') {
         let publisherQuery = supabase
@@ -59,7 +67,9 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           .order('created_at', { ascending: false });
 
         if (options.status && options.status !== 'all') {
-          publisherQuery = publisherQuery.eq('status', options.status);
+          publisherQuery = options.status === 'pending'
+            ? publisherQuery.in('status', ['pending', 'submitted'])
+            : publisherQuery.eq('status', options.status);
         }
 
         const { data: publisherData, error: publisherError } = await publisherQuery;
@@ -71,7 +81,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           type: 'publisher' as const,
           name: item.business_name || item.magazine_title || 'Unknown',
           email: item.email || '',
-          status: item.status as 'pending' | 'approved' | 'rejected',
+          status: normalizeStatus(item.status) as 'pending' | 'approved' | 'rejected',
           submitted_at: item.created_at,
           reviewed_at: item.reviewed_at,
           data: item,
@@ -88,7 +98,9 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           .order('created_at', { ascending: false });
 
         if (options.status && options.status !== 'all') {
-          retailerQuery = retailerQuery.eq('status', options.status);
+          retailerQuery = options.status === 'pending'
+            ? retailerQuery.in('status', ['pending', 'submitted'])
+            : retailerQuery.eq('status', options.status);
         }
 
         const { data: retailerData, error: retailerError } = await retailerQuery;
@@ -100,7 +112,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           type: 'retailer' as const,
           name: item.shop_name || 'Unknown',
           email: item.buyer_email || '',
-          status: item.status as 'pending' | 'approved' | 'rejected',
+          status: normalizeStatus(item.status) as 'pending' | 'approved' | 'rejected',
           submitted_at: item.submitted_at || item.created_at,
           reviewed_at: item.reviewed_at,
           data: item,
