@@ -9,6 +9,7 @@ import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useMagazines } from "@/hooks/useMagazines";
 import { Order, useOrders } from "@/hooks/useOrders";
 import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
+import { PublisherPayoutBanner } from "@/components/publisher/PublisherPayoutBanner";
 import { usePublisherAnalytics } from "@/hooks/usePublisherAnalytics";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 
@@ -118,6 +119,12 @@ export const PublisherDashboard = () => {
             onAction={handleTransfer}
           />
         }
+      />
+
+      {/* Persistent payout status — shown whenever the publisher cannot receive payouts yet */}
+      <PublisherPayoutBanner
+        publisher={publisher}
+        onboardingChecklistVisible={!onboarding.dismissed && !onboarding.allComplete}
       />
 
       {/* Onboarding Checklist for new users */}

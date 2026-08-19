@@ -84,8 +84,12 @@ import {
   AdminBulkImport,
   PrintSlipsPage,
   AdminPublisherTransfers,
+  AdminPayouts,
 } from "./pages/admin";
 import { AdminSettings } from "./pages/admin/AdminSettings";
+
+// Onboarding pages
+import { OnboardingContinue, OnboardingStart } from "./pages/onboarding";
 
 // Marketing pages
 import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
@@ -317,6 +321,24 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher']}>
             <PublisherOnboarding />
+          </ProtectedRoute>
+        }
+      />
+      {/* Stripe payout onboarding - full screen pre-flight before the redirect */}
+      <Route
+        path="/onboarding/start"
+        element={
+          <ProtectedRoute allowedRoles={['publisher']}>
+            <OnboardingStart />
+          </ProtectedRoute>
+        }
+      />
+      {/* Stripe payout onboarding - full screen redirect, self-heals expired links */}
+      <Route
+        path="/onboarding/continue"
+        element={
+          <ProtectedRoute allowedRoles={['publisher']}>
+            <OnboardingContinue />
           </ProtectedRoute>
         }
       />
@@ -574,6 +596,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminPublisherTransfers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/payouts"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminPayouts />
           </ProtectedRoute>
         }
       />

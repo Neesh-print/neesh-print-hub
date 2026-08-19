@@ -17,8 +17,21 @@ export interface PublisherProfile {
   created_at: string;
   updated_at: string;
   stripe_account_id: string | null;
+  stripe_charges_enabled: boolean;
+  stripe_payouts_enabled: boolean;
+  stripe_details_submitted: boolean;
+  stripe_requirements_due: StripeRequirementsDue | null;
   avatar_url: string | null;
   profile_slug: string | null;
+}
+
+// Shape written by the stripe-webhook account.updated handler and the backfill.
+export interface StripeRequirementsDue {
+  currently_due?: string[];
+  past_due?: string[];
+  pending_verification?: string[];
+  disabled_reason?: string | null;
+  current_deadline?: number | null;
 }
 
 export interface UsePublisherProfileReturn {
@@ -83,6 +96,10 @@ export const usePublisherProfile = (): UsePublisherProfileReturn => {
           created_at: data.created_at || '',
           updated_at: data.updated_at || '',
           stripe_account_id: data.stripe_account_id,
+          stripe_charges_enabled: data.stripe_charges_enabled ?? false,
+          stripe_payouts_enabled: data.stripe_payouts_enabled ?? false,
+          stripe_details_submitted: data.stripe_details_submitted ?? false,
+          stripe_requirements_due: (data.stripe_requirements_due as StripeRequirementsDue | null) ?? null,
           avatar_url: profileData?.avatar_url || null,
           profile_slug: data.profile_slug ?? null,
         };
