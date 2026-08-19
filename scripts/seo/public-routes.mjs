@@ -55,7 +55,30 @@ export const APP_ROUTES = [
     title: 'Frequently Asked Questions | Neesh',
     description: 'Everything you need to know about selling and stocking with Neesh.',
   },
-];
+  {
+    path: '/legal/terms',
+    title: 'Terms of Service | Neesh',
+    description:
+      'The terms governing the Neesh marketplace, operated by WAU LLC: accounts, orders, fees, payouts, returns, and dispute resolution.',
+  },
+  {
+    path: '/legal/privacy',
+    title: 'Privacy Policy | Neesh',
+    description:
+      'How Neesh collects, uses, and protects personal information, who we share it with, and the privacy rights available to you.',
+  },
+  {
+    path: '/legal/publisher-agreement',
+    title: 'Publisher Agreement | Neesh',
+    description:
+      'The agreement for publishers selling on Neesh: listings, fulfillment, the 10% commission, weekly payouts, and returns reconciliation.',
+  },
+  {
+    path: '/legal/retailer-agreement',
+    title: 'Retailer Agreement | Neesh',
+    description:
+      'The agreement for retailers buying wholesale on Neesh: payment, delivery and inspection, returns, and resale terms.',
+  },];
 
 /**
  * Public pages served as their own static HTML, outside the React app.
