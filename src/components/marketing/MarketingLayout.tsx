@@ -106,6 +106,9 @@ export const MarketingLayout = ({
                 </ButtonPrimary>
               </form>
               {subscribeStatus === 'error' && <p className="text-destructive text-body mt-3" role="status">Something went wrong. Please try again.</p>}
+              <p className="text-muted-foreground text-caption mt-3">
+                By subscribing you agree to our <Link to="/legal/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>. Unsubscribe anytime.
+              </p>
             </>}
         </div>
       </section>
@@ -120,7 +123,13 @@ export const MarketingLayout = ({
             </Link>
 
             {/* Links */}
-            <div className="flex items-center gap-6 text-body text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-body text-muted-foreground">
+              <Link to="/legal/terms" className="hover:text-foreground transition-colors">
+                Terms
+              </Link>
+              <Link to="/legal/privacy" className="hover:text-foreground transition-colors">
+                Privacy
+              </Link>
               <a target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" href="https://www.instagram.com/neeshprint/">
                 Instagram
               </a>

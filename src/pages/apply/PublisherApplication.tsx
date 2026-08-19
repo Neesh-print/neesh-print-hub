@@ -47,6 +47,7 @@ interface FormData {
   cloudLink: string;
   // Step 11: Confirmation
   confirmRights: boolean;
+  acceptTerms: boolean;
   optInUpdates: boolean;
 }
 
@@ -68,6 +69,7 @@ const defaultFormValues: FormData = {
   fulfillmentMethod: "",
   cloudLink: "",
   confirmRights: false,
+  acceptTerms: false,
   optInUpdates: true,
 };
 
@@ -163,6 +165,7 @@ export const PublisherApplication = () => {
                 fulfillmentMethod: dbData.fulfillment_method || '',
                 cloudLink: dbData.quotes_feedback || '',
                 confirmRights: additionalInfo.confirmRights || false,
+                acceptTerms: additionalInfo.acceptTerms || false,
                 optInUpdates: additionalInfo.optInUpdates ?? true,
              };
              
@@ -420,7 +423,7 @@ export const PublisherApplication = () => {
       case 10:
         return true;
       case 11:
-        return formValues.confirmRights;
+        return formValues.confirmRights && formValues.acceptTerms;
       default:
         return true;
     }
@@ -446,6 +449,10 @@ export const PublisherApplication = () => {
       }
       if (currentStep === 11 && !formValues.confirmRights) {
         toast.error("Please confirm you have distribution rights");
+        return;
+      }
+      if (currentStep === 11 && !formValues.acceptTerms) {
+        toast.error("Please accept the Terms of Service and Publisher Agreement");
         return;
       }
       return; // trigger() handles field errors
@@ -493,6 +500,11 @@ export const PublisherApplication = () => {
       return;
     }
 
+    if (!formValues.acceptTerms) {
+      toast.error("Please accept the Terms of Service and Publisher Agreement");
+      return;
+    }
+
     if (!publisherId) {
       toast.error("Session error. Please refresh and try again.");
       return;
@@ -520,7 +532,7 @@ export const PublisherApplication = () => {
         quotes_feedback: formValues.cloudLink,
         status: "submitted",
         submitted_at: new Date().toISOString(),
-        additional_info: formValues,
+        additional_info: { ...formValues, acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null },
       };
 
       if (user) {
@@ -1163,6 +1175,20 @@ export const PublisherApplication = () => {
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
+                  checked={formValues.acceptTerms}
+                  onCheckedChange={(checked) => setValue("acceptTerms", !!checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  I agree to the{" "}
+                  <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Terms of Service</a>,{" "}
+                  <a href="/legal/publisher-agreement" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Publisher Agreement</a>, and{" "}
+                  <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Privacy Policy</a>{" "}
+                  <span className="text-destructive">*</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
                   checked={formValues.optInUpdates}
                   onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
                   className="mt-0.5"
@@ -1177,7 +1203,7 @@ export const PublisherApplication = () => {
               onClick={handleSubmit}
               fullWidth
               loading={isSubmitting}
-              disabled={!formValues.confirmRights}
+              disabled={!formValues.confirmRights || !formValues.acceptTerms}
             >
               Submit Application
             </ButtonPrimary>

@@ -37,6 +37,7 @@ interface FormData {
   country: string;
   websiteUrl: string;
   optInUpdates: boolean;
+  acceptTerms: boolean;
 }
 
 // Fields restored from the localStorage draft — the password is deliberately
@@ -48,7 +49,7 @@ const FORM_FIELDS: (keyof FormData)[] = [
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   1: ["firstName", "lastName", "email", "password", "storeName"],
-  2: ["city", "state", "country", "websiteUrl"],
+  2: ["city", "state", "country", "websiteUrl", "acceptTerms"],
 };
 
 export const RetailerApplication = () => {
@@ -69,6 +70,7 @@ export const RetailerApplication = () => {
       country: "",
       websiteUrl: "",
       optInUpdates: true,
+      acceptTerms: false,
     },
     mode: "onChange",
   });
@@ -160,6 +162,7 @@ export const RetailerApplication = () => {
           country: values.country,
           website: normalizeWeb(values.websiteUrl),
           optInUpdates: values.optInUpdates,
+          acceptedTermsAt: new Date().toISOString(),
           redirectUrl: window.location.origin,
         },
       });
@@ -425,6 +428,32 @@ export const RetailerApplication = () => {
                       I'd like to receive platform updates and retailer insights
                     </span>
                   </label>
+                )}
+              />
+              <Controller
+                name="acceptTerms"
+                control={control}
+                rules={{ validate: (v) => v === true || "You must accept the terms to create an account." }}
+                render={({ field }) => (
+                  <div className="pt-2">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5"
+                      />
+                      <span className="text-body text-muted-foreground">
+                        I agree to the{" "}
+                        <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">Terms of Service</a>,{" "}
+                        <a href="/legal/retailer-agreement" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">Retailer Agreement</a>, and{" "}
+                        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</a>
+                        {" "}<span className="text-destructive">*</span>
+                      </span>
+                    </label>
+                    {errors.acceptTerms && (
+                      <p className="text-destructive text-body mt-2" role="alert">{errors.acceptTerms.message}</p>
+                    )}
+                  </div>
                 )}
               />
             </div>

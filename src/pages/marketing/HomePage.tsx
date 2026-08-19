@@ -232,7 +232,7 @@ export const HomePage = () => {
             <div>
               <div className="aspect-[4/3] rounded-lg overflow-hidden bg-muted">
                 <iframe
-                  src="https://www.youtube.com/embed/393cjk5hc5Q?autoplay=0&rel=0"
+                  src="https://www.youtube-nocookie.com/embed/393cjk5hc5Q?autoplay=0&rel=0"
                   title="Neesh - The Marketplace for Independent Magazines"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen

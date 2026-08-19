@@ -89,6 +89,8 @@ import { AdminSettings } from "./pages/admin/AdminSettings";
 
 // Marketing pages
 import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
+import { LegalPage } from "./pages/marketing/legal/LegalPage";
+import { privacy, terms, publisherAgreement, retailerAgreement } from "./pages/marketing/legal/legalContent";
 
 // Error pages
 import NotFound from "./pages/NotFound";
@@ -155,6 +157,12 @@ const AppRoutes = () => {
       <Route path="/retailers" element={<RetailersPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/faq" element={<FAQPage />} />
+
+      {/* Legal pages */}
+      <Route path="/legal/privacy" element={<LegalPage doc={privacy} />} />
+      <Route path="/legal/terms" element={<LegalPage doc={terms} />} />
+      <Route path="/legal/publisher-agreement" element={<LegalPage doc={publisherAgreement} />} />
+      <Route path="/legal/retailer-agreement" element={<LegalPage doc={retailerAgreement} />} />
 
       {/* Legacy home redirect for logged-in users */}
       <Route path="/home" element={<HomeRedirect />} />
