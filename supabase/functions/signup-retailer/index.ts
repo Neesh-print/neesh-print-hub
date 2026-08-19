@@ -16,6 +16,7 @@ interface SignupRetailerRequest {
   country: string
   website: string
   optInUpdates: boolean
+  acceptedTermsAt?: string
   redirectUrl?: string
 }
 
@@ -148,6 +149,10 @@ Deno.serve(async (req) => {
     const country = (body.country ?? '').trim()
     const website = (body.website ?? '').trim()
     const optInUpdates = Boolean(body.optInUpdates)
+    // The client asserts acceptance by sending a timestamp; we only take it as
+    // a signal and stamp the record server-side, since client clocks lie.
+    const termsAsserted =
+      typeof body.acceptedTermsAt === 'string' && !isNaN(Date.parse(body.acceptedTermsAt))
 
     // Validate required fields, mirroring the DB validate_retailer_application trigger
     if (!firstName || !lastName || !email || !storeName || !city || !state || !country || !website) {
@@ -224,9 +229,11 @@ Deno.serve(async (req) => {
     // retailer_applications notifies hi@neesh.art, so the team still hears
     // about every signup even though approval is automatic.
     const now = new Date().toISOString()
+    const acceptedTermsAt = termsAsserted ? now : null
     const { data: applicationRow, error: insertError } = await supabaseAdmin
       .from('retailer_applications')
       .insert({
+        accepted_terms_at: acceptedTermsAt,
         buyer_name: buyerName,
         buyer_email: email,
         shop_name: storeName,
@@ -234,7 +241,7 @@ Deno.serve(async (req) => {
         state: state,
         country: country,
         shop_url: website,
-        additional_notes: JSON.stringify({ optInUpdates }),
+        additional_notes: JSON.stringify({ optInUpdates, acceptedTermsAt }),
         status: 'approved',
         submitted_at: now,
         reviewed_at: now,
@@ -305,6 +312,7 @@ Deno.serve(async (req) => {
         country: country,
         verified: true,
         verified_at: now,
+        accepted_terms_at: acceptedTermsAt,
         email_verified_at: null,
         email_verification_token_hash: verificationTokenHash,
       }, { onConflict: 'user_id' })
