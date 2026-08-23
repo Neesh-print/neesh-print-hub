@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { z } from 'zod';
 import { AuthLayout, AuthDivider, AuthLink } from '@/components/auth';
 import { FormInput } from '@/components/neesh/FormInput';
@@ -11,7 +11,17 @@ const passwordSchema = z.string().min(1, 'Password is required');
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading: authLoading, isRoleLoading, userRole, signIn } = useAuth();
+
+  // ProtectedRoute sends the intended destination along when it bounces an
+  // unauthenticated visitor here. Emailed links (e.g. the payout nudge landing
+  // on /onboarding/continue) depend on it: without this, signing in would drop
+  // the publisher on their dashboard and quietly lose the flow.
+  const redirectTo = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const redirectPath = redirectTo?.pathname
+    ? `${redirectTo.pathname}${redirectTo.search ?? ''}`
+    : null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +40,12 @@ const LoginPage = () => {
         userRole,
       });
       
+      // Honour an intended destination first; fall back to the role dashboard.
+      if (redirectPath) {
+        navigate(redirectPath, { replace: true });
+        return;
+      }
+
       // Role-based redirect
       switch (userRole) {
         case 'publisher':
@@ -46,7 +62,7 @@ const LoginPage = () => {
           navigate('/pending');
       }
     }
-  }, [user, authLoading, isRoleLoading, userRole, navigate]);
+  }, [user, authLoading, isRoleLoading, userRole, navigate, redirectPath]);
 
   const validateForm = () => {
     setError('');

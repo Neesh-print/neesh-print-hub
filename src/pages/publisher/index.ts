@@ -13,4 +13,5 @@ export { PublisherSettings } from "./PublisherSettings";
 export { PublisherPayoutSettings } from "./PublisherPayoutSettings";
 export { PublisherAnalytics } from "./PublisherAnalytics";
 export { PublisherOnboarding } from "./PublisherOnboarding";
+export { ContinueOnboarding } from "./ContinueOnboarding";
 export { PublisherBulkImport } from "./PublisherBulkImport";

@@ -39,6 +39,7 @@ import {
   PublisherAnalytics,
   PublisherOnboarding,
   PublisherPayoutSettings,
+  ContinueOnboarding,
   PublisherBulkImport,
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
@@ -292,6 +293,16 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherPayoutSettings />
+          </ProtectedRoute>
+        }
+      />
+      {/* Target of the payout-nudge emails and of Stripe's refresh_url.
+          Mints a fresh Stripe account link on every visit. */}
+      <Route
+        path="/onboarding/continue"
+        element={
+          <ProtectedRoute allowedRoles={['publisher', 'admin']}>
+            <ContinueOnboarding />
           </ProtectedRoute>
         }
       />
