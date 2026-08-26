@@ -1,11 +1,15 @@
 import { useNavigate } from "react-router-dom";
-import { XCircle, Mail, ArrowLeft, RefreshCw } from "lucide-react";
-import { ButtonPrimary, ButtonSecondary, Logo } from "@/components/neesh";
+import { ButtonSecondary, Logo } from "@/components/neesh";
 import { useAuth } from "@/hooks/useAuth";
+
+// v2 "Application not approved" screen: honest about timing and fit, lists
+// the usual reasons, and keeps the door open — apply again with the next
+// issue, or argue the call by email.
+const SITE = "https://neesh.art";
 
 export const ApplicationRejected = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -14,7 +18,6 @@ export const ApplicationRejected = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <a href="/" className="hover:opacity-80 transition-opacity">
@@ -29,51 +32,60 @@ export const ApplicationRejected = () => {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-destructive/10 flex items-center justify-center">
-            <XCircle className="w-8 h-8 text-destructive" />
-          </div>
+        <div className="max-w-lg">
+          <p className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground mb-3">
+            Application reviewed
+          </p>
 
-          <h1 className="font-display text-3xl font-bold text-foreground mb-4">
-            Application Not Approved
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Not this time — but not never.
           </h1>
 
           <p className="text-muted-foreground mb-6">
-            Unfortunately, we weren't able to approve your application at this time. This could be
-            due to incomplete information or your publication not meeting our current criteria.
+            We read every application by hand, and yours isn&rsquo;t a fit for the index yet.
+            That&rsquo;s a judgement about timing and fit, not about your magazine.
           </p>
 
-          <div className="bg-secondary/50 rounded-xl p-6 mb-8 text-left">
-            <div className="flex items-start gap-3">
-              <Mail className="w-5 h-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground mb-1">We've sent you an email</p>
-                <p className="text-sm text-muted-foreground">
-                  Check <span className="font-medium text-foreground">{user?.email}</span> for more
-                  details about why your application wasn't approved.
-                </p>
-              </div>
-            </div>
+          <div className="bg-[#EFEEF6] rounded-lg p-6 mb-6 text-left">
+            <p className="font-medium text-foreground mb-3">The usual reasons</p>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="text-accent">•</span>
+                <span>No issue out yet, or none we could get hold of</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-accent">•</span>
+                <span>Not enough copies on hand to fill wholesale orders</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-accent">•</span>
+                <span>Already distributed exclusively somewhere else</span>
+              </li>
+            </ul>
           </div>
 
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Think there's been a mistake or want to provide more information?
-            </p>
+          <p className="text-foreground mb-8">
+            Apply again when your next issue lands — we keep your application on file, so
+            it&rsquo;s a shorter form the second time. If you think we&rsquo;ve got this wrong,{" "}
             <a
               href="mailto:hi@neesh.art?subject=Application%20Review%20Request"
-              className="inline-flex items-center gap-2 text-accent hover:underline"
+              className="text-accent underline underline-offset-4 hover:text-foreground"
             >
-              Contact us to discuss your application
+              tell us why
             </a>
-          </div>
+            . We do change our minds.
+          </p>
 
-          <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row gap-3 justify-center">
-            <ButtonSecondary onClick={() => navigate("/")} className="min-w-[160px]">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
+          <div className="flex flex-col sm:flex-row gap-3">
+            <a
+              href={`${SITE}/index`}
+              className="inline-flex items-center justify-center px-6 py-3.5 rounded-lg bg-primary text-primary-foreground font-display font-semibold hover:bg-accent transition-colors"
+            >
+              Browse the index
+            </a>
+            <ButtonSecondary onClick={() => window.location.assign(`${SITE}/newsletter`)}>
+              Get the newsletter
             </ButtonSecondary>
           </div>
         </div>

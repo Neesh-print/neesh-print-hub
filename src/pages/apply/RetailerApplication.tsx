@@ -494,13 +494,13 @@ export const RetailerApplication = () => {
           </a>
 
           {/* Progress indicator */}
-          <span className="text-sm text-muted-foreground">
+          <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F]">
             {currentStep <= TOTAL_STEPS ? `Step ${currentStep} of ${TOTAL_STEPS}` : "Done"}
           </span>
         </div>
 
         {/* Progress bar */}
-        <div className="h-1 bg-secondary">
+        <div className="h-0.5 bg-[#EFEEF6]">
           <div
             className="h-full bg-accent transition-all duration-300"
             style={{ width: `${progress}%` }}

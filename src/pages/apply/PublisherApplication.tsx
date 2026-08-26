@@ -1420,7 +1420,7 @@ export const PublisherApplication = () => {
           {/* Progress indicator: 12 content steps; the success screen (13)
               shows no step chrome. */}
           {currentStep <= TOTAL_STEPS && (
-            <span className="text-sm text-muted-foreground">
+            <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F]">
               Step {currentStep} of {TOTAL_STEPS}
             </span>
           )}
@@ -1446,7 +1446,7 @@ export const PublisherApplication = () => {
 
         {/* Progress bar */}
         {currentStep <= TOTAL_STEPS && (
-          <div className="h-1 bg-secondary">
+          <div className="h-0.5 bg-[#EFEEF6]">
             <div
               className="h-full bg-accent transition-all duration-300"
               style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
