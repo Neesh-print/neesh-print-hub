@@ -168,7 +168,7 @@ const LoginPage = () => {
       <AuthLink
         text="Have any questions?"
         actionText="Talk to the team"
-        onClick={() => window.open('mailto:hello@neesh.com', '_blank')}
+        onClick={() => window.open('mailto:hi@neesh.art', '_blank')}
       />
     </AuthLayout>
   );

@@ -1417,10 +1417,11 @@ export const PublisherApplication = () => {
             <Logo size="lg" />
           </a>
 
-          {/* Progress indicator */}
-          {currentStep > 1 && currentStep < TOTAL_STEPS && (
+          {/* Progress indicator: 12 content steps; the success screen (13)
+              shows no step chrome. */}
+          {currentStep <= TOTAL_STEPS && (
             <span className="text-sm text-muted-foreground">
-              Step {currentStep - 1} of {TOTAL_STEPS - 2}
+              Step {currentStep} of {TOTAL_STEPS}
             </span>
           )}
 
@@ -1444,18 +1445,18 @@ export const PublisherApplication = () => {
         </div>
 
         {/* Progress bar */}
-        {currentStep > 1 && currentStep < TOTAL_STEPS && (
+        {currentStep <= TOTAL_STEPS && (
           <div className="h-1 bg-secondary">
             <div
               className="h-full bg-accent transition-all duration-300"
-              style={{ width: `${((currentStep - 1) / (TOTAL_STEPS - 2)) * 100}%` }}
+              style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
             />
           </div>
         )}
       </header>
 
       {/* Back button */}
-      {currentStep > 1 && currentStep < TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
+      {currentStep > 1 && currentStep <= TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
         <div className="fixed top-20 left-6 md:left-8 z-40">
           <button
             onClick={handleBack}
