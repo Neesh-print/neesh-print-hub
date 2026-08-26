@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { ChevronLeft, CheckCircle, ChevronRight, Loader2, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,8 +94,15 @@ const defaultFormValues: FormData = {
 
 export const PublisherApplication = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, session, isLoading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  // Set when the applicant arrived from a "Claim this profile" link on the
+  // public index (?claim=<directory slug>). Persisted so it survives the
+  // multi-step wizard and save-and-resume.
+  const [claimSlug, setClaimSlug] = useState<string | null>(() =>
+    localStorage.getItem("publisherClaimSlug")
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -136,6 +143,21 @@ export const PublisherApplication = () => {
   });
 
   const formValues = watch();
+
+  // Read the claim context handed over by the public index. The title
+  // prefills step 3; the slug rides along to submission so review can link
+  // this application to the existing directory profile.
+  useEffect(() => {
+    const claim = searchParams.get("claim");
+    const title = searchParams.get("title");
+    if (claim) {
+      setClaimSlug(claim);
+      localStorage.setItem("publisherClaimSlug", claim);
+    }
+    if (title && !getValues("magazineTitle")) {
+      setValue("magazineTitle", title);
+    }
+  }, [searchParams, getValues, setValue]);
 
   // Check for existing draft applications to resume
   useEffect(() => {
@@ -562,7 +584,11 @@ export const PublisherApplication = () => {
         quotes_feedback: formValues.cloudLink,
         status: "submitted",
         submitted_at: new Date().toISOString(),
-        additional_info: { ...formValues, acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null },
+        additional_info: {
+          ...formValues,
+          ...(claimSlug ? { claimSlug } : {}),
+          acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null,
+        },
       };
 
       if (user) {
@@ -620,8 +646,10 @@ export const PublisherApplication = () => {
 
       setIsSubmitted(true);
       setCurrentStep(13); // Success Step
+      localStorage.removeItem('publisherClaimSlug');
 
-      // Send application received confirmation email (fire and forget)
+      // Send application received confirmation email (fire and forget).
+      // claimTitle switches the email to the claim-received wording.
       try {
         await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
@@ -636,6 +664,9 @@ export const PublisherApplication = () => {
               firstName: formValues.firstName,
               businessName: formValues.businessName || formValues.magazineTitle,
               role: 'publisher',
+              ...(claimSlug
+                ? { claimTitle: formValues.magazineTitle || claimSlug }
+                : {}),
             }),
           }
         );
@@ -1450,6 +1481,15 @@ export const PublisherApplication = () => {
             data-lpignore="true"
           >
             {/* Progress card - Mobile only (removed, using header bar) */}
+
+            {claimSlug && !isSubmitted && (
+              <div className="mb-6 p-4 rounded-lg border border-accent/40 bg-accent/5 text-sm text-foreground">
+                You&apos;re claiming{" "}
+                <strong>{formValues.magazineTitle || "your title"}</strong> from the
+                Neesh Index. Finish signup and we review every claim by hand,
+                usually within a day.
+              </div>
+            )}
 
             {/* key={currentStep} forces React to fully unmount/remount DOM nodes
                 between steps. Without this, React reuses <input> DOM nodes across
