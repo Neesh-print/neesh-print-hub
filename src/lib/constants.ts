@@ -60,24 +60,24 @@ export const FULFILLMENT_OPTIONS = [
   {
     value: "neesh",
     label: "Neesh Fulfillment",
-    description: "Send us inventory, we handle shipping",
+    description: "Send us inventory, we handle shipping.",
     disabled: true,
     comingSoon: true,
   },
   {
     value: "self",
     label: "Self Fulfillment",
-    description: "You ship directly to retailers",
+    description: "You ship directly to retailers.",
   },
   {
     value: "third_party",
     label: "Third Party Fulfillment",
-    description: "You use a distributor or 3PL",
+    description: "You use a distributor or 3PL.",
   },
   {
     value: "not_sure",
     label: "Not sure yet",
-    description: "We'll figure it out together",
+    description: "We'll figure it out together.",
   },
 ] as const;
 
@@ -133,7 +133,7 @@ export const APPLICATION_STATUS = {
 export type ApplicationStatus = typeof APPLICATION_STATUS[keyof typeof APPLICATION_STATUS];
 
 // Publisher application total steps
-export const PUBLISHER_APPLICATION_STEPS = 14;
+export const PUBLISHER_APPLICATION_STEPS = 12;
 
 // Retailer application total steps
 export const RETAILER_APPLICATION_STEPS = 9;

@@ -1,5 +1,3 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -10,11 +8,29 @@ interface ApplicationReceivedRequest {
   firstName: string
   businessName: string
   role: 'publisher' | 'retailer'
+  // Present when the application started from "Claim this profile" on the
+  // public index; switches the email to the claim-received wording.
+  claimTitle?: string
 }
 
 // Generate the application received email HTML
 const generateApplicationReceivedEmail = (data: ApplicationReceivedRequest): string => {
   const roleTitle = data.role === 'publisher' ? 'Publisher' : 'Retailer'
+  const bodyIntro = data.claimTitle
+    ? `<p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
+                Thanks for claiming <strong>${data.claimTitle}</strong>. A person reviews these, usually within a day. We'll email you when it's live.
+              </p>
+
+              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
+                If you'd rather the page came down instead of being claimed, reply and it's gone today.
+              </p>`
+    : `<p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
+                Thank you for applying to join Neesh as a ${roleTitle.toLowerCase()} with <strong>${data.businessName}</strong>. We're excited to learn more about you!
+              </p>
+
+              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
+                Our team will review your application and get back to you within <strong>2-3 business days</strong>.
+              </p>`
 
   return `
 <!DOCTYPE html>
@@ -54,20 +70,14 @@ const generateApplicationReceivedEmail = (data: ApplicationReceivedRequest): str
               </div>
 
               <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600; text-align: center;">
-                We've Received Your Application!
+                ${data.claimTitle ? `We got your claim for ${data.claimTitle}` : `We've Received Your Application!`}
               </h2>
 
               <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
                 Hi ${data.firstName},
               </p>
 
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Thank you for applying to join Neesh as a ${roleTitle.toLowerCase()} with <strong>${data.businessName}</strong>. We're excited to learn more about you!
-              </p>
-
-              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Our team will review your application and get back to you within <strong>2-3 business days</strong>.
-              </p>
+              ${bodyIntro}
 
               <!-- What to Expect Box -->
               <div style="margin: 32px 0; padding: 24px; background-color: #F8F8F6; border-radius: 8px;">
@@ -75,7 +85,7 @@ const generateApplicationReceivedEmail = (data: ApplicationReceivedRequest): str
                   What Happens Next?
                 </h3>
                 <ol style="margin: 0; padding-left: 20px; color: #4A4A4A; font-size: 15px; line-height: 1.8;">
-                  <li style="margin-bottom: 8px;">Our team reviews your application</li>
+                  <li style="margin-bottom: 8px;">Our team reviews your ${data.claimTitle ? 'claim' : 'application'}</li>
                   <li style="margin-bottom: 8px;">We'll email you with our decision</li>
                   <li style="margin-bottom: 8px;">If approved, you'll receive a link to access your dashboard</li>
                   <li>Start ${data.role === 'publisher' ? 'selling your magazines' : 'discovering indie magazines'}!</li>
@@ -176,7 +186,9 @@ Deno.serve(async (req) => {
 
     // Generate email HTML
     const emailHtml = generateApplicationReceivedEmail(requestData)
-    const subject = `We've Received Your Application - ${requestData.businessName}`
+    const subject = requestData.claimTitle
+      ? `We got your claim for ${requestData.claimTitle}`
+      : `We've Received Your Application - ${requestData.businessName}`
 
     console.log(`Sending application received email to ${requestData.email}`)
 

@@ -26,8 +26,8 @@ export const ButtonPrimary = ({
   const isDisabled = disabled || loading;
 
   const variantClasses = {
-    purple: 'bg-accent hover:bg-accent/90',
-    black: 'bg-primary hover:bg-primary/90',
+    purple: 'bg-accent hover:bg-primary',
+    black: 'bg-primary hover:bg-accent',
   };
 
   return (
@@ -38,7 +38,7 @@ export const ButtonPrimary = ({
       className={`
         inline-flex items-center justify-center gap-2
         px-4 py-2.5 rounded-lg
-        font-display font-medium text-body
+        font-display font-semibold text-body
         ${variantClasses[variant]}
         text-primary-foreground
         transition-colors

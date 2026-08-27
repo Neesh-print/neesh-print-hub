@@ -114,10 +114,10 @@ const LoginPage = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display font-bold text-display text-foreground mb-2">
-          Welcome Back
+          Welcome back
         </h1>
         <p className="text-body text-text-secondary">
-          Log in to your account
+          Log in to your account.
         </p>
       </div>
 
@@ -163,7 +163,7 @@ const LoginPage = () => {
           loading={isLoading}
           disabled={isLoading}
         >
-          Log In
+          Log in
         </ButtonPrimary>
       </form>
 
@@ -184,7 +184,7 @@ const LoginPage = () => {
       <AuthLink
         text="Have any questions?"
         actionText="Talk to the team"
-        onClick={() => window.open('mailto:hello@neesh.com', '_blank')}
+        onClick={() => window.open('mailto:hi@neesh.art', '_blank')}
       />
     </AuthLayout>
   );

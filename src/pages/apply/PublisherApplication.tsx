@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { ChevronLeft, CheckCircle, ChevronRight, Loader2, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,8 +94,15 @@ const defaultFormValues: FormData = {
 
 export const PublisherApplication = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, session, isLoading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  // Set when the applicant arrived from a "Claim this profile" link on the
+  // public index (?claim=<directory slug>). Persisted so it survives the
+  // multi-step wizard and save-and-resume.
+  const [claimSlug, setClaimSlug] = useState<string | null>(() =>
+    localStorage.getItem("publisherClaimSlug")
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -136,6 +143,21 @@ export const PublisherApplication = () => {
   });
 
   const formValues = watch();
+
+  // Read the claim context handed over by the public index. The title
+  // prefills step 3; the slug rides along to submission so review can link
+  // this application to the existing directory profile.
+  useEffect(() => {
+    const claim = searchParams.get("claim");
+    const title = searchParams.get("title");
+    if (claim) {
+      setClaimSlug(claim);
+      localStorage.setItem("publisherClaimSlug", claim);
+    }
+    if (title && !getValues("magazineTitle")) {
+      setValue("magazineTitle", title);
+    }
+  }, [searchParams, getValues, setValue]);
 
   // Check for existing draft applications to resume
   useEffect(() => {
@@ -562,7 +584,11 @@ export const PublisherApplication = () => {
         quotes_feedback: formValues.cloudLink,
         status: "submitted",
         submitted_at: new Date().toISOString(),
-        additional_info: { ...formValues, acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null },
+        additional_info: {
+          ...formValues,
+          ...(claimSlug ? { claimSlug } : {}),
+          acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null,
+        },
       };
 
       if (user) {
@@ -620,8 +646,10 @@ export const PublisherApplication = () => {
 
       setIsSubmitted(true);
       setCurrentStep(13); // Success Step
+      localStorage.removeItem('publisherClaimSlug');
 
-      // Send application received confirmation email (fire and forget)
+      // Send application received confirmation email (fire and forget).
+      // claimTitle switches the email to the claim-received wording.
       try {
         await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
@@ -636,6 +664,9 @@ export const PublisherApplication = () => {
               firstName: formValues.firstName,
               businessName: formValues.businessName || formValues.magazineTitle,
               role: 'publisher',
+              ...(claimSlug
+                ? { claimTitle: formValues.magazineTitle || claimSlug }
+                : {}),
             }),
           }
         );
@@ -747,7 +778,7 @@ export const PublisherApplication = () => {
               Continue
             </ButtonPrimary>
             <p className="text-center text-sm text-muted-foreground mt-4">
-              Once approved, we'll send you a magic link to access your account.
+              Once approved, we'll email you to set up your account.
             </p>
           </div>
         );
@@ -788,7 +819,7 @@ export const PublisherApplication = () => {
                 Which title are you looking to sell?
               </h1>
               <p className="text-muted-foreground mt-2">
-                Start with one - you can add more later
+                Start with one — you can add more later.
               </p>
             </div>
             <Controller
@@ -821,7 +852,7 @@ export const PublisherApplication = () => {
                 Show us your magazine
               </h1>
               <p className="text-muted-foreground mt-2">
-                Upload a cover image so we can see your work
+                Upload a cover image so we can see your work.
               </p>
             </div>
             <FileUploadZone
@@ -866,7 +897,7 @@ export const PublisherApplication = () => {
                   onChange={field.onChange}
                   error={errors.description?.message}
                   maxLength={500}
-                  helperText="2-3 sentences is perfect"
+                  helperText="2–3 sentences is perfect."
                   rows={5}
                   required
                 />
@@ -886,7 +917,7 @@ export const PublisherApplication = () => {
                 Where can we find you online?
               </h1>
               <p className="text-muted-foreground mt-2">
-                We use this to verify your publication
+                We use this to verify your publication.
               </p>
             </div>
             <div className="space-y-4">
@@ -928,7 +959,7 @@ export const PublisherApplication = () => {
               />
               {!formValues.websiteUrl && !formValues.instagramHandle && (
                 <p className="text-sm text-destructive">
-                  Please provide either a website or Instagram
+                  A website or an Instagram handle — either one works.
                 </p>
               )}
             </div>
@@ -995,7 +1026,7 @@ export const PublisherApplication = () => {
                 A few more details
               </h1>
               <p className="text-muted-foreground mt-2">
-                Optional, but helps us understand your publication
+                Optional, but it helps us understand your publication.
               </p>
             </div>
             <div className="space-y-4">
@@ -1191,7 +1222,7 @@ export const PublisherApplication = () => {
                 How would you like to ship orders?
               </h1>
               <p className="text-muted-foreground mt-2">
-                You can change this later
+                You can change this later.
               </p>
             </div>
             <div className="space-y-3">
@@ -1251,7 +1282,7 @@ export const PublisherApplication = () => {
                 Anything else to share?
               </h1>
               <p className="text-muted-foreground mt-2">
-                Optional - link to a press kit, media folder, or additional images
+                Optional — link to a press kit, media folder, or additional images.
               </p>
             </div>
             <Controller
@@ -1304,7 +1335,7 @@ export const PublisherApplication = () => {
                   className="mt-0.5"
                 />
                 <span className="text-sm">
-                  I confirm that I have distribution rights for this content <span className="text-destructive">*</span>
+                  I confirm I have the rights to distribute this publication. <span className="text-destructive">*</span>
                 </span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
@@ -1328,7 +1359,7 @@ export const PublisherApplication = () => {
                   className="mt-0.5"
                 />
                 <span className="text-sm text-muted-foreground">
-                  I'd like to receive platform updates and retailer insights
+                  I'd like to receive platform updates and publisher insights
                 </span>
               </label>
             </div>
@@ -1351,12 +1382,12 @@ export const PublisherApplication = () => {
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              Application Submitted!
+              That's with us now.
             </h1>
             <p className="text-muted-foreground text-lg max-w-md mx-auto">
-              Thanks for applying to Neesh. We'll review your application and get back to you at{" "}
+              We review every application by hand — expect to hear back at{" "}
               <span className="font-medium text-foreground">{formValues.email}</span>{" "}
-              within 2-3 business days.
+              within a few days. Once you're approved we'll email you to set up your account.
             </p>
             <p className="text-sm text-muted-foreground">
               Questions? Reach out to{" "}
@@ -1386,10 +1417,11 @@ export const PublisherApplication = () => {
             <Logo size="lg" />
           </a>
 
-          {/* Progress indicator */}
-          {currentStep > 1 && currentStep < TOTAL_STEPS && (
-            <span className="text-sm text-muted-foreground">
-              Step {currentStep - 1} of {TOTAL_STEPS - 2}
+          {/* Progress indicator: 12 content steps; the success screen (13)
+              shows no step chrome. */}
+          {currentStep <= TOTAL_STEPS && (
+            <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F]">
+              Step {currentStep} of {TOTAL_STEPS}
             </span>
           )}
 
@@ -1413,18 +1445,18 @@ export const PublisherApplication = () => {
         </div>
 
         {/* Progress bar */}
-        {currentStep > 1 && currentStep < TOTAL_STEPS && (
-          <div className="h-1 bg-secondary">
+        {currentStep <= TOTAL_STEPS && (
+          <div className="h-0.5 bg-[#EFEEF6]">
             <div
               className="h-full bg-accent transition-all duration-300"
-              style={{ width: `${((currentStep - 1) / (TOTAL_STEPS - 2)) * 100}%` }}
+              style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
             />
           </div>
         )}
       </header>
 
       {/* Back button */}
-      {currentStep > 1 && currentStep < TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
+      {currentStep > 1 && currentStep <= TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
         <div className="fixed top-20 left-6 md:left-8 z-40">
           <button
             onClick={handleBack}
@@ -1450,6 +1482,15 @@ export const PublisherApplication = () => {
             data-lpignore="true"
           >
             {/* Progress card - Mobile only (removed, using header bar) */}
+
+            {claimSlug && !isSubmitted && (
+              <div className="mb-6 p-4 rounded-lg border border-accent/40 bg-accent/5 text-sm text-foreground">
+                You&apos;re claiming{" "}
+                <strong>{formValues.magazineTitle || "your title"}</strong> from the
+                Neesh Index. Finish signup and we review every claim by hand,
+                usually within a day.
+              </div>
+            )}
 
             {/* key={currentStep} forces React to fully unmount/remount DOM nodes
                 between steps. Without this, React reuses <input> DOM nodes across

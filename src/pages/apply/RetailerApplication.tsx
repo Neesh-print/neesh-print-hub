@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ButtonPrimary, FormInput, FormSelect, Logo } from "@/components/neesh";
+import { COUNTRIES as SHARED_COUNTRIES } from "@/lib/constants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { normalizeWeb } from "@/lib/normalize-web";
 import { toast } from "sonner";
@@ -12,16 +13,10 @@ import { toast } from "sonner";
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
 
-const COUNTRIES = [
-  { value: "United States", label: "United States" },
-  { value: "United Kingdom", label: "United Kingdom" },
-  { value: "Canada", label: "Canada" },
-  { value: "Germany", label: "Germany" },
-  { value: "France", label: "France" },
-  { value: "Australia", label: "Australia" },
-  { value: "Netherlands", label: "Netherlands" },
-  { value: "Other", label: "Other" },
-];
+// One source of truth for the country list (src/lib/constants.ts). Retailer
+// records store the display name, not the ISO code, because packing slips,
+// invoices, and admin cards render the value raw.
+const COUNTRIES = SHARED_COUNTRIES.map((c) => ({ value: c.label, label: c.label }));
 
 // Mirrors the DB-side validate_retailer_application trigger
 const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -499,13 +494,13 @@ export const RetailerApplication = () => {
           </a>
 
           {/* Progress indicator */}
-          <span className="text-sm text-muted-foreground">
+          <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F]">
             {currentStep <= TOTAL_STEPS ? `Step ${currentStep} of ${TOTAL_STEPS}` : "Done"}
           </span>
         </div>
 
         {/* Progress bar */}
-        <div className="h-1 bg-secondary">
+        <div className="h-0.5 bg-[#EFEEF6]">
           <div
             className="h-full bg-accent transition-all duration-300"
             style={{ width: `${progress}%` }}

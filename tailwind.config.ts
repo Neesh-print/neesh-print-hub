@@ -15,7 +15,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Manrope", "system-ui", "sans-serif"],
+        sans: ["Manrope", "system-ui", "sans-serif"],
+        display: ["Archivo", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
         body: ["Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
