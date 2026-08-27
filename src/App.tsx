@@ -93,9 +93,6 @@ import { AdminSettings } from "./pages/admin/AdminSettings";
 import { OnboardingContinue, OnboardingStart } from "./pages/onboarding";
 
 // Marketing pages
-import { HomePage, PublishersPage, RetailersPage, PricingPage, FAQPage, ExploreMagazinesPage } from "./pages/marketing";
-import { LegalPage } from "./pages/marketing/legal/LegalPage";
-import { privacy, terms, publisherAgreement, retailerAgreement } from "./pages/marketing/legal/legalContent";
 
 // Error pages
 import NotFound from "./pages/NotFound";
@@ -105,6 +102,33 @@ import { ErrorPage, OfflinePage, UnauthorizedPage } from "./pages/errors";
 import { ApplicationRejected } from "./pages/ApplicationRejected";
 
 const queryClient = new QueryClient();
+
+// The marketing site moved to neesh.art at the domain split; this app serves
+// app.neesh.art. Marketing paths hard-redirect to the public site so one
+// canonical copy of each page exists.
+const MARKETING_SITE = "https://neesh.art";
+
+const ExternalRedirect = ({ to }: { to: string }) => {
+  if (typeof window !== "undefined") {
+    window.location.replace(to);
+  }
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>
+  );
+};
+
+// The root of the app: signed-in users go to their dashboard (or their
+// application status screen); everyone else belongs on the marketing site.
+const RootGate = () => {
+  const { user, isLoading, isRoleLoading } = useAuth();
+  if (isLoading || isRoleLoading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+  }
+  if (!user) {
+    return <ExternalRedirect to={MARKETING_SITE} />;
+  }
+  return <HomeRedirect />;
+};
 
 // Home redirect component that redirects based on auth state
 const HomeRedirect = () => {
@@ -155,19 +179,18 @@ const HomeRedirect = () => {
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Marketing pages */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/explore" element={<ExploreMagazinesPage />} />
-      <Route path="/publishers" element={<PublishersPage />} />
-      <Route path="/retailers" element={<RetailersPage />} />
-      <Route path="/pricing" element={<PricingPage />} />
-      <Route path="/faq" element={<FAQPage />} />
-
-      {/* Legal pages */}
-      <Route path="/legal/privacy" element={<LegalPage doc={privacy} />} />
-      <Route path="/legal/terms" element={<LegalPage doc={terms} />} />
-      <Route path="/legal/publisher-agreement" element={<LegalPage doc={publisherAgreement} />} />
-      <Route path="/legal/retailer-agreement" element={<LegalPage doc={retailerAgreement} />} />
+      {/* The marketing site lives at neesh.art; these paths forward there.
+          Signed-in users hitting the root go to their dashboard instead. */}
+      <Route path="/" element={<RootGate />} />
+      <Route path="/explore" element={<ExternalRedirect to={`${MARKETING_SITE}/index`} />} />
+      <Route path="/publishers" element={<ExternalRedirect to={`${MARKETING_SITE}/publishers`} />} />
+      <Route path="/retailers" element={<ExternalRedirect to={`${MARKETING_SITE}/spaces`} />} />
+      <Route path="/pricing" element={<ExternalRedirect to={`${MARKETING_SITE}/publishers`} />} />
+      <Route path="/faq" element={<ExternalRedirect to={`${MARKETING_SITE}/faq`} />} />
+      <Route path="/legal/privacy" element={<ExternalRedirect to={`${MARKETING_SITE}/privacy`} />} />
+      <Route path="/legal/terms" element={<ExternalRedirect to={`${MARKETING_SITE}/terms`} />} />
+      <Route path="/legal/publisher-agreement" element={<ExternalRedirect to={`${MARKETING_SITE}/publisher-agreement`} />} />
+      <Route path="/legal/retailer-agreement" element={<ExternalRedirect to={`${MARKETING_SITE}/retailer-agreement`} />} />
 
       {/* Legacy home redirect for logged-in users */}
       <Route path="/home" element={<HomeRedirect />} />
