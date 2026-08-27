@@ -1074,7 +1074,13 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          stripe_account_created_at: string | null
           stripe_account_id: string | null
+          stripe_charges_enabled: boolean | null
+          stripe_details_submitted: boolean | null
+          stripe_payouts_enabled: boolean | null
+          stripe_requirements_due: Json | null
+          stripe_status_updated_at: string | null
           submitted_at: string | null
           total_magazines: number | null
           total_sales: number | null
@@ -1101,7 +1107,13 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_created_at?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_details_submitted?: boolean | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_due?: Json | null
+          stripe_status_updated_at?: string | null
           submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null
@@ -1128,7 +1140,13 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          stripe_account_created_at?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_details_submitted?: boolean | null
+          stripe_payouts_enabled?: boolean | null
+          stripe_requirements_due?: Json | null
+          stripe_status_updated_at?: string | null
           submitted_at?: string | null
           total_magazines?: number | null
           total_sales?: number | null

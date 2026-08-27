@@ -20,7 +20,8 @@ import {
   BarChart3,
   Truck,
   HelpCircle,
-  Banknote
+  Banknote,
+  CreditCard
 } from "lucide-react";
 import { Logo } from "@/components/neesh/Logo";
 import { CartSidebarBadge } from "@/components/retailer/CartSidebarBadge";
@@ -79,6 +80,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Magazines", icon: <BookOpen className="w-5 h-5" />, path: "/admin/magazines" },
     { label: "Orders", icon: <ShoppingBag className="w-5 h-5" />, path: "/admin/orders" },
     { label: "Transfers", icon: <Banknote className="w-5 h-5" />, path: "/admin/transfers" },
+    { label: "Payouts", icon: <CreditCard className="w-5 h-5" />, path: "/admin/payouts" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/admin/messages" },
     { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/admin/analytics" },
   ];
