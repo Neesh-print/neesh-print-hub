@@ -112,6 +112,7 @@ export const KNOWN_UNRENDERED = new Set([
   '/reset-password',
   '/verify-email',
   '/auth/callback',
+  '/onboarding/continue', // redirects straight to a Stripe account link, no content to render
   '/error',
   '/offline',
   '/unauthorized',
