@@ -41,4 +41,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://neesh.art/sitemap.xml
+Sitemap: https://app.neesh.art/sitemap.xml
