@@ -778,7 +778,7 @@ export const PublisherApplication = () => {
               Continue
             </ButtonPrimary>
             <p className="text-center text-sm text-muted-foreground mt-4">
-              Once approved, we'll send you a magic link to access your account.
+              Once approved, we'll email you to set up your account.
             </p>
           </div>
         );
@@ -819,7 +819,7 @@ export const PublisherApplication = () => {
                 Which title are you looking to sell?
               </h1>
               <p className="text-muted-foreground mt-2">
-                Start with one - you can add more later
+                Start with one — you can add more later.
               </p>
             </div>
             <Controller
@@ -852,7 +852,7 @@ export const PublisherApplication = () => {
                 Show us your magazine
               </h1>
               <p className="text-muted-foreground mt-2">
-                Upload a cover image so we can see your work
+                Upload a cover image so we can see your work.
               </p>
             </div>
             <FileUploadZone
@@ -897,7 +897,7 @@ export const PublisherApplication = () => {
                   onChange={field.onChange}
                   error={errors.description?.message}
                   maxLength={500}
-                  helperText="2-3 sentences is perfect"
+                  helperText="2–3 sentences is perfect."
                   rows={5}
                   required
                 />
@@ -917,7 +917,7 @@ export const PublisherApplication = () => {
                 Where can we find you online?
               </h1>
               <p className="text-muted-foreground mt-2">
-                We use this to verify your publication
+                We use this to verify your publication.
               </p>
             </div>
             <div className="space-y-4">
@@ -959,7 +959,7 @@ export const PublisherApplication = () => {
               />
               {!formValues.websiteUrl && !formValues.instagramHandle && (
                 <p className="text-sm text-destructive">
-                  Please provide either a website or Instagram
+                  A website or an Instagram handle — either one works.
                 </p>
               )}
             </div>
@@ -1026,7 +1026,7 @@ export const PublisherApplication = () => {
                 A few more details
               </h1>
               <p className="text-muted-foreground mt-2">
-                Optional, but helps us understand your publication
+                Optional, but it helps us understand your publication.
               </p>
             </div>
             <div className="space-y-4">
@@ -1222,7 +1222,7 @@ export const PublisherApplication = () => {
                 How would you like to ship orders?
               </h1>
               <p className="text-muted-foreground mt-2">
-                You can change this later
+                You can change this later.
               </p>
             </div>
             <div className="space-y-3">
@@ -1282,7 +1282,7 @@ export const PublisherApplication = () => {
                 Anything else to share?
               </h1>
               <p className="text-muted-foreground mt-2">
-                Optional - link to a press kit, media folder, or additional images
+                Optional — link to a press kit, media folder, or additional images.
               </p>
             </div>
             <Controller
@@ -1335,7 +1335,7 @@ export const PublisherApplication = () => {
                   className="mt-0.5"
                 />
                 <span className="text-sm">
-                  I confirm that I have distribution rights for this content <span className="text-destructive">*</span>
+                  I confirm I have the rights to distribute this publication. <span className="text-destructive">*</span>
                 </span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
@@ -1359,7 +1359,7 @@ export const PublisherApplication = () => {
                   className="mt-0.5"
                 />
                 <span className="text-sm text-muted-foreground">
-                  I'd like to receive platform updates and retailer insights
+                  I'd like to receive platform updates and publisher insights
                 </span>
               </label>
             </div>
@@ -1382,12 +1382,12 @@ export const PublisherApplication = () => {
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              Application Submitted!
+              That's with us now.
             </h1>
             <p className="text-muted-foreground text-lg max-w-md mx-auto">
-              Thanks for applying to Neesh. We'll review your application and get back to you at{" "}
+              We review every application by hand — expect to hear back at{" "}
               <span className="font-medium text-foreground">{formValues.email}</span>{" "}
-              within 2-3 business days.
+              within a few days. Once you're approved we'll email you to set up your account.
             </p>
             <p className="text-sm text-muted-foreground">
               Questions? Reach out to{" "}

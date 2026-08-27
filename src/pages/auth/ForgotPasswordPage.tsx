@@ -53,7 +53,7 @@ const ForgotPasswordPage = () => {
             <Mail className="w-8 h-8 text-accent" />
           </div>
           <h1 className="font-display font-bold text-display text-foreground mb-2">
-            Check Your Email
+            Check your email
           </h1>
           <p className="text-body text-text-secondary mb-2">
             We've sent a password reset link to
@@ -62,7 +62,7 @@ const ForgotPasswordPage = () => {
             {email}
           </p>
           <p className="text-caption text-text-secondary mb-8">
-            Didn't receive the email? Check your spam folder or try again.
+            Didn't get it? Check your spam folder, or send it again.
           </p>
 
           <div className="space-y-3">
@@ -70,7 +70,7 @@ const ForgotPasswordPage = () => {
               fullWidth 
               onClick={() => setSuccess(false)}
             >
-              Send Again
+              Send again
             </ButtonPrimary>
 
             <button
@@ -92,10 +92,10 @@ const ForgotPasswordPage = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display font-bold text-display text-foreground mb-2">
-          Reset Password
+          Reset password
         </h1>
         <p className="text-body text-text-secondary">
-          Enter your email and we'll send you a reset link
+          Enter your email and we'll send you a reset link.
         </p>
       </div>
 
@@ -122,7 +122,7 @@ const ForgotPasswordPage = () => {
           loading={isLoading}
           disabled={isLoading}
         >
-          Send Reset Link
+          Send reset link
         </ButtonPrimary>
       </form>
 
