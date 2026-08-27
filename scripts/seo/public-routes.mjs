@@ -112,7 +112,8 @@ export const KNOWN_UNRENDERED = new Set([
   '/reset-password',
   '/verify-email',
   '/auth/callback',
-  '/onboarding/continue', // redirects straight to a Stripe account link, no content to render
+  '/onboarding/continue', // auth-gated; redirects straight to a Stripe account link
+  '/onboarding/start', // auth-gated publisher pre-flight before the Stripe redirect
   '/error',
   '/offline',
   '/unauthorized',
