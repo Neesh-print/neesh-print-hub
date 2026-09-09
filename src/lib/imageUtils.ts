@@ -40,11 +40,20 @@ export const convertImageToWebP = (file: File, quality = 0.8): Promise<File> => 
               return;
             }
 
-            // Create new file
-            // Change extension to .webp
-            const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+            // Safari can't encode WebP: canvas.toBlob silently falls back to
+            // PNG. Use the blob's ACTUAL type (and matching extension) so the
+            // declared MIME type never lies about the bytes — a mismatch gets
+            // rejected by the server's magic-byte validation.
+            const actualType = blob.type || 'image/png';
+            const extensionByType: Record<string, string> = {
+              'image/webp': '.webp',
+              'image/png': '.png',
+              'image/jpeg': '.jpg',
+            };
+            const newExtension = extensionByType[actualType] ?? '.png';
+            const newName = file.name.replace(/\.[^/.]+$/, "") + newExtension;
             const newFile = new File([blob], newName, {
-              type: 'image/webp',
+              type: actualType,
               lastModified: Date.now(),
             });
 
