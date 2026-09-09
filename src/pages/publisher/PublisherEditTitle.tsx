@@ -13,6 +13,40 @@ import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { getCategoryOptions } from "@/lib/categories";
 
+/**
+ * Turn a Supabase/PostgREST error into a message that tells the publisher
+ * what actually went wrong, instead of a generic "try again".
+ */
+const getMagazineSaveErrorMessage = (error: unknown): string => {
+  const err = error as { code?: string; message?: string; details?: string } | null;
+  const code = err?.code;
+  const message = err?.message ?? "";
+  const details = err?.details ?? "";
+  const combined = `${message} ${details}`.toLowerCase();
+
+  // Unique-constraint violation (Postgres 23505), e.g. same title + issue number
+  if (code === "23505" || combined.includes("duplicate key") || combined.includes("unique")) {
+    return "You already have a magazine with this title and issue number. Change the issue number to save it as a separate issue.";
+  }
+  // Not-null / check constraint violations
+  if (code === "23502") {
+    return "A required field is missing. Please check the form and try again.";
+  }
+  // Row-level security / permissions
+  if (code === "42501" || combined.includes("row-level security") || combined.includes("permission")) {
+    return "You don't have permission to save this magazine. Try reloading the page and signing in again.";
+  }
+  // Network-level failures
+  if (combined.includes("failed to fetch") || combined.includes("network")) {
+    return "Couldn't reach the server. Check your connection and try again.";
+  }
+  // Fall back to the real error message when we have one
+  if (message) {
+    return `Failed to save magazine: ${message}`;
+  }
+  return "Failed to save magazine. Please try again.";
+};
+
 export const PublisherEditTitle = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -306,8 +340,8 @@ export const PublisherEditTitle = () => {
 
       navigate("/publisher/titles");
     } catch (error) {
-      // Error is already logged by Supabase client or handled by toast
-      toast.error("Failed to save magazine. Please try again.");
+      console.error("Failed to save magazine:", error);
+      toast.error(getMagazineSaveErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
