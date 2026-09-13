@@ -9,6 +9,7 @@ import { COUNTRIES as SHARED_COUNTRIES } from "@/lib/constants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { normalizeWeb } from "@/lib/normalize-web";
 import { toast } from "sonner";
+import { trackSpaceSignup } from "@/lib/neesh-analytics";
 
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
@@ -182,6 +183,7 @@ export const RetailerApplication = () => {
 
       // Clear localStorage on successful signup
       localStorage.removeItem(STORAGE_KEY);
+      trackSpaceSignup();
 
       // Sign straight in — the catalog should be one click away. If this
       // somehow fails, the confirmation screen's CTA lands on the login page

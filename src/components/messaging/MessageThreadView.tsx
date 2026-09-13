@@ -10,6 +10,7 @@ import { MessageThread } from './MessageThread';
 import { MessageComposer } from './MessageComposer';
 import { useConversationQuery, useSendMessage } from '@/hooks/useMessagesQuery';
 import { getAvatarProps } from '@/lib/messaging';
+import { trackPublisherMessage } from '@/lib/neesh-analytics';
 import type { UserType, ConversationParticipant } from '@/types/messaging';
 
 interface MessageThreadViewProps {
@@ -41,6 +42,7 @@ export function MessageThreadView({
       conversationId,
       content,
     });
+    if (otherParticipant?.user_type === 'publisher') trackPublisherMessage();
   };
 
   const participantName = otherParticipant?.display_name || 'Unknown';
