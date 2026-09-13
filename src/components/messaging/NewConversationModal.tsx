@@ -21,6 +21,7 @@ import { useGetOrCreateConversation } from '@/hooks/useGetOrCreateConversation';
 import { useSendMessage } from '@/hooks/useMessagesQuery';
 import { useCurrentMessagingUser } from '@/hooks/useConversationsQuery';
 import { getAvatarProps, formatLocation } from '@/lib/messaging';
+import { trackPublisherMessage } from '@/lib/neesh-analytics';
 import type { MessageableUser } from '@/types/messaging';
 
 interface NewConversationModalProps {
@@ -78,6 +79,7 @@ export function NewConversationModal({
         conversationId,
         content: message.trim(),
       });
+      if (selectedUser.user_type === 'publisher') trackPublisherMessage();
 
       onConversationCreated(conversationId);
       onOpenChange(false);
