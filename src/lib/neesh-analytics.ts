@@ -32,8 +32,17 @@ export function trackPackPurchase(value: number, currency = 'USD'): void {
  * A new space (retailer) completed signup. Fire once the account has been
  * created, not on login and not on a repeat visit.
  */
-export function trackSpaceSignup(): void {
-  push('space_signup_complete');
+export function trackSpaceSignup(referralSource?: string): void {
+  push('space_signup_complete', referralSource ? { referral_source: referralSource } : {});
+}
+
+/**
+ * A publisher application was submitted for review. Fire once the submit
+ * has been saved, not on the button press. `referral_source` is the answer
+ * to "How did you hear about Neesh?".
+ */
+export function trackPublisherApplication(referralSource: string): void {
+  push('publisher_application_submitted', { referral_source: referralSource });
 }
 
 /**
