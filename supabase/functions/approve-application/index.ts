@@ -19,6 +19,8 @@ interface ApprovalEmailData {
   forgotPasswordUrl: string
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const generateApprovalEmail = (data: ApprovalEmailData): string => {
   const roleTitle = data.role === 'publisher' ? 'Publisher' : 'Retailer'
 
@@ -147,49 +149,107 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // ============================================================
-    // SECURITY: Require admin authentication
-    // ============================================================
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Verify the user is an admin using their JWT
-    const supabaseClient = createClient(
+    // Admin client with service role key (used for the key path and for user creation)
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
-        global: {
-          headers: { Authorization: authHeader },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
         },
       }
     )
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // ============================================================
+    // SECURITY: Require admin authentication.
+    // Two accepted paths:
+    //   1. Admin dashboard: an admin user's JWT (original path, unchanged)
+    //   2. Server-side: x-admin-approval-key matching the key stored in the
+    //      database vault (checked via verify_admin_approval_key), plus
+    //      x-admin-reviewer-id naming an admin user. Used by the
+    //      admin_ops.approve_application database function.
+    // ============================================================
+    let reviewerId: string | null = null
+    const approvalKeyHeader = req.headers.get('x-admin-approval-key')
 
-    // Check if the caller is an admin
-    const { data: userData, error: userError } = await supabaseClient
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    if (approvalKeyHeader) {
+      // The key lives in the database vault; only the service role can check it.
+      const { data: keyValid, error: keyError } = await supabaseAdmin
+        .rpc('verify_admin_approval_key', { p_key: approvalKeyHeader })
+      if (keyError || keyValid !== true) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid approval key' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    if (userError || !userData || userData.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden - Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      const reviewerHeader = req.headers.get('x-admin-reviewer-id') ?? ''
+      if (!UUID_RE.test(reviewerHeader)) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Missing or invalid reviewer id' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: reviewer, error: reviewerError } = await supabaseAdmin
+        .from('users')
+        .select('role')
+        .eq('id', reviewerHeader)
+        .single()
+
+      if (reviewerError || !reviewer || reviewer.role !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Reviewer is not an admin' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      reviewerId = reviewerHeader
+    } else {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Missing authorization header' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Verify the user is an admin using their JWT
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        {
+          global: {
+            headers: { Authorization: authHeader },
+          },
+        }
       )
+
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid authentication' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if the caller is an admin
+      const { data: userData, error: userError } = await supabaseClient
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (userError || !userData || userData.role !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      reviewerId = user.id
     }
     // ============================================================
 
@@ -211,18 +271,6 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Processing ${type} application approval: ${applicationId}`)
-
-    // Create admin client with service role key for user creation
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    )
 
     // Get application data
     const table = type === 'publisher' ? 'publisher_applications' : 'retailer_applications'
@@ -437,7 +485,7 @@ Deno.serve(async (req) => {
       .update({
         status: 'approved',
         reviewed_at: new Date().toISOString(),
-        reviewed_by: user.id,
+        reviewed_by: reviewerId,
       })
       .eq('id', applicationId)
 

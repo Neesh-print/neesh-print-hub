@@ -8,6 +8,8 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, FileUploadZone, Logo, AutoSaveIndicator } from "@/components/neesh";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
+import { trackPublisherApplication } from "@/lib/neesh-analytics";
 import {
   COUNTRIES,
   PUBLICATION_FREQUENCIES,
@@ -65,6 +67,8 @@ interface FormData {
   confirmRights: boolean;
   acceptTerms: boolean;
   optInUpdates: boolean;
+  referralSource: string;
+  referralDetail: string;
 }
 
 const defaultFormValues: FormData = {
@@ -90,6 +94,8 @@ const defaultFormValues: FormData = {
   confirmRights: false,
   acceptTerms: false,
   optInUpdates: true,
+  referralSource: "",
+  referralDetail: "",
 };
 
 export const PublisherApplication = () => {
@@ -211,6 +217,8 @@ export const PublisherApplication = () => {
                 confirmRights: additionalInfo.confirmRights || false,
                 acceptTerms: additionalInfo.acceptTerms || false,
                 optInUpdates: additionalInfo.optInUpdates ?? true,
+                referralSource: additionalInfo.referralSource || '',
+                referralDetail: additionalInfo.referralDetail || '',
              };
              
              console.log("Resuming application with data:", dbData);
@@ -554,12 +562,18 @@ export const PublisherApplication = () => {
       return;
     }
 
+    if (!formValues.referralSource) {
+      toast.error("Let us know how you heard about Neesh");
+      return;
+    }
+
     if (!publisherId) {
       toast.error("Session error. Please refresh and try again.");
       return;
     }
 
     setIsSubmitting(true);
+    const firstTouch = readFirstTouch();
 
     try {
       const submissionData = {
@@ -587,6 +601,7 @@ export const PublisherApplication = () => {
         additional_info: {
           ...formValues,
           ...(claimSlug ? { claimSlug } : {}),
+          ...(firstTouch ? { firstTouch } : {}),
           acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null,
         },
       };
@@ -646,6 +661,7 @@ export const PublisherApplication = () => {
 
       setIsSubmitted(true);
       setCurrentStep(13); // Success Step
+      trackPublisherApplication(formValues.referralSource);
       localStorage.removeItem('publisherClaimSlug');
 
       // Send application received confirmation email (fire and forget).
@@ -1328,6 +1344,23 @@ export const PublisherApplication = () => {
             </div>
 
             <div className="space-y-4">
+              <FormSelect
+                label="How did you hear about Neesh?"
+                placeholder="Pick the closest answer"
+                options={REFERRAL_SOURCES.map(s => ({ value: s.value, label: s.label }))}
+                value={formValues.referralSource}
+                onChange={(value) => setValue("referralSource", value)}
+                required
+              />
+              <FormInput
+                label="Anything more specific? (optional)"
+                placeholder="The magazine, shop, post or person"
+                value={formValues.referralDetail}
+                onChange={(value) => setValue("referralDetail", value.slice(0, 200))}
+              />
+            </div>
+
+            <div className="space-y-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
                   checked={formValues.confirmRights}
@@ -1368,7 +1401,7 @@ export const PublisherApplication = () => {
               onClick={handleSubmit}
               fullWidth
               loading={isSubmitting}
-              disabled={!formValues.confirmRights || !formValues.acceptTerms}
+              disabled={!formValues.confirmRights || !formValues.acceptTerms || !formValues.referralSource}
             >
               Submit Application
             </ButtonPrimary>

@@ -17,6 +17,9 @@ interface SignupRetailerRequest {
   website: string
   optInUpdates: boolean
   acceptedTermsAt?: string
+  referralSource?: string
+  referralDetail?: string
+  firstTouch?: Record<string, unknown> | null
   redirectUrl?: string
 }
 
@@ -149,6 +152,18 @@ Deno.serve(async (req) => {
     const country = (body.country ?? '').trim()
     const website = (body.website ?? '').trim()
     const optInUpdates = Boolean(body.optInUpdates)
+    // Attribution: the "How did you hear about Neesh?" answer plus the
+    // first-touch cookie from src/lib/first-touch.ts. Both are optional and
+    // size-capped since they come straight from the browser.
+    const referralSource =
+      typeof body.referralSource === 'string' ? body.referralSource.trim().slice(0, 40) || null : null
+    const referralDetail =
+      typeof body.referralDetail === 'string' ? body.referralDetail.trim().slice(0, 200) || null : null
+    let firstTouch: Record<string, unknown> | null = null
+    if (body.firstTouch && typeof body.firstTouch === 'object' && !Array.isArray(body.firstTouch)) {
+      const serialized = JSON.stringify(body.firstTouch)
+      if (serialized.length <= 2000) firstTouch = body.firstTouch
+    }
     // The client asserts acceptance by sending a timestamp; we only take it as
     // a signal and stamp the record server-side, since client clocks lie.
     const termsAsserted =
@@ -241,7 +256,13 @@ Deno.serve(async (req) => {
         state: state,
         country: country,
         shop_url: website,
-        additional_notes: JSON.stringify({ optInUpdates, acceptedTermsAt }),
+        additional_notes: JSON.stringify({
+          optInUpdates,
+          acceptedTermsAt,
+          ...(referralSource ? { referralSource } : {}),
+          ...(referralDetail ? { referralDetail } : {}),
+          ...(firstTouch ? { firstTouch } : {}),
+        }),
         status: 'approved',
         submitted_at: now,
         reviewed_at: now,

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { normalizeWeb } from "@/lib/normalize-web";
 import { toast } from "sonner";
 import { trackSpaceSignup } from "@/lib/neesh-analytics";
+import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
 
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
@@ -34,6 +35,8 @@ interface FormData {
   websiteUrl: string;
   optInUpdates: boolean;
   acceptTerms: boolean;
+  referralSource: string;
+  referralDetail: string;
 }
 
 // Fields restored from the localStorage draft — the password is deliberately
@@ -41,11 +44,12 @@ interface FormData {
 const FORM_FIELDS: (keyof FormData)[] = [
   "firstName", "lastName", "email", "storeName",
   "city", "state", "country", "websiteUrl", "optInUpdates",
+  "referralSource", "referralDetail",
 ];
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   1: ["firstName", "lastName", "email", "password", "storeName"],
-  2: ["city", "state", "country", "websiteUrl", "acceptTerms"],
+  2: ["city", "state", "country", "websiteUrl", "referralSource", "acceptTerms"],
 };
 
 export const RetailerApplication = () => {
@@ -67,6 +71,8 @@ export const RetailerApplication = () => {
       websiteUrl: "",
       optInUpdates: true,
       acceptTerms: false,
+      referralSource: "",
+      referralDetail: "",
     },
     mode: "onChange",
   });
@@ -158,6 +164,9 @@ export const RetailerApplication = () => {
           country: values.country,
           website: normalizeWeb(values.websiteUrl),
           optInUpdates: values.optInUpdates,
+          referralSource: values.referralSource,
+          referralDetail: values.referralDetail.trim().slice(0, 200),
+          firstTouch: readFirstTouch(),
           acceptedTermsAt: new Date().toISOString(),
           redirectUrl: window.location.origin,
         },
@@ -183,7 +192,7 @@ export const RetailerApplication = () => {
 
       // Clear localStorage on successful signup
       localStorage.removeItem(STORAGE_KEY);
-      trackSpaceSignup();
+      trackSpaceSignup(values.referralSource);
 
       // Sign straight in — the catalog should be one click away. If this
       // somehow fails, the confirmation screen's CTA lands on the login page
@@ -407,6 +416,35 @@ export const RetailerApplication = () => {
                     placeholder="yourstore.com"
                     helperText="An Instagram link works too, if that's where your store lives."
                     error={errors.websiteUrl?.message}
+                    {...field}
+                  />
+                )}
+              />
+              <Controller
+                name="referralSource"
+                control={control}
+                rules={{ required: "Let us know how you heard about Neesh." }}
+                render={({ field }) => (
+                  <FormSelect
+                    id="referralSource"
+                    label="How did you hear about Neesh?"
+                    placeholder="Pick the closest answer"
+                    options={REFERRAL_SOURCES.map(s => ({ value: s.value, label: s.label }))}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.referralSource?.message}
+                    required
+                  />
+                )}
+              />
+              <Controller
+                name="referralDetail"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    id="referralDetail"
+                    label="Anything more specific? (optional)"
+                    placeholder="The magazine, shop, post or person"
                     {...field}
                   />
                 )}
