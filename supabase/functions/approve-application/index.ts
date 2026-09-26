@@ -21,6 +21,30 @@ interface ApprovalEmailData {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const PRODUCTION_SITE_URL = 'https://neesh.art'
+
+// Picks the base URL for links in the approval email. Approvals run from the
+// database (admin_ops.approve_application) send no redirectUrl, so this used
+// to fall through to the SITE_URL secret, which was set to a local dev
+// address (http://localhost:8081) and put unusable links in real emails.
+// Only public https origins are accepted; anything else falls back to prod.
+const resolveSiteUrl = (...candidates: (string | undefined | null)[]): string => {
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    try {
+      const url = new URL(candidate)
+      const host = url.hostname
+      const isLocal = host === 'localhost' || host.endsWith('.local') ||
+        /^(127\.|10\.|192\.168\.|0\.0\.0\.0)/.test(host)
+      if (url.protocol === 'https:' && !isLocal) return url.origin
+      console.warn(`Ignoring non-public site URL for approval email: ${url.origin}`)
+    } catch {
+      console.warn(`Ignoring malformed site URL for approval email: ${candidate}`)
+    }
+  }
+  return PRODUCTION_SITE_URL
+}
+
 const generateApprovalEmail = (data: ApprovalEmailData): string => {
   const roleTitle = data.role === 'publisher' ? 'Publisher' : 'Retailer'
 
@@ -501,7 +525,7 @@ Deno.serve(async (req) => {
 
     // Step 7: Send approval email with magic link
     // We send this AFTER everything else succeeds
-    const siteUrl = redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
+    const siteUrl = resolveSiteUrl(redirectUrl, Deno.env.get('SITE_URL'))
     try {
       console.log('Generating recovery link for approval email...')
       const { data: linkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
