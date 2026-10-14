@@ -1,4 +1,4 @@
-# New Newsstand contact-enrichment pilot
+# New Newsstand enrichment and discovery previews
 
 A standalone Python worker that reads a private prospect export and produces
 reviewable contact proposals. It has no database client, credentials, sending
@@ -155,6 +155,69 @@ existing record field. Decor maps to packs; inventory to the marketplace on
 standard terms with no Net30. The supplied specs do not define the original
 buyer 2x2 mapping: quadrant/motion remain unset unless manually supplied.
 This heuristic is not yet validated on real websites.
+
+## Offline discovery and import preview
+
+Filter permitted local exports by city, country, borough, neighborhood, segment
+and optional phrases, then compare them with an existing export. This command
+makes no network requests and writes no database records. It is an import
+review foundation, not a live place-search service.
+
+    PYTHONPATH=tools/nns python3 -m nns.discovery \
+      --input /absolute/private/path/incoming.csv \
+      --source manual --namespace master-prospect-list \
+      --existing /absolute/private/path/legacy-leads.json \
+      --existing-source legacy --existing-namespace lovable-leads \
+      --city 'New York' --neighborhood 'Lower East Side' \
+      --segment Catalog --segment Dwell \
+      --output /absolute/private/path/discovery-preview
+
+Source types are legacy, index and manual. Use a consistent namespace for each
+source system/table across runs. Source IDs are scoped by source and namespace;
+identical strings from different systems are not the same identity. Legacy
+records use id or legacy_id. Index records use the UUID id of directory_stores
+in the shared Neesh database. An explicit directory_store_id can link another
+source to that canonical store. Export one store per row; publisher/title
+relationships, when included, remain in the original record without cloning.
+This adapter does not validate the live Index schema or query its database.
+
+Manual CSV/JSON records can omit id; their complete content produces a stable
+key. A changed row then needs duplicate review, so supply your own stable id
+for evolving lists. A URL import is a row with website, plus known city/name
+metadata; absent geography stays unknown. JSON supports structured overrides
+and histories. CSV preserves every cell as text. Duplicate IDs within a file
+stop the preview instead of discarding either row.
+
+All incoming and existing rows participate in duplicate checking, including
+filtered, suppressed, merged and invalid records. Only an unambiguous stable
+identifier can propose an existing link. Shared website hosts, phone numbers,
+normalized names or addresses produce review candidates, including duplicates
+within the incoming file. Separate branches of a chain are never combined by
+domain or phone alone. Conflicting canonical IDs and possible suppressed
+duplicates are held for review; a suppressed exact match stays blocked.
+Matching remains conservative and is not fuzzy, geospatial or exhaustive.
+
+Each filter dimension combines with AND; repeated neighborhoods, boroughs,
+segments or phrases within a dimension use OR. Geography is case-insensitive
+and accent-normalized, with NYC city aliases; neighborhood aliases and
+boundaries are not inferred. Unknown required geography needs review.
+Category-derived segments remain hypotheses; conflicting/unknown categories
+need review when a segment is selected. Manual segment overrides stay sticky.
+Index stockist membership alone does not assign Catalog.
+
+Outputs: preview.json includes complete incoming/existing snapshots, match
+evidence, changed source fields and per-row decisions; review.csv is a
+formula-escaped review queue; manifest.json, summary.json and report.md record
+inputs, filters and aggregate results. Every decision has outreach_authorized
+false. Proposed_new only means no duplicate detected in the supplied files.
+Nothing is imported, merged, overwritten or approved for outreach.
+
+Use a new output folder for each preview; existing review work is never
+overwritten. Limits: 50 MB / 5,000 records per source, 500 candidates per row,
+50,000 candidate links per run. Excessively broad keys stop the preview for
+review. Keep the complete relevant existing comparison set; do not omit
+suppressed records to fit a limit. Downloading/adapting open place datasets,
+neighborhood boundaries and an authenticated UI remain later work.
 
 ## Development and limitations
 

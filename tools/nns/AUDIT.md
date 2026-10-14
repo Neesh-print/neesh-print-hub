@@ -43,6 +43,10 @@ Production integration remains outside this slice.
 
 1. Run the prepared live pilot on a permitted machine and complete source audit.
 2. Validate fit rules and obtain the original buyer 2x2 axes/mapping.
-3. Add dry-run CSV/open-data discovery and reconciliation with the Index.
+3. Validate the offline discovery/import preview on full permitted legacy and
+   canonical Index exports; add an attributed open-place-data adapter and
+   verified neighborhood boundaries. The current module accepts local
+   CSV/JSON, preserves relationships and queues ambiguous duplicates, but
+   does not download datasets or infer neighborhoods.
 4. Add Gem-only UI/backend after authorization tests, migration review and
    deployment approval.
