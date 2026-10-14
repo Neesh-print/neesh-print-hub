@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "codex/nns-contact-enrichment-poc": false
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",

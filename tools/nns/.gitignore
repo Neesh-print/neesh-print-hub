@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+private/
+runs/
+cache/
+evidence/
+*.csv
+*.jsonl
+nyc-*-source.json
+results.json
+audit.json
+manifest.json
+summary.json
+preflight.json
+CHECKPOINT.md
