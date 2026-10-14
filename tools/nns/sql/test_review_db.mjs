@@ -23,7 +23,11 @@ create function public.is_admin() returns boolean language sql stable security d
 select exists(select 1 from public.users where id=auth.uid() and role='admin') $$;
 `);
 await db.exec(
-  readFileSync(new URL("./nustand_review_draft.sql", import.meta.url), "utf8"),
+  readFileSync(
+    process.env.NUSTAND_BASE_SQL ||
+      new URL("./nustand_review_draft.sql", import.meta.url),
+    "utf8",
+  ),
 );
 const reject = async (sql, args = []) =>
   assert.rejects(() => db.query(sql, args));
@@ -42,22 +46,40 @@ const setUser = async (id, admin) => {
 await setUser(owner, "yes");
 await reject("select public.nustand_list()"); // no configured owner: deny
 await db.exec("reset role");
-const enrollment = readFileSync(new URL("./enroll_owner_draft.sql", import.meta.url), "utf8");
+const enrollment = readFileSync(
+  new URL("./enroll_owner_draft.sql", import.meta.url),
+  "utf8",
+);
 await assert.rejects(() => db.exec(enrollment)); // unset identity
-await db.query("select set_config('nustand.owner_id',$1,false), set_config('nustand.owner_email',$2,false)", [owner, "wrong@example.org"]);
+await db.query(
+  "select set_config('nustand.owner_id',$1,false), set_config('nustand.owner_email',$2,false)",
+  [owner, "wrong@example.org"],
+);
 await assert.rejects(() => db.exec(enrollment)); // mismatched identity
-await db.query("select set_config('nustand.owner_email',$1,false)", ["owner@example.org"]);
+await db.query("select set_config('nustand.owner_email',$1,false)", [
+  "owner@example.org",
+]);
 await db.query("update public.users set role='retailer' where id=$1", [owner]);
 await assert.rejects(() => db.exec(enrollment)); // never promote a non-admin
 await db.query("update public.users set role='admin' where id=$1", [owner]);
-await db.query("update auth.users set email_confirmed_at=null where id=$1", [owner]);
+await db.query("update auth.users set email_confirmed_at=null where id=$1", [
+  owner,
+]);
 await assert.rejects(() => db.exec(enrollment)); // unconfirmed account
-await db.query("update auth.users set email_confirmed_at=now() where id=$1", [owner]);
+await db.query("update auth.users set email_confirmed_at=now() where id=$1", [
+  owner,
+]);
 await db.exec(enrollment);
 await db.exec(enrollment); // same owner is an idempotent retry
-await db.query("select set_config('nustand.owner_id',$1,false), set_config('nustand.owner_email',$2,false)", [other, "other@example.org"]);
+await db.query(
+  "select set_config('nustand.owner_id',$1,false), set_config('nustand.owner_email',$2,false)",
+  [other, "other@example.org"],
+);
 await assert.rejects(() => db.exec(enrollment)); // no silent owner replacement
-assert.equal((await db.query("select user_id from nustand_private.owner")).rows[0].user_id, owner);
+assert.equal(
+  (await db.query("select user_id from nustand_private.owner")).rows[0].user_id,
+  owner,
+);
 await db.exec("set role anon");
 await reject("select public.nustand_list()");
 await db.exec("reset role; set role authenticated");
@@ -95,6 +117,12 @@ const imported = await db.query(
   [JSON.stringify([source])],
 );
 assert.equal(imported.rows[0].result, 1);
+await db.exec("reset role");
+await db.exec(
+  readFileSync(new URL("./csv_import_capacity.sql", import.meta.url), "utf8"),
+);
+await db.exec("set role authenticated");
+assert.deepEqual((await list()).rows[0].result[0].source, source);
 const review = {
   stage: "Qualified",
   notes: "Confirmed for this branch",
@@ -160,7 +188,7 @@ assert.equal((await list()).rows[0].result.length, 1); // whole import rolled ba
 await reject("select public.nustand_import($1::jsonb)", [
   JSON.stringify([source, source]),
 ]);
-const hundred = Array.from({ length: 100 }, (_, i) => ({
+const hundred = Array.from({ length: 500 }, (_, i) => ({
   ...source,
   id: `batch-${i}`,
 }));
@@ -259,4 +287,47 @@ if (process.env.NUSTAND_PRIVATE_PILOT) {
 console.log(
   "PASS: owner-only RPCs, role denials, private tables, atomic import, suppression, immutable source, optimistic locking and review history.",
 );
+if (process.env.NUSTAND_PRIVATE_CSV) {
+  const input = JSON.parse(
+    readFileSync(process.env.NUSTAND_PRIVATE_CSV, "utf8"),
+  );
+  assert.equal(input.records.length, 260);
+  await db.exec(
+    "reset role; truncate nustand_private.review_events, nustand_private.prospects; set role authenticated",
+  );
+  assert.equal(
+    (
+      await db.query("select public.nustand_import($1::jsonb) result", [
+        JSON.stringify(input.records),
+      ])
+    ).rows[0].result,
+    260,
+  );
+  const loaded = (await list()).rows[0].result;
+  assert.equal(loaded.length, 260);
+  for (const original of input.records) {
+    const saved = loaded.find((r) => r.source.id === original.id);
+    assert.deepEqual(saved.source, original);
+    assert.deepEqual(saved.review.contacts, {});
+  }
+  assert.equal(
+    (
+      await db.query("select public.nustand_import($1::jsonb) result", [
+        JSON.stringify(input.records),
+      ])
+    ).rows[0].result,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query("select public.nustand_export($1::text[]) result", [
+        input.records.map((r) => r.id),
+      ])
+    ).rows[0].result.length,
+    0,
+  );
+  console.log(
+    "PASS: actual 260-space CSV import/list preservation, repeat-import deduplication and no unreviewed exports.",
+  );
+}
 await db.close();

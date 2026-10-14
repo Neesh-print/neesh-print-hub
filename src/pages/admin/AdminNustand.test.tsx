@@ -43,14 +43,14 @@ it("does not expose import controls when server authorization fails", async () =
   mocks.load.mockRejectedValue(new Error("denied"));
   render(<AdminNustand />);
   await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-  expect(screen.queryByLabelText("Load pilot results")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Import spaces")).not.toBeInTheDocument();
 });
 it("removes private rows immediately when accounts change", async () => {
   mocks.load.mockResolvedValue([]);
   const view = render(<AdminNustand />);
-  await screen.findByLabelText("Load pilot results");
+  await screen.findByLabelText("Import spaces");
   mocks.auth = { ...mocks.auth, user: { id: "another" } };
   mocks.load.mockReturnValue(new Promise(() => {}));
   view.rerender(<AdminNustand />);
-  expect(screen.queryByLabelText("Load pilot results")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Import spaces")).not.toBeInTheDocument();
 });
