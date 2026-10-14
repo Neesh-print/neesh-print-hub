@@ -1,5 +1,9 @@
 # Nustand reuse audit and integration boundary
 
+Update: the private review interface and draft database RPCs are now implemented.
+See [INTERFACE_STATUS.md](INTERFACE_STATUS.md) for this milestone and its deployment gates.
+The pilot details below remain the historical enrichment baseline.
+
 2026-10-14. Code-backed assessment, not confirmation that every checked-in
 migration is applied to the live main Supabase database.
 

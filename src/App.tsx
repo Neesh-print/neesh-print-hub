@@ -87,6 +87,7 @@ import {
   AdminPublisherTransfers,
   AdminPayouts,
 } from "./pages/admin";
+import { AdminNustand } from "./pages/admin/AdminNustand";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 
 // Onboarding pages
@@ -553,6 +554,7 @@ const AppRoutes = () => {
       />
 
       {/* Admin routes */}
+      <Route path="/admin/nustand" element={<ProtectedRoute allowedRoles={['admin']}><AdminNustand /></ProtectedRoute>} />
       <Route
         path="/admin"
         element={

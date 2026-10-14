@@ -29,6 +29,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
 
   const moreMenuItems = [
+    { label: "Nustand", icon: <Store className="w-5 h-5" />, path: "/admin/nustand" },
     { label: "Applications", icon: <FileText className="w-5 h-5" />, path: "/admin/applications" },
     { label: "Publishers", icon: <Users className="w-5 h-5" />, path: "/admin/publishers" },
     { label: "Retailers", icon: <Store className="w-5 h-5" />, path: "/admin/retailers" },

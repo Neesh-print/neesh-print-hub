@@ -1,5 +1,9 @@
 # Nustand enrichment and discovery previews
 
+Update: the private review interface and draft database RPCs are now implemented.
+See [INTERFACE_STATUS.md](INTERFACE_STATUS.md) for this milestone and its deployment gates.
+The pilot details below remain the historical enrichment baseline.
+
 Nustand comes from the Neesh thesis that spaces are the new newsstands.
 Nu borrows from nu-disco and nu-jazz: an old form remade by a new scene.
 See [BRAND.md](BRAND.md) for naming and wordmark requirements.
