@@ -8,7 +8,10 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { emptyReview, type Row } from "./model";
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 function row(): Row {
   return {
     source: {
@@ -88,5 +91,88 @@ describe("Prospect workflow", () => {
     expect(
       screen.getByText("No spaces match these filters."),
     ).toBeInTheDocument();
+  });
+  it("blocks a stale-tab export when the current server check fails", async () => {
+    const r = row();
+    r.review.stage = "Qualified";
+    r.review.contacts.e = "accepted";
+    const onExport = vi
+      .fn()
+      .mockRejectedValue(new Error("Current decisions could not be checked"));
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    render(
+      <Workspace initialRows={[r]} onSave={vi.fn()} onExport={onExport} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export qualified contacts" }),
+    );
+    await screen.findByText("Current decisions could not be checked");
+    expect(onExport).toHaveBeenCalledWith(["test"]);
+    expect(click).not.toHaveBeenCalled();
+  });
+  it("requires a saved acceptance before copying a contact", () => {
+    render(<Workspace initialRows={[row()]} />);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Review Example Space" })[0],
+    );
+    fireEvent.change(screen.getByLabelText("Decision for hello@example.org"), {
+      target: { value: "accepted" },
+    });
+    expect(
+      screen.queryByRole("button", { name: "Copy accepted contact" }),
+    ).not.toBeInTheDocument();
+  });
+  it("does not copy a contact whose saved decision has changed", async () => {
+    const r = row();
+    r.review.contacts.e = "accepted";
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopy = vi
+      .fn()
+      .mockRejectedValue(new Error("This space is suppressed"));
+    render(<Workspace initialRows={[r]} onSave={vi.fn()} onCopy={onCopy} />);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Review Example Space" })[0],
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy accepted contact" }),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert")[0]).toHaveTextContent(
+        "This space is suppressed",
+      ),
+    );
+    expect(writeText).not.toHaveBeenCalled();
+  });
+  it("does not download an in-flight export after the workspace unmounts", async () => {
+    const r = row();
+    r.review.stage = "Qualified";
+    r.review.contacts.e = "accepted";
+    let finish: (csv: string) => void;
+    const onExport = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    const view = render(
+      <Workspace initialRows={[r]} onSave={vi.fn()} onExport={onExport} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export qualified contacts" }),
+    );
+    view.unmount();
+    finish!("Name,Email");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(click).not.toHaveBeenCalled();
   });
 });

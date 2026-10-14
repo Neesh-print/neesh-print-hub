@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,8 @@ export type WorkspaceProps = {
   initialRows?: Row[];
   onSave?: (row: Row, review: Review) => Promise<number>;
   onImport?: (rows: Row[]) => Promise<Row[]>;
+  onExport?: (ids: string[]) => Promise<string>;
+  onCopy?: (id: string, contactId: string) => Promise<string>;
 };
 function download(name: string, data: string, type: string) {
   const url = URL.createObjectURL(new Blob([data], { type }));
@@ -61,7 +63,16 @@ export function Workspace({
   initialRows = [],
   onSave,
   onImport,
+  onExport,
+  onCopy,
 }: WorkspaceProps) {
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
@@ -117,6 +128,30 @@ export function Workspace({
     ],
     ["Need contact review", rows.filter(needsReview).length],
   ];
+  async function exportQualified() {
+    setBusy(true);
+    setError("");
+    try {
+      if (onSave && !onExport)
+        throw new Error("Live export is unavailable. Please try again later.");
+      const csv = onExport
+        ? await onExport(filtered.map((r) => r.source.id))
+        : exportContacts(filtered);
+      if (!active.current) return;
+      download("Nustand_qualified_contacts.csv", csv, "text/csv");
+      setMessage(
+        "Exported currently qualified contacts. Latest saved suppression decisions were applied.",
+      );
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Could not verify contacts. No export was created.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function readFile(file?: File) {
     if (!file) return;
     setError("");
@@ -207,14 +242,9 @@ export function Workspace({
             Download review backup
           </Button>
           <Button
-            onClick={() =>
-              download(
-                "Nustand_qualified_contacts.csv",
-                exportContacts(filtered),
-                "text/csv",
-              )
-            }
+            onClick={exportQualified}
             disabled={
+              busy ||
               !filtered.some(
                 (r) =>
                   r.review.stage === "Qualified" &&
@@ -640,22 +670,31 @@ export function Workspace({
                     </p>
                   )}
                   {draft.contacts[contact.id] === "accepted" &&
+                    selected.review.contacts[contact.id] === "accepted" &&
                     !selectedSuppressed && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={async () => {
                           try {
-                            await navigator.clipboard.writeText(
-                              contact.value +
+                            if (onSave && !onCopy)
+                              throw new Error(
+                                "Live contact checks are unavailable.",
+                              );
+                            const value = onCopy
+                              ? await onCopy(selected.source.id, contact.id)
+                              : contact.value +
                                 (contact.extension
                                   ? ` ext ${contact.extension}`
-                                  : ""),
-                            );
+                                  : "");
+                            if (!active.current) return;
+                            await navigator.clipboard.writeText(value);
                             setMessage("Contact copied.");
-                          } catch {
+                          } catch (e) {
                             setError(
-                              "Clipboard unavailable. Select the contact text to copy it.",
+                              e instanceof Error
+                                ? e.message
+                                : "Contact could not be verified or copied.",
                             );
                           }
                         }}

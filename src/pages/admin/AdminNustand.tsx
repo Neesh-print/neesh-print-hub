@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Workspace } from "@/features/nustand/Workspace";
-import { importRows, loadRows, saveReview } from "@/features/nustand/api";
+import {
+  importRows,
+  loadRows,
+  saveReview,
+  exportCurrentContacts,
+  copyCurrentContact,
+} from "@/features/nustand/api";
 import type { Row } from "@/features/nustand/model";
 
 export function AdminNustand() {
@@ -51,6 +57,8 @@ export function AdminNustand() {
           key={user.id}
           initialRows={state.rows}
           onSave={saveReview}
+          onExport={exportCurrentContacts}
+          onCopy={copyCurrentContact}
           onImport={async (rows) => {
             await importRows(rows);
             return loadRows();

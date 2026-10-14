@@ -19,6 +19,8 @@ vi.mock("@/features/nustand/api", () => ({
   loadRows: mocks.load,
   importRows: vi.fn(),
   saveReview: vi.fn(),
+  exportCurrentContacts: vi.fn(),
+  copyCurrentContact: vi.fn(),
 }));
 import { AdminNustand } from "./AdminNustand";
 beforeEach(() => {
