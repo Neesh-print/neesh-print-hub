@@ -1,6 +1,6 @@
 # NYC pilot status
 
-2026-10-14. The live enrichment pilot is **not yet complete**.
+2026-10-14. Network access is unblocked; the live enrichment pilot is **running**.
 
 ## Completed
 
@@ -9,7 +9,7 @@
 - Offline processing and deep equality check of all 100 complete original rows,
   including status_history and notes.
 - All 88 populated source phone numbers preserved.
-- 73 passing tests, including a synthetic 100-record batch, repeat-site caching,
+- 80 passing tests, including a synthetic 100-record batch, repeat-site caching,
   audit metrics, malformed pages, robots, unsafe redirects, suppression and
   phone conflicts.
 - Reproducible CLI, CSV/JSON/Markdown outputs, audit worksheet, provisional
@@ -40,18 +40,27 @@ of imported phones. That does not demonstrate email-enrichment success.
 New email yield, real extraction precision, website-confirmed phone coverage
 and live batch duration remain **not measured**.
 
-## Execution blocker
+## Network correction
 
-The runtime failed OS DNS resolution for the first sample website and two
-independent public domains. The smoke job returned dns_failed before HTTP.
-No alternate resolver, proxy bypass, paid service or production worker was
-activated. The 100-record run was explicitly offline, not 100 website failures
-and not evidence that these businesses publish no email.
+OS DNS resolution failed even after Work network access was enabled. A normal
+HTTPS request then succeeded through the runtime's existing managed proxy.
+The earlier DNS-only preflight did not establish whether this proxy connection
+was usable; describing all live access as blocked was too broad.
+
+Version 0.2.0 adds explicit managed-proxy mode. It uses the already-configured
+egress route and delegates DNS/IP restrictions to that managed policy, while
+retaining local URL/redirect checks, TLS, robots, rate limits and bounded jobs.
+No alternate resolver, proxy bypass or paid fallback was used. Default pinned
+mode still requires local validated DNS and pins the connection.
+
+A real-site smoke test completed: two pages, six requests and one website-linked
+Instagram candidate, without an email. Its cache/evidence was reused for the
+full 100-record run. The baseline table above describes the earlier offline
+check; it is not the current in-progress live total.
 
 ## Required acceptance work
 
-Run the README command on an approved computer with permitted public web
-access, using the private sample. Complete the source audit. Report email
+Finish the live batch and complete the source audit. Report email
 coverage separately from phone and email-or-phone coverage before production
 integration or declaring the engine validated.
 

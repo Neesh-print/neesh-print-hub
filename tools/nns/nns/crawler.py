@@ -39,6 +39,7 @@ class Crawler:
         started = now_iso()
         deadline = time.monotonic() + self.max_seconds
         job = {"website": website, "started_at": started, "finished_at": None, "status": "pending", "contacts": [], "pages": [], "errors": [], "http_requests": 0, "dns_requests": 0, "billable_requests": 0, "additional_cost_usd": 0, "pages_fetched": 0, "site_signals": [], "next_eligible_at": None, "policy": {"max_pages": self.max_pages, "max_requests": self.max_requests, "robots": "required", "terms": "explicit prohibitions and operator denylist; not a legal audit"}}
+        job["policy"]["network_mode"] = getattr(self.transport, "network_mode", "fixture")
         dns_before = getattr(getattr(self.transport, "resolver", None), "requests", 0)
         http_before = getattr(self.transport, "requests", 0)
         robots_by_origin: dict[str, Robots] = {}

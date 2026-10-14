@@ -203,6 +203,7 @@ def main(argv=None):
     parser.add_argument("--city", default="New York")
     parser.add_argument("--require-count", type=int)
     parser.add_argument("--offline", action="store_true", help="Validate imports and preservation only; make zero network requests.")
+    parser.add_argument("--network-mode", choices=("pinned", "managed-proxy"), default="pinned", help="Managed-proxy requires an existing trusted proxy enforcing public destinations; DNS protection is delegated, never silently bypassed.")
     parser.add_argument("--denylist", type=Path, help="JSON array of domains with terms/access restrictions.")
     parser.add_argument("--evidence-dir", type=Path, help="Optional temporary private HTML cache for source audit.")
     args = parser.parse_args(argv)
@@ -217,11 +218,12 @@ def main(argv=None):
         if not isinstance(denied, list) or any(not isinstance(x, str) for x in denied):
             parser.error("Denylist must be an array of domains")
         resolver = Resolver()
-        crawler = Crawler(CurlTransport(resolver), denied_hosts=denied, evidence_dir=args.evidence_dir)
-        manifest = {"version": VERSION, "started_at": now_iso(), "source_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(), "selection": "md5(id + ':' + seed), NYC aliases, website, nonmerged, noninvalid, nonsuppressed", "seed": SEED, "selected_ids": [r.get("id") or r.get("legacy_id") for r in rows], "policy_sha256": hashlib.sha256(json.dumps(sorted(denied)).encode()).hexdigest(), "database_writes": 0, "billable_requests": 0}
+        crawler = Crawler(CurlTransport(resolver, network_mode=args.network_mode), denied_hosts=denied, evidence_dir=args.evidence_dir)
+        policy = {"denied_hosts": sorted(denied), "network_mode": args.network_mode}
+        manifest = {"version": VERSION, "started_at": now_iso(), "source_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(), "selection": "md5(id + ':' + seed), NYC aliases, website, nonmerged, noninvalid, nonsuppressed", "seed": SEED, "selected_ids": [r.get("id") or r.get("legacy_id") for r in rows], "policy_sha256": hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest(), "network_mode": args.network_mode, "destination_validation": "local_dns_all_answers_and_connection_pin" if args.network_mode == "pinned" else "url_checks_and_managed_proxy_egress_policy", "database_writes": 0, "billable_requests": 0}
         mode = "offline_preservation_check" if args.offline else "live"
         if not args.offline:
-            check = preflight(rows, resolver, crawler.denied_hosts)
+            check = preflight(rows, resolver, crawler.denied_hosts) if args.network_mode == "pinned" else {"passed": True, "status": "configuration_validated_connectivity_deferred_to_crawl", "probes": [], "note": "Local DNS is not available on proxy-only runtimes. The existing managed proxy resolves destinations and enforces its network policy; individual crawl results report access failures."}
             if not check["passed"]:
                 mode = "network_preflight_failed"
             manifest["preflight"] = check

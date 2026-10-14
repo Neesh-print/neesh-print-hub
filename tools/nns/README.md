@@ -5,9 +5,11 @@ reviewable contact proposals. It has no database client, credentials, sending
 path, paid API, scheduler, or deployment dependency.
 
 Status: parser, policy controls, preservation, reports and synthetic batch tests
-pass. The 100-prospect legacy NYC export was validated offline. The live pilot
-and source-accuracy audit remain blocked by the runtime's unavailable public
-DNS. Imported phone coverage is not enrichment yield.
+pass. The 100-prospect legacy NYC export was validated offline. A live smoke
+test now succeeds through the runtime's existing managed proxy; local DNS
+alone was an invalid connectivity test for this environment. See
+[PILOT_STATUS.md](PILOT_STATUS.md) for the current batch/audit result.
+Imported phone coverage is not enrichment yield.
 
 ## Run
 
@@ -33,10 +35,26 @@ Run the actual pilot where public website access is permitted:
       --evidence-dir /absolute/private/path/temporary-evidence \
       --require-count 100
 
-The preflight checks up to three source hosts using bounded OS DNS lookups.
+The default pinned mode checks up to three source hosts using bounded OS DNS lookups.
 If all fail DNS resolution, it exits 2 and writes an explicitly unmeasured
 report. It does not invent website blocks, switch resolvers or invoke a paid
 fallback. Offline mode makes zero DNS or HTTP requests.
+
+In a managed runtime where public HTTPS works through its configured proxy but
+local DNS is unavailable, add --network-mode managed-proxy. This is an explicit
+operator choice, never an automatic DNS-error fallback. Use it only when the
+existing proxy enforces public-destination restrictions. The command accepts
+one matching HTTP/HTTPS proxy on a local, credential-free HTTP listener, routes
+every fetch through it, ignores NO_PROXY exemptions for those fetches, and
+stops on proxy denial or changed configuration. It does not create a proxy,
+change network permissions, switch DNS providers or connect directly.
+
+In this mode, local URL/redirect checks remain; DNS resolution and resolved-IP
+protection are delegated to the managed egress policy. This is not local IP
+pinning and must not be used with an arbitrary forwarding proxy. The manifest
+records the mode/validation boundary, and the cache policy includes it. Local
+DNS request counts exclude resolution performed by the proxy. Configuration
+validation is not a connectivity-success claim: actual jobs report failures.
 
 Use --limit 1 for a smoke test, then a new output folder for the full run.
 Use --denylist /path/domains.json for an operator-reviewed JSON array of domains
@@ -92,9 +110,12 @@ unconfirmed unless observed.
   This is stricter than RFC 9309's optional treatment of some 4xx responses.
 - Same host apart from www equivalence. Cross-domain changes require review.
   No HTTPS-to-HTTP downgrade from an HTTPS input.
-- Validate every DNS answer, including IPv6. Pin curl's connection while
+- In default pinned mode, validate every DNS answer, including IPv6. Pin curl's connection while
   retaining original Host/SNI/certificate checks. No automatic redirects.
   Keep system proxy/access rules in effect.
+- Explicit managed-proxy mode uses the already-approved egress path and its
+  destination checks; it retains TLS verification, URL/redirect guards, robots,
+  rate limits and budgets. Proxy denial never causes a direct fallback.
 - Bound DNS duration, request time/size, job time and total requests.
   Block local/private/link-local/transition addresses and credentialed URLs.
 - Stop for detected explicit automated-access prohibitions and operator

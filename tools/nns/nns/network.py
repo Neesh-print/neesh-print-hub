@@ -1,7 +1,8 @@
-"""Bounded public-web transport with DNS validation and connection pinning.
+"""Bounded public-web transport with pinned DNS or explicit managed egress.
 
 Requires Python 3.11+ and curl. Uses the host's DNS and configured proxy/access
-rules. Restricted runtimes fail closed; there is no alternate resolver fallback.
+rules. Managed-proxy mode delegates DNS/IP protection to an operator-verified
+public-egress proxy; it never falls back to direct networking or another proxy.
 """
 from __future__ import annotations
 
@@ -115,11 +116,42 @@ class Response:
     body: str
 
 
+def managed_proxy_url(environment=None) -> str:
+    """Use only an already-configured, credential-free local HTTP proxy.
+
+    Loopback alone does NOT establish a proxy's security policy. The explicit
+    CLI mode is an operator assertion that this managed proxy enforces the
+    runtime's public-destination restrictions. Never auto-enable on DNS errors.
+    """
+    environment = os.environ if environment is None else environment
+    proxies = []
+    for upper, lower in (("HTTP_PROXY", "http_proxy"), ("HTTPS_PROXY", "https_proxy")):
+        values = [environment[key].strip() for key in (upper, lower) if environment.get(key)]
+        if not values or len(set(values)) != 1:
+            raise ValueError("Managed mode requires matching, configured HTTP/HTTPS proxies")
+        proxies.append(values[0])
+    if len(set(proxies)) != 1:
+        raise ValueError("Managed mode requires one configured proxy for both HTTP and HTTPS")
+    try:
+        p = urlsplit(proxies[0])
+        if (p.scheme != "http" or p.hostname not in {"127.0.0.1", "::1"}
+                or not p.port or p.username or p.password or p.path not in {"", "/"}
+                or p.query or p.fragment):
+            raise ValueError("Managed proxy must be an existing local HTTP listener without credentials")
+    except ValueError as exc:
+        raise ValueError("Invalid managed proxy configuration") from exc
+    return proxies[0]
+
+
 class CurlTransport:
-    def __init__(self, resolver=None, timeout=12, max_bytes=1_500_000, min_delay=1.0):
+    def __init__(self, resolver=None, timeout=12, max_bytes=1_500_000, min_delay=1.0, *, network_mode="pinned"):
         if not 1 <= timeout <= 60 or not 1024 <= max_bytes <= 5_000_000 or min_delay < 1:
             raise ValueError("Unsafe network limits")
         self.resolver = resolver or Resolver()
+        if network_mode not in {"pinned", "managed-proxy"}:
+            raise ValueError("Unknown network mode")
+        self.network_mode = network_mode
+        self.proxy = managed_proxy_url() if network_mode == "managed-proxy" else None
         self.timeout, self.max_bytes, self.min_delay = timeout, max_bytes, min_delay
         self.last_request: dict[str, float] = {}
         self.requests = 0
@@ -128,7 +160,17 @@ class CurlTransport:
         url = normalize_url(raw_url)
         p = urlsplit(url)
         host, port = p.hostname, p.port or (443 if p.scheme == "https" else 80)
-        ip = self.resolver.resolve(host)[0]
+        if self.proxy:
+            # Recheck configuration before every call. No direct fallback, no
+            # DNS workaround, no alternate proxy and no NO_PROXY escape.
+            if managed_proxy_url() != self.proxy:
+                raise CrawlError("proxy_configuration_changed")
+            destination = ["--proxy", self.proxy, "--noproxy", ""]
+        else:
+            ip = self.resolver.resolve(host)[0]
+            ip_literal = f"[{ip}]" if ":" in ip else ip
+            host_literal = f"[{host}]" if ":" in host else host
+            destination = ["--connect-to", f"{host_literal}:{port}:{ip_literal}:{port}"]
         host_key = site_key(url)
         wait = max(self.min_delay, delay or 0) - (time.monotonic() - self.last_request.get(host_key, 0))
         if wait > 0:
@@ -137,11 +179,9 @@ class CurlTransport:
         self.requests += 1
         # --connect-to affects the TCP/CONNECT destination while preserving Host,
         # TLS SNI and certificate verification for the original website hostname.
-        ip_literal = f"[{ip}]" if ":" in ip else ip
-        host_literal = f"[{host}]" if ":" in host else host
         with tempfile.TemporaryDirectory(prefix="nns-http-") as tmp:
             header_path = os.path.join(tmp, "headers")
-            command = ["curl", "-q", "--silent", "--show-error", "--globoff", "--proto", "=http,https", "--max-time", str(self.timeout), "--connect-timeout", str(min(5, self.timeout)), "--max-filesize", str(self.max_bytes), "--connect-to", f"{host_literal}:{port}:{ip_literal}:{port}", "--user-agent", USER_AGENT, "--header", "Accept: text/html,application/xhtml+xml,text/plain;q=0.8", "--header", "Accept-Encoding: identity", "--dump-header", header_path, "--url", url]
+            command = ["curl", "-q", "--silent", "--show-error", "--globoff", "--proto", "=http,https", "--max-time", str(self.timeout), "--connect-timeout", str(min(5, self.timeout)), "--max-filesize", str(self.max_bytes), *destination, "--user-agent", USER_AGENT, "--header", "Accept: text/html,application/xhtml+xml,text/plain;q=0.8", "--header", "Accept-Encoding: identity", "--dump-header", header_path, "--url", url]
             try:
                 process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             except OSError as exc:
