@@ -72,6 +72,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   ];
 
   const adminNavItems: NavItem[] = [
+    { label: "Nustand", icon: <Store className="w-5 h-5" />, path: "/admin/nustand" },
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/admin" },
     { label: "Fulfillment", icon: <Truck className="w-5 h-5" />, path: "/admin/fulfillment" },
     { label: "Applications", icon: <FileText className="w-5 h-5" />, path: "/admin/applications" },
