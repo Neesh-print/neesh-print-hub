@@ -40,7 +40,7 @@ begin
 end $$;
 revoke all on function nustand_private.require_owner() from public, anon, authenticated;
 
-create function public.nustand_list() returns jsonb
+create function nustand_private.nustand_list() returns jsonb
 language plpgsql security definer set search_path = pg_catalog as $$
 declare result jsonb;
 begin
@@ -50,7 +50,7 @@ begin
   return result;
 end $$;
 
-create function public.nustand_import(records jsonb) returns integer
+create function nustand_private.nustand_import(records jsonb) returns integer
 language plpgsql security definer set search_path = pg_catalog as $$
 declare item jsonb; contact jsonb; added integer := 0; inserted integer;
 begin
@@ -93,7 +93,7 @@ begin
   return added;
 end $$;
 
-create function public.nustand_review(prospect_id text, expected_version integer, next_review jsonb) returns integer
+create function nustand_private.nustand_review(prospect_id text, expected_version integer, next_review jsonb) returns integer
 language plpgsql security definer set search_path = pg_catalog as $$
 declare current_row nustand_private.prospects%rowtype; decision record;
 begin
@@ -131,6 +131,73 @@ begin
     values (prospect_id, auth.uid(), current_row.review, next_review, current_row.version + 1);
   return current_row.version + 1;
 end $$;
+-- Contact actions re-read current saved decisions, so stale tabs cannot bypass
+-- suppression or a later rejected contact. These RPCs never send outreach.
+create function nustand_private.nustand_export(prospect_ids text[]) returns jsonb
+language plpgsql security definer set search_path = pg_catalog as $$
+declare result jsonb;
+begin
+  perform nustand_private.require_owner();
+  if prospect_ids is null or coalesce(array_length(prospect_ids, 1),0) > 100 then raise exception 'Invalid export selection'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('source', source, 'review', review, 'version', version) order by source->>'name', id), '[]'::jsonb)
+  into result from nustand_private.prospects p
+  where p.id = any(prospect_ids)
+    and review->>'stage' = 'Qualified'
+    and not coalesce((source->>'do_not_contact')::boolean, false)
+    and source->'original_record'->>'do_not_contact' is distinct from 'true'
+    and not coalesce((review->>'do_not_contact')::boolean, false)
+    and exists (select 1 from jsonb_array_elements(source->'contacts') c where review->'contacts'->>(c->>'id')='accepted');
+  return result;
+end $$;
+create function nustand_private.nustand_contact_value(prospect_id text, contact_id text) returns text
+language plpgsql security definer set search_path = pg_catalog as $$
+declare value text;
+begin
+  perform nustand_private.require_owner();
+  select c->>'value' || case when coalesce(c->>'extension','') <> '' then ' ext ' || (c->>'extension') else '' end
+    into value from nustand_private.prospects p cross join lateral jsonb_array_elements(source->'contacts') c
+    where p.id = prospect_id and c->>'id' = contact_id
+    and review->'contacts'->>contact_id = 'accepted'
+    and not coalesce((source->>'do_not_contact')::boolean, false)
+    and source->'original_record'->>'do_not_contact' is distinct from 'true'
+    and not coalesce((review->>'do_not_contact')::boolean, false);
+  if value is null then raise exception 'Contact is no longer accepted or this space is suppressed. Reload to review the latest decision.'; end if;
+  return value;
+end $$;
+
+revoke all on function nustand_private.nustand_list() from public, anon, authenticated;
+grant execute on function nustand_private.nustand_list() to authenticated;
+create function public.nustand_list() returns jsonb
+language sql security invoker set search_path = pg_catalog
+as $$ select nustand_private.nustand_list(); $$;
+revoke all on function nustand_private.nustand_import(jsonb) from public, anon, authenticated;
+grant execute on function nustand_private.nustand_import(jsonb) to authenticated;
+create function public.nustand_import(records jsonb) returns integer
+language sql security invoker set search_path = pg_catalog
+as $$ select nustand_private.nustand_import(records); $$;
+revoke all on function nustand_private.nustand_review(text, integer, jsonb) from public, anon, authenticated;
+grant execute on function nustand_private.nustand_review(text, integer, jsonb) to authenticated;
+create function public.nustand_review(prospect_id text, expected_version integer, next_review jsonb) returns integer
+language sql security invoker set search_path = pg_catalog
+as $$ select nustand_private.nustand_review(prospect_id, expected_version, next_review); $$;
+revoke all on function nustand_private.nustand_export(text[]) from public, anon, authenticated;
+grant execute on function nustand_private.nustand_export(text[]) to authenticated;
+create function public.nustand_export(prospect_ids text[]) returns jsonb
+language sql security invoker set search_path = pg_catalog
+as $$ select nustand_private.nustand_export(prospect_ids); $$;
+revoke all on function nustand_private.nustand_contact_value(text, text) from public, anon, authenticated;
+grant execute on function nustand_private.nustand_contact_value(text, text) to authenticated;
+create function public.nustand_contact_value(prospect_id text, contact_id text) returns text
+language sql security invoker set search_path = pg_catalog
+as $$ select nustand_private.nustand_contact_value(prospect_id, contact_id); $$;
+
+-- Public API wrappers are invoker functions; all privileged logic is private.
+-- Schema USAGE alone grants no table access. Each private function checks owner.
+grant usage on schema nustand_private to authenticated;
+revoke all on function public.nustand_export(text[]) from public, anon;
+revoke all on function public.nustand_contact_value(text,text) from public, anon;
+grant execute on function public.nustand_export(text[]) to authenticated;
+grant execute on function public.nustand_contact_value(text,text) to authenticated;
 revoke all on function public.nustand_list() from public, anon;
 revoke all on function public.nustand_import(jsonb) from public, anon;
 revoke all on function public.nustand_review(text,integer,jsonb) from public, anon;
