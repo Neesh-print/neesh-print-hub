@@ -72,7 +72,7 @@ export function parsePilot(input: unknown): Row[] {
   const parsed = z
     .object({
       schema_version: z.literal("0.2.2"),
-      records: z.array(prospectSchema).min(1).max(100),
+      records: z.array(prospectSchema).min(1).max(500),
     })
     .parse(input);
   if (new Set(parsed.records.map((r) => r.id)).size !== parsed.records.length)

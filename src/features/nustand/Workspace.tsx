@@ -15,13 +15,13 @@ import {
   exportContacts,
   mergeNewRows,
   needsReview,
-  parsePilot,
   reviewSchema,
   safeUrl,
   suppressed,
   type Row,
   type Review,
 } from "./model";
+import { MAX_SPACES, parseImport } from "./import";
 
 export type WorkspaceProps = {
   initialRows?: Row[];
@@ -83,6 +83,10 @@ export function Workspace({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    setPage(0);
+  }, [query, segment, filter, rows.length]);
   const today = new Date().toLocaleDateString("en-CA");
   const filtered = useMemo(
     () =>
@@ -128,6 +132,9 @@ export function Workspace({
     ],
     ["Need contact review", rows.filter(needsReview).length],
   ];
+  const pages = Math.max(1, Math.ceil(filtered.length / 25));
+  const currentPage = Math.min(page, pages - 1);
+  const visible = filtered.slice(currentPage * 25, (currentPage + 1) * 25);
   async function exportQualified() {
     setBusy(true);
     setError("");
@@ -154,11 +161,13 @@ export function Workspace({
   }
   async function readFile(file?: File) {
     if (!file) return;
+    setPendingImport(null);
     setError("");
     try {
       if (file.size > 10_000_000)
-        throw new Error("Choose a pilot JSON file under 10 MB.");
-      setPendingImport(parsePilot(JSON.parse(await file.text())));
+        throw new Error("Choose a CSV or JSON file under 10 MB.");
+      const imported = await parseImport(file.name, await file.text());
+      if (active.current) setPendingImport(imported);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not read this pilot file.",
@@ -170,6 +179,13 @@ export function Workspace({
     setBusy(true);
     setError("");
     try {
+      const newCount = pendingImport.filter(
+        (p) => !rows.some((r) => r.source.id === p.source.id),
+      ).length;
+      if (rows.length + newCount > MAX_SPACES)
+        throw new Error(
+          `Workspace capacity is ${MAX_SPACES} spaces. Existing records will not be removed.`,
+        );
       const next = onImport
         ? await onImport(pendingImport)
         : mergeNewRows(rows, pendingImport);
@@ -306,7 +322,7 @@ export function Workspace({
               ["all", "All spaces"],
               ["review", "Needs contact review"],
               ["email", "Accepted email"],
-              ["missing", "No email found"],
+              ["missing", "No email candidate"],
               ["due", "Follow-up due"],
               ["suppressed", "Do not contact"],
             ].map(([v, label]) => (
@@ -317,12 +333,12 @@ export function Workspace({
           </select>
         </label>
         <label className="text-sm">
-          Load pilot results
+          Import spaces
           <input
-            aria-label="Load pilot results"
+            aria-label="Import spaces"
             className="block max-w-60 mt-1 text-xs"
             type="file"
-            accept=".json,application/json"
+            accept=".csv,text/csv,.json,application/json"
             onChange={(e) => {
               void readFile(e.target.files?.[0]);
               e.target.value = "";
@@ -354,7 +370,7 @@ export function Workspace({
             Your next newsstands start here.
           </h1>
           <p className="text-neutral-600 mt-2">
-            Load the corrected pilot results to review the first 100 spaces.
+            Import a CSV list or pilot results JSON to start reviewing spaces.
           </p>
         </div>
       ) : !filtered.length ? (
@@ -362,7 +378,7 @@ export function Workspace({
       ) : (
         <div>
           <div className="md:hidden space-y-3">
-            {filtered.map((row) => (
+            {visible.map((row) => (
               <article
                 key={row.source.id}
                 className="border border-neutral-200 p-4 space-y-2"
@@ -420,7 +436,7 @@ export function Workspace({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row) => {
+                {visible.map((row) => {
                   const email = row.source.contacts.filter(
                     (c) => c.kind === "email",
                   );
@@ -521,6 +537,27 @@ export function Workspace({
           </div>
         </div>
       )}
+      {filtered.length > 25 && (
+        <nav aria-label="Space pages" className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            Previous
+          </Button>
+          <span>
+            Page {currentPage + 1} of {pages}
+          </span>
+          <Button
+            variant="outline"
+            disabled={currentPage + 1 >= pages}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            Next
+          </Button>
+        </nav>
+      )}
       <Dialog
         open={!!pendingImport}
         onOpenChange={(open) => {
@@ -544,6 +581,23 @@ export function Workspace({
             }{" "}
             already loaded. Contacts arrive as unapproved candidates.
           </p>
+          <p className="text-sm">
+            CSV needs Name and either Address, City or ID. Notes and Website are
+            preserved. Maximum {MAX_SPACES} spaces in the workspace. CSV imports
+            do not run enrichment.
+          </p>
+          <p className="text-sm">
+            For repeat CSV imports, keep names and location fields consistent,
+            or supply the same ID. Records from different sources are not
+            automatically merged.
+          </p>
+          <ul className="text-sm space-y-1">
+            {pendingImport?.slice(0, 5).map((r) => (
+              <li key={r.source.id}>
+                {r.source.name} — {r.source.city || "City not supplied"}
+              </li>
+            ))}
+          </ul>
           <Button onClick={confirmImport} disabled={busy}>
             {busy ? "Importing…" : "Add new spaces"}
           </Button>

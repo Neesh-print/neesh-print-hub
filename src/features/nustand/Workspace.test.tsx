@@ -5,12 +5,45 @@ import {
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import { webcrypto } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { emptyReview, type Row } from "./model";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+it("previews CSV before saving and paginates the imported list", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const input =
+    "Name,Address,City,Notes\n" +
+    Array.from(
+      { length: 260 },
+      (_, i) => `Space ${i},${i} Main St,New York,Keep ${i}`,
+    ).join("\n");
+  const onImport = vi.fn().mockImplementation(async (rows) => rows);
+  render(<Workspace onImport={onImport} />);
+  fireEvent.change(screen.getByLabelText("Import spaces"), {
+    target: {
+      files: [
+        { name: "list.csv", size: input.length, text: async () => input },
+      ],
+    },
+  });
+  await screen.findByText(/260 records parsed/);
+  expect(onImport).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Add new spaces" }));
+  await screen.findByText("Page 1 of 11");
+  expect(onImport).toHaveBeenCalledTimes(1);
+  expect(
+    screen.queryByRole("button", { name: "Review Space 25" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getByText("Page 2 of 11")).toBeInTheDocument();
+  expect(
+    screen.getAllByRole("button", { name: "Review Space 25" }),
+  ).not.toHaveLength(0);
 });
 function row(): Row {
   return {

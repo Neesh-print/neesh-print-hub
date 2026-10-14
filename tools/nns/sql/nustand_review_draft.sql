@@ -55,8 +55,8 @@ language plpgsql security definer set search_path = pg_catalog as $$
 declare item jsonb; contact jsonb; added integer := 0; inserted integer;
 begin
   perform nustand_private.require_owner();
-  perform pg_advisory_xact_lock(723407100); -- Serialize the 100-row pilot capacity check.
-  if jsonb_typeof(records) is distinct from 'array' or jsonb_array_length(records) not between 1 and 100
+  perform pg_advisory_xact_lock(723407100); -- Serialize the 500-row workspace capacity check.
+  if jsonb_typeof(records) is distinct from 'array' or jsonb_array_length(records) not between 1 and 500
      or octet_length(records::text) > 10000000 then raise exception 'Invalid pilot batch'; end if;
   if (select count(distinct r->>'id') from jsonb_array_elements(records) r) <> jsonb_array_length(records) then
     raise exception 'Duplicate prospect IDs';
@@ -89,7 +89,7 @@ begin
     added := added + inserted;
   end loop;
   -- Deliberately cap this milestone. Add pagination before expanding the dataset.
-  if (select count(*) from nustand_private.prospects) > 100 then raise exception 'Pilot capacity is 100 spaces'; end if;
+  if (select count(*) from nustand_private.prospects) > 500 then raise exception 'Workspace capacity is 500 spaces'; end if;
   return added;
 end $$;
 
@@ -138,7 +138,7 @@ language plpgsql security definer set search_path = pg_catalog as $$
 declare result jsonb;
 begin
   perform nustand_private.require_owner();
-  if prospect_ids is null or coalesce(array_length(prospect_ids, 1),0) > 100 then raise exception 'Invalid export selection'; end if;
+  if prospect_ids is null or coalesce(array_length(prospect_ids, 1),0) > 500 then raise exception 'Invalid export selection'; end if;
   select coalesce(jsonb_agg(jsonb_build_object('source', source, 'review', review, 'version', version) order by source->>'name', id), '[]'::jsonb)
   into result from nustand_private.prospects p
   where p.id = any(prospect_ids)
