@@ -280,7 +280,7 @@ def write_preview(result: dict, output: Path, manifest: dict) -> None:
             writer.writerow({key: safe_csv(value) for key, value in row.items()})
     summary = result["summary"]
     report = output / "report.md"
-    report.write_text("# NNS discovery import preview\n\nOffline preview only. No records imported, merged or sent outreach.\n\n"
+    report.write_text("# Nustand discovery import preview\n\nOffline preview only. No records imported, merged or sent outreach.\n\n"
                       + "| Decision | Records |\n| --- | ---: |\n"
                       + "".join(f"| {key} | {count} |\n" for key, count in summary["decisions"].items())
                       + f"\nIncoming records: {summary['incoming_records']}. Existing comparison records: {summary['existing_records']}. Missing neighborhood: {summary['missing_neighborhood']}.\n\n"

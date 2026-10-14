@@ -44,6 +44,6 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(robots.delay, 2)
 
     def test_robots_specific_agent_overrides_wildcard(self):
-        robots = Robots("User-agent: *\nDisallow: /\nUser-agent: NeeshNNS\nAllow: /contact\nDisallow: /private")
+        robots = Robots("User-agent: *\nDisallow: /\nUser-agent: Nustand\nAllow: /contact\nDisallow: /private")
         self.assertTrue(robots.allowed("https://shop.org/contact"))
         self.assertFalse(robots.allowed("https://shop.org/private"))

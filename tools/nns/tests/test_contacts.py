@@ -18,9 +18,13 @@ class ContactTests(unittest.TestCase):
         self.assertTrue(all(e["observed_at"] == STAMP and e["content_hash"] for e in hello["evidence"]))
 
     def test_obfuscation_and_no_guessed_names(self):
-        contacts = self.extract('<p>buying [at] shop.neesh-fixture [dot] org</p><p>alex at shop.neesh-fixture.org</p>')
+        contacts = self.extract('<p>buying [at] shop.neesh-fixture [dot] org</p><p>alex (at) shop.neesh-fixture.org</p>')
         self.assertEqual({c["value"] for c in contacts}, {"buying@shop.neesh-fixture.org", "alex@shop.neesh-fixture.org"})
         self.assertEqual(next(c for c in contacts if c["value"].startswith("alex"))["role_type"], "unknown")
+
+    def test_ordinary_at_domain_prose_never_manufactures_email(self):
+        contacts = self.extract('<p>Explore our collection at shop.neesh-fixture.org.</p><p>Shop online at <a href="https://shop.neesh-fixture.org">shop.neesh-fixture.org</a></p><p>alex at shop.neesh-fixture.org</p>')
+        self.assertEqual(contacts, [])
 
     def test_hidden_scripts_and_assets_do_not_create_contacts(self):
         self.assertEqual(self.extract('<script>var x="dev@tracker.com";</script><style>.x {content:"style@tracker.com"}</style><div hidden>hidden@tracker.com</div><div aria-hidden="true">secret@tracker.com</div><img src="logo@2x.png"><p>test@example.com</p>'), [])

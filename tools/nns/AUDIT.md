@@ -1,4 +1,4 @@
-# NNS reuse audit and integration boundary
+# Nustand reuse audit and integration boundary
 
 2026-10-14. Code-backed assessment, not confirmation that every checked-in
 migration is applied to the live main Supabase database.
@@ -7,7 +7,7 @@ migration is applied to the live main Supabase database.
 | --- | --- | --- |
 | Legacy Lovable extract-emails | filterEmails removes hello/info/contact and other generic prefixes; required HasData call | Replace in standalone path; do not modify legacy function |
 | Legacy export | 100 stable-ID NYC lead rows with websites; status_history and notes included | Preserve raw rows and separate proposals; no writeback |
-| Marketplace React app | Admin layout, protected routes and UI exist | Reuse for later NNS interface |
+| Marketplace React app | Admin layout, protected routes and UI exist | Reuse for later Nustand interface |
 | Marketplace authorization | Client guard and public.is_admin SQL helper exist | Verify live claims/grants/RLS; client route guard alone is insufficient |
 | Marketplace data | retailers appears in types and migrations | Foreign-key link after live identity/schema verification |
 | Public Index | directory_stores, directory_stockists, directory_titles, directory_publishers referenced in code | Link canonical IDs; no cloned catalog |
@@ -29,8 +29,8 @@ over the paid API functions, Supabase keys or a second application.
    Domain alone is not a safe physical-location merge key.
 5. Produce a dry-run reconciliation. Exact stable identifiers may link; ambiguous
    name/address/domain matches go to human review.
-6. Verify anonymous/retailer/publisher requests cannot read NNS and that public
-   Index views cannot expose NNS contacts.
+6. Verify anonymous/retailer/publisher requests cannot read Nustand and that public
+   Index views cannot expose Nustand contacts.
 7. Reconcile counts, histories, suppressions, phones and overrides, then request
    approval for the concrete production migration.
 8. Roll back through preserved legacy data/mappings and an integration feature
@@ -41,7 +41,8 @@ Production integration remains outside this slice.
 
 ## Next milestones
 
-1. Run the prepared live pilot on a permitted machine and complete source audit.
+1. Review the completed pilot findings. Resolve location attribution, fax typing,
+   mailbox purpose and conservative vendor holds before production integration.
 2. Validate fit rules and obtain the original buyer 2x2 axes/mapping.
 3. Validate the offline discovery/import preview on full permitted legacy and
    canonical Index exports; add an attributed open-place-data adapter and

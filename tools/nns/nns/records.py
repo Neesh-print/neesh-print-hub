@@ -71,8 +71,8 @@ def reconcile(record: dict, crawl: dict) -> dict:
                 new["review_reasons"] = sorted(set(new.get("review_reasons", [])) | {"conflicts_with_imported_phone"})
             new["manual_override"] = False
             contacts[key] = new
-    for kind in ("phone", "instagram"):
-        candidates = [c for c in contacts.values() if c["kind"] == kind]
+    for kind in ("email", "phone", "instagram"):
+        candidates = [c for c in contacts.values() if c["kind"] == kind and (kind != "email" or not c.get("review_reasons"))]
         if kind not in existing_primary and len(candidates) > 1:
             for candidate in candidates:
                 candidate["review_reasons"] = sorted(set(candidate.get("review_reasons", [])) | {"multiple_business_or_location_candidates"})

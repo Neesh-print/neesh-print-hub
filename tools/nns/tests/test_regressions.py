@@ -9,6 +9,14 @@ from test_crawler import BASE, crawl
 
 
 class RegressionTests(unittest.TestCase):
+    def test_multiple_emails_are_not_assigned_to_a_location_by_alphabetical_order(self):
+        job, _ = crawl({BASE + "/": (200, '<p>Branch A: alpha@shop.neesh-fixture.org</p><p>Branch B: beta@shop.neesh-fixture.org</p>', {})})
+        result = reconcile({"id": "a", "name": "Branch B"}, job)
+        self.assertIsNone(result["primary"]["email"])
+        self.assertTrue(all("multiple_business_or_location_candidates" in c["review_reasons"] for c in result["contacts"]))
+        sticky = reconcile({"id": "a", "email": "beta@shop.neesh-fixture.org"}, job)
+        self.assertEqual(sticky["primary"]["email"], "beta@shop.neesh-fixture.org")
+
     def test_malformed_page_markup_does_not_abort_batch(self):
         html = '<script type>var x = 1;</script><a href="http://[">broken contact</a><script type="application/ld+json">{"@type":[{}]}</script><p>hello@shop.neesh-fixture.org</p>'
         job, _ = crawl({BASE + "/": (200, html, {})})

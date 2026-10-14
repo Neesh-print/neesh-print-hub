@@ -107,6 +107,8 @@ class BatchTests(unittest.TestCase):
         result = audit_summary([row], audit)
         self.assertEqual(result["per_channel"]["email"]["precision_percent"], 100)
         self.assertEqual(result["per_channel"]["phone"]["precision_percent"], 100)
+        self.assertIsNone(result["missed_emails_in_reviewed_pages"])
+        self.assertEqual(result["missed_email_review_records"], 0)
         audit[0]["contact_reviews"][0]["content_hash"] = "wrong"
         with self.assertRaises(ValueError):
             audit_summary([row], audit)

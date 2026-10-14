@@ -1,15 +1,21 @@
-# New Newsstand enrichment and discovery previews
+# Nustand enrichment and discovery previews
+
+Nustand comes from the Neesh thesis that spaces are the new newsstands.
+Nu borrows from nu-disco and nu-jazz: an old form remade by a new scene.
+See [BRAND.md](BRAND.md) for naming and wordmark requirements.
 
 A standalone Python worker that reads a private prospect export and produces
 reviewable contact proposals. It has no database client, credentials, sending
 path, paid API, scheduler, or deployment dependency.
 
-Status: parser, policy controls, preservation, reports and synthetic batch tests
-pass. The 100-prospect legacy NYC export was validated offline. A live smoke
-test now succeeds through the runtime's existing managed proxy; local DNS
-alone was an invalid connectivity test for this environment. See
-[PILOT_STATUS.md](PILOT_STATUS.md) for the current batch/audit result.
-Imported phone coverage is not enrichment yield.
+Status: the live 100-prospect NYC pilot and fixed source review are complete.
+Version 0.2.2 reprocesses the saved HTML without network requests, removes false
+bare-at emails and holds ambiguous multiple email candidates for review.
+It proposes 19 email primaries, retains 90 phone records and selects 35 Instagram
+profiles. All 100 source records and 88 original phone values are preserved.
+See [PILOT_STATUS.md](PILOT_STATUS.md) for the measured yield, 45 completed /
+5 partial / 41 failed / 9 blocked jobs, source-attribution limitations and
+84 passing tests. This is a reviewable proof of concept, not production approval.
 
 ## Run
 
@@ -89,12 +95,13 @@ repository. Never commit prospects, notes, contacts, full pages or private logs.
 - Website-published Instagram profile links. No social profile is fetched.
 
 Every new contact has exact URL, method, checked timestamp, bounded excerpt and
-content hash. No guessed employee emails, SMTP probes or deliverability claims.
+content hash. Explicit [at]/(at) and [dot]/(dot) markers are supported. Bare “at” prose
+is never converted into an email. No guessed employee emails, SMTP probes or deliverability claims.
 Mail-domain status stays not_checked in this pilot. Name-shaped addresses
 remain unknown rather than claimed named buyers.
 
 Different-domain email, designer credits, non-reply mailboxes, and ambiguous
-multiple-location phone/Instagram candidates remain review items, ineligible
+multiple-email, multiple-location phone/Instagram candidates remain review items, ineligible
 for automatic new-primary selection. Published free-mail addresses are
 accepted subject to source audit. Imported primaries are preserved and remain
 unconfirmed unless observed.
@@ -162,6 +169,27 @@ Precision = correct / (correct + incorrect), separately per channel. Uncertain
 cases remain visible. This purposive sample does not estimate population
 accuracy or email recall. No reviewed contacts means **not measured**.
 Delete temporary full HTML after review; retain bounded evidence and hashes.
+
+## Reparse a finished pilot without recrawling
+
+Version 0.2.2 stops interpreting bare “at domain” prose as an email. A source
+audit exposed this false-positive pattern. The original 0.2.0 crawl remains
+intact; a separate revision can verify every saved page hash and re-extract:
+
+    PYTHONPATH=tools/nns python3 -m nns.reparse \
+      --source /absolute/private/path/live-pilot \
+      --evidence-dir /absolute/private/path/temporary-evidence \
+      --output /absolute/private/path/corrected-pilot
+
+This requires a complete live batch and a new output directory. It makes no
+network requests, preserves original rows, page timestamps, crawl states and
+fit signals, and records removed/added contacts in parser_changes.json. The
+new summary distinguishes offline revision work from original crawl costs.
+Multiple unflagged emails without an imported primary require source/location
+review; alphabetical ordering cannot decide between branches. The original
+audit sample remains fixed across revisions so difficult records stay visible.
+Audit this revision separately; source judgments must not be invented from
+parser test results. Bare unmarked obfuscations can now be missed by design.
 
 ## Qualification foundation
 

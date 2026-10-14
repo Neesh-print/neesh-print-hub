@@ -148,10 +148,11 @@ class PageParser(HTMLParser):
 
 
 def deobfuscate(text: str) -> str:
+    # Require an explicit marker. Bare "at" also occurs in ordinary prose such
+    # as "shop our collection at store.org" and must not manufacture an email.
     text = re.sub(r"\s*(?:\[at\]|\(at\))\s*", "@", text, flags=re.I)
     text = re.sub(r"\s*(?:\[dot\]|\(dot\))\s*", ".", text, flags=re.I)
-    # Plain 'at' is only unambiguous between an email local-part and domain.
-    return re.sub(r"\b([\w.+-]+)\s+at\s+([\w.-]+\.[a-z]{2,})\b", r"\1@\2", text, flags=re.I)
+    return text
 
 
 def extract_contacts(body: str, source_url: str, checked_at: str, country: str = "US") -> dict:

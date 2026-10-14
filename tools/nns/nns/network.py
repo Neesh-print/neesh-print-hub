@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from urllib.parse import quote, urlsplit, urlunsplit
 
-USER_AGENT = "NeeshNNS/0.1 (+https://neesh.art; public business contact research)"
+USER_AGENT = "Nustand/0.2 (+https://neesh.art; public business contact research)"
 SOCIAL_HOSTS = frozenset("instagram.com instagr.am facebook.com fb.com twitter.com x.com linkedin.com tiktok.com youtube.com yelp.com maps.google.com google.com".split())
 PAID_HOSTS = frozenset("api.hasdata.com api.enigma.com ensembledata.com ai.gateway.lovable.dev places.googleapis.com api.yelp.com".split())
 
@@ -219,7 +219,7 @@ class CurlTransport:
 
 class Robots:
     """Longest-match Allow/Disallow, wildcard/end anchors, specific UA groups."""
-    def __init__(self, text: str, agent="NeeshNNS"):
+    def __init__(self, text: str, agent="Nustand"):
         groups, agents, rules, delays = [], [], [], []
         seen_rule = False
         for line in text.splitlines():
