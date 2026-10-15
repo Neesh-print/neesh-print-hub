@@ -1,6 +1,6 @@
 -- Nustand paid place lookups: database-enforced spend cap.
 -- One unit per provider call. Limits keep both providers inside their free tiers:
--- at most 600 calls a day and 1,000 a calendar month (UTC), across providers.
+-- at most 600 calls a day and 2,000 a calendar month (UTC), across providers.
 create table nustand_private.provider_budget(
   day date primary key,
   calls integer not null default 0 check (calls between 0 and 600)
@@ -12,11 +12,11 @@ create function nustand_private.worker_provider_budget(calls integer) returns bo
 language plpgsql security definer set search_path = pg_catalog as $$
 declare today date := (now() at time zone 'UTC')::date; used_month integer; used integer;
 begin
-  if calls is null or calls not between 1 and 4 then raise exception 'Invalid provider budget request'; end if;
+  if calls is null or calls not between 1 and 12 then raise exception 'Invalid provider budget request'; end if;
   perform pg_advisory_xact_lock(723407103);
   select coalesce(sum(b.calls), 0) into used_month from nustand_private.provider_budget b
     where b.day >= date_trunc('month', today)::date;
-  if used_month + calls > 1000 then return false; end if;
+  if used_month + calls > 2000 then return false; end if;
   insert into nustand_private.provider_budget(day, calls) values (today, calls)
     on conflict (day) do update set calls = provider_budget.calls + excluded.calls
     where provider_budget.calls + excluded.calls <= 600

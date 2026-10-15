@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import time
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import re
@@ -157,9 +159,45 @@ def discover_with_provider(broker, params):
     return {"status": "completed", "candidates": rows, "attribution": "Google Places", "requests": int(found.get("calls") or 0), "pages": 0}
 
 
+PARALLEL_JOBS = 5          # spaces researched at the same time
+DRAIN_SECONDS = 11 * 60    # keep claiming batches until the queue is empty or this passes
+
+
+def _site_crawler(shared):
+    # Each thread gets its own crawler so request budgets and timers stay per site.
+    return shared or Crawler(CurlTransport(max_bytes=3_000_000), max_requests=16, max_seconds=40)
+
+
+def _research_job(broker, job, missing, elements, lookup_error, lookup_requests, source_cache, crawler):
+    site_crawler = _site_crawler(crawler)
+    source_crawler = Crawler(site_crawler.transport, max_pages=2, max_requests=8, max_seconds=20, capture_links=True) if isinstance(site_crawler, Crawler) else None
+    candidate, source_requests = published_website(job["source"], source_cache, source_crawler) if job in missing else (None, 0)
+    candidate = candidate or (unique_website(job["source"]["name"], elements) if job in missing else None)
+    provider_summary, job_error, tags = None, lookup_error, {}
+    needs_site = job in missing and not candidate
+    needs_tags = not (job["source"].get("space_type") and job["source"].get("neighborhood"))
+    if needs_site or needs_tags:
+        # Paid lookups run inside the broker, which holds the keys and the daily cap.
+        # One lookup serves both: a website if one is missing, and the place tags.
+        try: lookup = broker.call("lookup_website", name=job["source"]["name"][:200])
+        except Exception: lookup = None
+        lookup = lookup if isinstance(lookup, dict) else None
+        if needs_site:
+            candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup)
+            if candidate is None and lookup and lookup.get("budget_exhausted"):
+                job_error = job_error or "daily_provider_lookup_limit"
+        tags = place_tags(best_match(job["source"]["name"], lookup))
+    result = research(job["source"], candidate, job_error if job in missing and not candidate else None, site_crawler)
+    apply_tags(result, tags)
+    if provider_summary is not None:
+        result["provider_lookup"] = provider_summary
+    result["requests"] += source_requests
+    if missing and job["id"] == missing[0]["id"]:
+        result["requests"] += lookup_requests
+    broker.call("finish", job_id=job["id"], lease=job["lease"], payload=result)
+
+
 def process(broker, place_fetch=fetch_places, crawler=None):
-    site_crawler=crawler or Crawler(CurlTransport(max_bytes=3_000_000),max_requests=16,max_seconds=40)
-    source_crawler=Crawler(site_crawler.transport,max_pages=2,max_requests=8,max_seconds=20,capture_links=True) if isinstance(site_crawler,Crawler) else None
     jobs = broker.call("claim")
     if not isinstance(jobs,list) or len(jobs)>10: raise ValueError("Invalid research batch")
     missing = [j for j in jobs if j["kind"] == "research" and not j["source"].get("website") and normalized_city(j["source"].get("city") or "") == "New York"]
@@ -171,15 +209,11 @@ def process(broker, place_fetch=fetch_places, crawler=None):
             except PlaceError: lookup_error = "place_lookup_unavailable"
         else: lookup_error = "daily_place_lookup_limit"
     completed = 0
-    source_cache={}
-    for job in jobs:
-        if job["kind"] == "discovery":
-            discovery_requests=0
-            google = discover_with_provider(broker, job["input"])
-            if google is not None:
-                broker.call("finish",job_id=job["id"],lease=job["lease"],payload=google)
-                completed += 1
-                continue
+    # Lead searches first: they are what the owner is waiting on.
+    for job in [j for j in jobs if j["kind"] == "discovery"]:
+        discovery_requests=0
+        result = discover_with_provider(broker, job["input"])
+        if result is None:
             try:
                 if not broker.call("place_budget"): raise PlaceError("Daily place lookup limit reached")
                 discovery_requests=1
@@ -188,37 +222,38 @@ def process(broker, place_fetch=fetch_places, crawler=None):
                 result = {"status":"completed","candidates":candidates,"attribution":"© OpenStreetMap contributors, ODbL","requests":1,"pages":0}
             except PlaceError:
                 result = {"status":"failed","error":"Place discovery unavailable or daily limit reached","requests":discovery_requests,"pages":0}
-        else:
-            candidate,source_requests=published_website(job["source"],source_cache,source_crawler) if job in missing else (None,0)
-            candidate = candidate or (unique_website(job["source"]["name"],elements) if job in missing else None)
-            provider_summary, job_error, tags = None, lookup_error, {}
-            needs_site = job in missing and not candidate
-            needs_tags = not (job["source"].get("space_type") and job["source"].get("neighborhood"))
-            if needs_site or needs_tags:
-                # Paid lookups run inside the broker, which holds the keys and the daily cap.
-                # One lookup serves both: a website if one is missing, and the place tags.
-                try: lookup = broker.call("lookup_website", name=job["source"]["name"][:200])
-                except Exception: lookup = None
-                lookup = lookup if isinstance(lookup, dict) else None
-                if needs_site:
-                    candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup)
-                    if candidate is None and lookup and lookup.get("budget_exhausted"):
-                        job_error = job_error or "daily_provider_lookup_limit"
-                tags = place_tags(best_match(job["source"]["name"], lookup))
-            result = research(job["source"],candidate,job_error if job in missing and not candidate else None,site_crawler)
-            apply_tags(result, tags)
-            if provider_summary is not None:
-                result["provider_lookup"] = provider_summary
-            result["requests"]+=source_requests
-            if missing and job["id"]==missing[0]["id"]: result["requests"]+=lookup_requests
         broker.call("finish",job_id=job["id"],lease=job["lease"],payload=result)
         completed += 1
+    research_jobs = [j for j in jobs if j["kind"] != "discovery"]
+    source_cache = {}
+    errors = []
+    with ThreadPoolExecutor(max_workers=PARALLEL_JOBS) as pool:
+        futures = [pool.submit(_research_job, broker, job, missing, elements, lookup_error, lookup_requests, source_cache, crawler) for job in research_jobs]
+        for future in futures:
+            try:
+                future.result()
+                completed += 1
+            except Exception as exc:  # one bad site must not stop the rest; its lease expires and it retries later
+                errors.append(exc)
+    if errors and not completed:
+        raise errors[0]
     return completed
+
+
+def drain(broker, place_fetch=fetch_places, crawler=None, seconds=DRAIN_SECONDS, clock=time.monotonic):
+    """Process batches until the queue is empty or the time budget is spent."""
+    deadline, total = clock() + seconds, 0
+    while clock() < deadline:
+        done = process(broker, place_fetch, crawler)
+        total += done
+        if done == 0:
+            break
+    return total
 
 
 def main():
     try:
-        count = process(Broker())
+        count = drain(Broker())
         print(f"Processed {count} Nustand jobs. No outreach sent.")
         return 0
     except Exception:
