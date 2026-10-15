@@ -12,9 +12,11 @@ import {
 import wordmark from "@/assets/nustand.svg";
 import {
   acceptedContacts,
+  bestContact,
   exportContacts,
   mergeNewRows,
   needsReview,
+  orderedContacts,
   reviewSchema,
   safeUrl,
   suppressed,
@@ -482,10 +484,7 @@ export function Workspace({
                   Research: {row.source.job.status.replace(/_/g, " ")}
                 </p>
                 {(["email", "phone", "instagram"] as const).map((kind) => {
-                  const contact =
-                    row.source.contacts.find(
-                      (c) => c.kind === kind && c.is_primary,
-                    ) || row.source.contacts.find((c) => c.kind === kind);
+                  const contact = bestContact(row.source.contacts, kind);
                   return contact ? (
                     <p className="text-sm break-all" key={kind}>
                       {kind}: {contact.value}{" "}
@@ -538,10 +537,7 @@ export function Workspace({
                   const email = row.source.contacts.filter(
                     (c) => c.kind === "email",
                   );
-                  const phone =
-                    row.source.contacts.find(
-                      (c) => c.kind === "phone" && c.is_primary,
-                    ) || row.source.contacts.find((c) => c.kind === "phone");
+                  const phone = bestContact(row.source.contacts, "phone");
                   const acceptedEmail = acceptedContacts(row).filter(
                     (c) => c.kind === "email",
                   );
@@ -806,7 +802,7 @@ export function Workspace({
                   exist.
                 </p>
               )}
-              {selected.source.contacts.map((contact) => (
+              {orderedContacts(selected.source.contacts).map((contact) => (
                 <article className="border p-3 space-y-2" key={contact.id}>
                   <div className="flex flex-wrap gap-2 justify-between">
                     <div>

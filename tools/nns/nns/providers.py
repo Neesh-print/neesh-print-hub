@@ -11,7 +11,7 @@ import re
 import unicodedata
 import urllib.parse
 
-PROVIDERS = ("foursquare", "google")  # Preference order when both match.
+PROVIDERS = ("google", "foursquare")  # Preference order; the broker currently calls Google only.
 LABELS = {"foursquare": "Foursquare Places", "google": "Google Places"}
 _PLACE = {"st", "street", "ave", "avenue", "blvd", "rd", "road", "pl", "place", "sq", "square", "soho", "noho", "tribeca", "chelsea", "williamsburg", "greenpoint", "bushwick", "dumbo", "harlem", "midtown", "downtown", "uptown", "les", "ues", "uws", "ridgewood", "astoria", "seaport", "flatiron", "nolita", "fidi", "slope", "heights", "hill", "village"}
 _STOP = {"the", "nyc", "ny", "new", "york", "brooklyn", "manhattan", "queens", "bronx", "inc", "llc", "co", "shop", "store"}

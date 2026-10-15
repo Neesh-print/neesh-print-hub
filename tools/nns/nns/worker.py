@@ -12,7 +12,7 @@ import urllib.request
 from .crawler import Crawler, now_iso
 from .network import CurlTransport, CrawlError, normalize_url, site_key
 from .places import PlaceError, fetch_places, query, record, unique_website
-from .providers import choose as choose_provider_candidate
+from .providers import choose as choose_provider_candidate, clean_url
 from .qualification import assess
 from .records import reconcile, normalized_city
 
@@ -49,13 +49,15 @@ def research(source, candidate=None, lookup_error=None, crawler=None):
     raw = copy.deepcopy(source.get("original_record", {}))
     raw.update(id=source["id"], name=source["name"], city=source.get("city") or "")
     website = source.get("website") or (candidate or {}).get("website")
+    if website:
+        website = clean_url(website)  # Drop listing tracking tags before crawling and saving.
     raw["website"] = website
     needs_identity_review = bool(source.get("website_identity_review")) or bool(candidate) or bool(source.get("discovery") and source.get("website_source") != "owner_supplied")
     if candidate:
         for key in ("email", "phone", "instagram_handle", "business_type"):
             if not raw.get(key): raw[key] = candidate["original_record"].get(key)
     if website:
-        crawl = (crawler or Crawler(CurlTransport(), max_requests=16, max_seconds=40)).crawl(website, raw.get("country") or "US")
+        crawl = (crawler or Crawler(CurlTransport(max_bytes=3_000_000), max_requests=16, max_seconds=40)).crawl(website, raw.get("country") or "US")
     else:
         crawl = {"status": "failed" if lookup_error else "needs_website", "contacts": [], "site_signals": [], "finished_at": now_iso(), "errors": [{"code": lookup_error or "website_not_found_in_open_data"}], "http_requests": 0, "pages_fetched": 0}
     result = reconcile(raw, crawl)
@@ -104,7 +106,7 @@ def published_website(source, cache, source_crawler=None):
 
 
 def process(broker, place_fetch=fetch_places, crawler=None):
-    site_crawler=crawler or Crawler(CurlTransport(),max_requests=16,max_seconds=40)
+    site_crawler=crawler or Crawler(CurlTransport(max_bytes=3_000_000),max_requests=16,max_seconds=40)
     source_crawler=Crawler(site_crawler.transport,max_pages=2,max_requests=8,max_seconds=20,capture_links=True) if isinstance(site_crawler,Crawler) else None
     jobs = broker.call("claim")
     if not isinstance(jobs,list) or len(jobs)>10: raise ValueError("Invalid research batch")

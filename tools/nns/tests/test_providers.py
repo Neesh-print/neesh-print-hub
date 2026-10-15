@@ -29,11 +29,14 @@ class NameMatchTests(unittest.TestCase):
 
 
 class ChooseTests(unittest.TestCase):
-    def test_prefers_foursquare_and_records_both(self):
+    def test_prefers_google_and_records_both(self):
         candidate, summary = choose("McNally Jackson - Downtown Brooklyn", {"foursquare": {"candidates": [FSQ]}, "google": {"candidates": [GOOGLE]}})
-        self.assertEqual(candidate["discovery"]["provider"], "foursquare")
+        self.assertEqual(candidate["discovery"]["provider"], "google")
+        self.assertEqual(summary["foursquare"]["website"], "https://www.mcnallyjackson.com")
+
+    def test_foursquare_contacts_carried_when_it_is_the_only_match(self):
+        candidate, _ = choose("McNally Jackson", {"foursquare": {"candidates": [FSQ]}})
         self.assertEqual(candidate["original_record"]["phone"], "(718) 555-0100")
-        self.assertEqual(summary["google"]["website"], "https://www.mcnallyjackson.com/")
 
     def test_conflicting_websites_are_ambiguous(self):
         other = {**FSQ, "website": "https://elsewhere.example"}

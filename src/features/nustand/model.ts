@@ -17,6 +17,7 @@ const contactSchema = z
     extension: text.nullish(),
     quality_status: text,
     is_primary: z.boolean().optional(),
+    relevance: z.number().int().min(0).max(99).optional(),
     review_reasons: z.array(text).default([]),
     evidence: z.array(evidenceSchema).default([]),
     last_checked_at: text.nullish(),
@@ -83,6 +84,23 @@ export function parsePilot(input: unknown): Row[] {
     version: 0,
   }));
 }
+const kindOrder = { email: 0, instagram: 1, phone: 2 } as const;
+/** Contacts in review order: by kind, then the worker's relevance rank (lower is better),
+ * with primaries first and unranked contacts last. */
+export function orderedContacts(contacts: Contact[]): Contact[] {
+  return [...contacts].sort(
+    (a, b) =>
+      kindOrder[a.kind] - kindOrder[b.kind] ||
+      Number(!a.is_primary) - Number(!b.is_primary) ||
+      (a.relevance ?? 50) - (b.relevance ?? 50) ||
+      a.value.localeCompare(b.value),
+  );
+}
+/** The best contact of one kind: primary if set, otherwise the highest ranked. */
+export function bestContact(contacts: Contact[], kind: Contact["kind"]) {
+  return orderedContacts(contacts.filter((c) => c.kind === kind))[0];
+}
+
 export function suppressed(row: Row) {
   return (
     row.source.do_not_contact ||
