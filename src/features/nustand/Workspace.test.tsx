@@ -242,3 +242,33 @@ describe("website confirmation", () => {
     await waitFor(() => expect(onConfirmWebsites).toHaveBeenCalledWith(["a", "c"]));
   });
 });
+
+describe("start here and research", () => {
+  const space = (id: string, job: Record<string, unknown>): Row => ({
+    source: {
+      id, name: `Space ${id}`, city: "New York", neighborhood: null, website: null,
+      do_not_contact: false, original_record: {}, contacts: [], job,
+      fit: { score: null, segment: null, uncertainties: [] },
+    } as unknown as Row["source"],
+    review: emptyReview(),
+    version: 1,
+  });
+  const recent = { status: "needs_website", finished_at: new Date().toISOString() };
+  it("shows steps with live counts that filter the list", () => {
+    render(<Workspace initialRows={[space("a", recent), space("b", { status: "not_started" })]} onSave={vi.fn()} />);
+    const step = screen.getByRole("button", { name: /Find missing websites \(1\)/ });
+    fireEvent.click(step);
+    expect(step.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryAllByText("Space b")).toHaveLength(0);
+  });
+  it("only counts spaces that can be researched and explains skips", async () => {
+    const onResearch = vi.fn().mockResolvedValue(0);
+    const { unmount } = render(<Workspace initialRows={[space("a", recent)]} onSave={vi.fn()} onResearch={onResearch} />);
+    expect((screen.getByRole("button", { name: "All shown spaces researched" }) as HTMLButtonElement).disabled).toBe(true);
+    unmount();
+    render(<Workspace initialRows={[space("a", recent), space("b", { status: "not_started" })]} onSave={vi.fn()} onResearch={onResearch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Research 1 space" }));
+    await waitFor(() => expect(onResearch).toHaveBeenCalledWith(["b"]));
+    await screen.findByText(/Nothing to research: this space was researched recently/);
+  });
+});

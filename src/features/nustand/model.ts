@@ -118,6 +118,24 @@ export function acceptedContacts(row: Row) {
 export function needsReview(row: Row) {
   return row.source.contacts.some((c) => !row.review.contacts[c.id]);
 }
+const RESEARCH_COOLDOWN_DAYS: Record<string, number> = {
+  completed: 30,
+  partial: 30,
+  needs_website: 30,
+  failed: 1,
+  blocked: 180,
+};
+/** Whether the worker would accept this space for research now. The database
+ * makes the final call; this only keeps the button count honest. */
+export function researchEligible(row: Row, now = Date.now()): boolean {
+  if (row.source.do_not_contact || row.review.do_not_contact) return false;
+  const { status, finished_at } = row.source.job;
+  if (status === "queued" || status === "running") return false;
+  const days = RESEARCH_COOLDOWN_DAYS[status];
+  if (!days || !finished_at) return true;
+  const finished = Date.parse(finished_at);
+  return Number.isNaN(finished) || now - finished >= days * 86_400_000;
+}
 /** True while a found website still needs the owner to confirm it is this space's. */
 export function needsWebsiteConfirm(row: Row): boolean {
   const flag = (row.source as Record<string, unknown>).website_identity_review;

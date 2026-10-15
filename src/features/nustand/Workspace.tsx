@@ -19,6 +19,7 @@ import {
   needsWebsiteConfirm,
   noWebsiteFound,
   orderedContacts,
+  researchEligible,
   reviewSchema,
   safeUrl,
   sharedWebsite,
@@ -175,6 +176,38 @@ export function Workspace({
     ["Websites to confirm", rows.filter(needsWebsiteConfirm).length],
   ];
   const siblings = useMemo(() => sharedWebsite(rows), [rows]);
+  const researchable = filtered.filter((r) => researchEligible(r));
+  const steps = [
+    {
+      label: "Confirm websites",
+      count: rows.filter(needsWebsiteConfirm).length,
+      hint: "Check each site belongs to that space.",
+      filter: "confirm",
+    },
+    {
+      label: "Accept contacts",
+      count: rows.filter((r) => !suppressed(r) && needsReview(r)).length,
+      hint: "Open a space, accept the contacts you'd use, set Qualified.",
+      filter: "review",
+    },
+    {
+      label: "Find missing websites",
+      count: rows.filter(noWebsiteFound).length,
+      hint: "Search the web or use Instagram.",
+      filter: "nowebsite",
+    },
+    {
+      label: "Ready to export",
+      count: rows.filter(
+        (r) =>
+          r.review.stage === "Qualified" &&
+          !suppressed(r) &&
+          acceptedContacts(r).length > 0,
+      ).length,
+      hint: "Qualified spaces with accepted contacts.",
+      filter: "email",
+    },
+  ];
   const toConfirm = filtered.filter(needsWebsiteConfirm);
   const pages = Math.max(1, Math.ceil(filtered.length / 25));
   const currentPage = Math.min(page, pages - 1);
@@ -224,8 +257,11 @@ export function Workspace({
     setError("");
     try {
       const count = await onResearch(ids);
+      const skipped = ids.length - count;
       setMessage(
-        `${count} research jobs queued. Already active, suppressed or recently checked spaces were skipped.`,
+        count === 0
+          ? `Nothing to research: ${ids.length === 1 ? "this space was" : `all ${ids.length} spaces were`} researched recently, are already queued, or are marked do not contact. Results are in the list below. To research new spaces, import them or use Discover at the top.`
+          : `${count} space${count === 1 ? "" : "s"} queued for research. Results appear in a few minutes.${skipped ? ` ${skipped} skipped: researched recently, already queued, or do not contact.` : ""}`,
       );
       await onRefresh?.();
     } catch (e) {
@@ -349,11 +385,18 @@ export function Workspace({
           {onResearch && (
             <Button
               onClick={() =>
-                void researchSpaces(filtered.map((r) => r.source.id))
+                void researchSpaces(researchable.map((r) => r.source.id))
               }
-              disabled={busy || !filtered.length}
+              disabled={busy || !researchable.length}
+              title={
+                researchable.length
+                  ? undefined
+                  : "Every space shown was researched recently. Import or discover new spaces to research."
+              }
             >
-              Research {filtered.length} spaces
+              {researchable.length
+                ? `Research ${researchable.length} space${researchable.length === 1 ? "" : "s"}`
+                : "All shown spaces researched"}
             </Button>
           )}
           {onConfirmWebsites && toConfirm.length > 0 && (
@@ -402,6 +445,43 @@ export function Workspace({
           backup before closing. Nothing is saved to the live database.
         </p>
       )}
+      <section
+        aria-label="Start here"
+        className="border border-black p-4 space-y-3"
+      >
+        <div className="flex flex-wrap justify-between gap-2 items-baseline">
+          <h2 className="font-semibold">Start here</h2>
+          <p className="text-xs text-neutral-600">
+            Research runs on its own. Your job is to review what it found and
+            export who to contact.{" "}
+            <a className="underline underline-offset-4" href="#nustand-discover">
+              Discover new spaces
+            </a>{" "}
+            to research more.
+          </p>
+        </div>
+        <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {steps.map((step, i) => (
+            <li key={step.label}>
+              <button
+                type="button"
+                className={`w-full text-left border p-3 h-full hover:bg-neutral-50 ${filter === step.filter ? "border-black" : "border-neutral-300"}`}
+                onClick={() => setFilter(step.filter)}
+                aria-pressed={filter === step.filter}
+              >
+                <span className="text-xs text-neutral-600">Step {i + 1}</span>
+                <span className="block font-medium">
+                  {step.label}{" "}
+                  <span className="tabular-nums">({step.count})</span>
+                </span>
+                <span className="block text-xs text-neutral-600 mt-1">
+                  {step.hint}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </section>
       <div className="grid grid-cols-2 lg:grid-cols-4 border border-neutral-200 divide-x divide-neutral-200">
         {counts.map(([label, count]) => (
           <div className="p-4" key={label}>

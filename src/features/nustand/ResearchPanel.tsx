@@ -116,6 +116,7 @@ export function ResearchPanel({
   }
   return (
     <section
+      id="nustand-discover"
       aria-label="Discovery and research"
       className="p-4 sm:px-8 border-b bg-neutral-50 space-y-4"
     >

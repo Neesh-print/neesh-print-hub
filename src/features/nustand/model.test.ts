@@ -10,6 +10,7 @@ import {
   needsWebsiteConfirm,
   noWebsiteFound,
   parsePilot,
+  researchEligible,
   safeUrl,
   sharedWebsite,
   suppressed,
@@ -165,5 +166,24 @@ describe("website states and shared sites", () => {
     expect(lines[1]).toContain("hello@example.org");
     expect(lines[2]).not.toMatch(/,hello@example\.org,/);
     expect(lines[2]).toContain("is listed under Iconic Bowery");
+  });
+});
+
+describe("research eligibility", () => {
+  const now = Date.parse("2026-10-15T12:00:00Z");
+  const withJob = (job: Record<string, unknown>, dnc = false) => {
+    const row = fixture();
+    return { ...row, source: { ...row.source, do_not_contact: dnc, job } } as Row;
+  };
+  it("waits out the cooldown for each result", () => {
+    expect(researchEligible(withJob({ status: "completed", finished_at: "2026-10-14T00:00:00Z" }), now)).toBe(false);
+    expect(researchEligible(withJob({ status: "completed", finished_at: "2026-09-01T00:00:00Z" }), now)).toBe(true);
+    expect(researchEligible(withJob({ status: "failed", finished_at: "2026-10-13T00:00:00Z" }), now)).toBe(true);
+    expect(researchEligible(withJob({ status: "blocked", finished_at: "2026-09-01T00:00:00Z" }), now)).toBe(false);
+  });
+  it("never offers queued, running or do-not-contact spaces", () => {
+    expect(researchEligible(withJob({ status: "queued" }), now)).toBe(false);
+    expect(researchEligible(withJob({ status: "not_started" }, true), now)).toBe(false);
+    expect(researchEligible(withJob({ status: "not_started" }), now)).toBe(true);
   });
 });
