@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 import { githubKeys, verifyWorkerToken } from "../_shared/nustand_oidc.ts";
+import { foursquare, google, validName } from "../_shared/nustand_providers.ts";
 
 const reply = (status: number, data: unknown) =>
   new Response(JSON.stringify(data), {
@@ -43,6 +44,34 @@ Deno.serve(async (request: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
+    if (input.action === "lookup_website") {
+      if (!validName(input.name)) return reply(400, { error: "Invalid lookup" });
+      const keys = {
+        foursquare: Deno.env.get("FOURSQUARE_API_KEY"),
+        google: Deno.env.get("GOOGLE_PLACES_API_KEY"),
+      };
+      const enabled = (Object.keys(keys) as (keyof typeof keys)[]).filter((p) => keys[p]);
+      if (!enabled.length) return reply(200, { data: {} });
+      // One budget unit per provider call, enforced in the database.
+      const { data: allowed, error: budgetError } = await client.rpc(
+        "nustand_worker_provider_budget",
+        { calls: enabled.length },
+      );
+      if (budgetError) return reply(409, { error: "Research operation rejected" });
+      if (!allowed) return reply(200, { data: { budget_exhausted: true } });
+      const lookups = { foursquare, google };
+      const data: Record<string, unknown> = {};
+      await Promise.all(
+        enabled.map(async (provider) => {
+          try {
+            data[provider] = await lookups[provider](input.name.trim(), keys[provider]!);
+          } catch {
+            data[provider] = { candidates: [], error: provider + "_unavailable" };
+          }
+        }),
+      );
+      return reply(200, { data });
+    }
     const operations: Record<string, [string, Record<string, unknown>]> = {
       claim: ["nustand_worker_claim", {}],
       place_budget: ["nustand_worker_place_budget", {}],

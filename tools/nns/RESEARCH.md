@@ -27,7 +27,17 @@ entities. Unresolved websites remain an attention state, not a successful crawl.
   at most two pages and eight requests. At most ten jobs are claimed per run.
 - Overpass requests share a database-enforced fifty-request daily limit. Discovery
   is bounded to one hundred returned candidates, with a ten-job daily discovery cap.
-- No paid enrichment provider, email guessing, or AI service is required.
+- When open data finds no site, the broker can look the space up in Foursquare
+  Places and Google Places (keys `FOURSQUARE_API_KEY` and `GOOGLE_PLACES_API_KEY`
+  are Supabase secrets; the runner never sees them). A listing is used only when
+  its name matches the imported name after removing branch suffixes and
+  punctuation, and every resulting contact still needs website-identity review.
+  Foursquare is preferred when both match. Calls are capped in the database at
+  600 a day and 1,000 a calendar month across providers (`sql/provider_budget.sql`),
+  which keeps both inside their free tiers. Remove either secret to switch that
+  provider off. Google's terms restrict storing Places content, so treat Google
+  results as leads to the business's own site and review that before relying on them.
+- No email guessing or AI service is required.
 - Published data can be stale or incomplete. Missing contact details, unknown fit,
   ambiguous location and blocked crawls are surfaced rather than fabricated.
 
