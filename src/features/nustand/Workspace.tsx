@@ -16,10 +16,14 @@ import {
   exportContacts,
   mergeNewRows,
   needsReview,
+  needsWebsiteConfirm,
+  noWebsiteFound,
   orderedContacts,
   reviewSchema,
   safeUrl,
+  sharedWebsite,
   suppressed,
+  webSearchUrl,
   type Row,
   type Review,
 } from "./model";
@@ -33,6 +37,7 @@ export type WorkspaceProps = {
   onCopy?: (id: string, contactId: string) => Promise<string>;
   onResearch?: (ids: string[]) => Promise<number>;
   onWebsite?: (id: string, website: string) => Promise<void>;
+  onConfirmWebsites?: (ids: string[]) => Promise<number>;
   onRefresh?: () => Promise<void>;
 };
 const EMPTY_ROWS: Row[] = [];
@@ -73,6 +78,7 @@ export function Workspace({
   onCopy,
   onResearch,
   onWebsite,
+  onConfirmWebsites,
   onRefresh,
 }: WorkspaceProps) {
   const active = useRef(true);
@@ -132,6 +138,8 @@ export function Workspace({
                   r.source.job.status,
                 )) ||
               (filter === "review" && needsReview(r)) ||
+              (filter === "confirm" && needsWebsiteConfirm(r)) ||
+              (filter === "nowebsite" && noWebsiteFound(r)) ||
               (filter === "email" &&
                 acceptedContacts(r).some((c) => c.kind === "email")) ||
               (filter === "missing" &&
@@ -164,7 +172,10 @@ export function Workspace({
         .length,
     ],
     ["Need contact review", rows.filter(needsReview).length],
+    ["Websites to confirm", rows.filter(needsWebsiteConfirm).length],
   ];
+  const siblings = useMemo(() => sharedWebsite(rows), [rows]);
+  const toConfirm = filtered.filter(needsWebsiteConfirm);
   const pages = Math.max(1, Math.ceil(filtered.length / 25));
   const currentPage = Math.min(page, pages - 1);
   const visible = filtered.slice(currentPage * 25, (currentPage + 1) * 25);
@@ -219,6 +230,32 @@ export function Workspace({
       await onRefresh?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Research could not start.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function confirmWebsites(ids: string[]) {
+    if (!onConfirmWebsites || !ids.length) return;
+    if (
+      ids.length > 1 &&
+      !window.confirm(
+        `Confirm the website for ${ids.length} spaces? Check the domains in the list first: confirming says each site belongs to that space.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const count = await onConfirmWebsites(ids);
+      setMessage(
+        `${count} website${count === 1 ? "" : "s"} confirmed. Their contacts are ready to accept.`,
+      );
+      setSelected(null);
+      await onRefresh?.();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Websites could not be confirmed.",
+      );
     } finally {
       setBusy(false);
     }
@@ -319,6 +356,18 @@ export function Workspace({
               Research {filtered.length} spaces
             </Button>
           )}
+          {onConfirmWebsites && toConfirm.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                void confirmWebsites(toConfirm.map((r) => r.source.id))
+              }
+              disabled={busy}
+            >
+              Confirm {toConfirm.length} website
+              {toConfirm.length === 1 ? "" : "s"} shown
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() =>
@@ -400,6 +449,8 @@ export function Workspace({
               ["researched", "Researched prospects"],
               ["attention", "Research needs attention"],
               ["review", "Needs contact review"],
+              ["confirm", "Website to confirm"],
+              ["nowebsite", "No website found"],
               ["email", "Accepted email"],
               ["missing", "No email candidate"],
               ["due", "Follow-up due"],
@@ -553,9 +604,29 @@ export function Workspace({
                             Website
                           </SourceLink>
                         )}
-                        {row.source.website_identity_review === true && (
+                        {needsWebsiteConfirm(row) && (
+                          <p className="text-xs flex flex-wrap items-center gap-2">
+                            <span>Is this their site?</span>
+                            {onConfirmWebsites && (
+                              <button
+                                type="button"
+                                className="underline underline-offset-4"
+                                disabled={busy}
+                                onClick={() =>
+                                  void confirmWebsites([row.source.id])
+                                }
+                              >
+                                Confirm
+                              </button>
+                            )}
+                          </p>
+                        )}
+                        {noWebsiteFound(row) && (
                           <p className="text-xs">
-                            Confirm website belongs to this location.
+                            No website found.{" "}
+                            <SourceLink url={webSearchUrl(row)}>
+                              Search the web
+                            </SourceLink>
                           </p>
                         )}
                         <p className="text-neutral-500 text-xs mt-1">
@@ -736,9 +807,49 @@ export function Workspace({
                   )}
                 </DialogDescription>
               </DialogHeader>
-              <SourceLink url={selected.source.website}>
-                Open business website
-              </SourceLink>
+              {safeUrl(selected.source.website) ? (
+                <SourceLink url={selected.source.website}>
+                  Open business website
+                </SourceLink>
+              ) : (
+                <p className="text-sm">
+                  No website found. Use Instagram or phone below, or{" "}
+                  <SourceLink url={webSearchUrl(selected)}>
+                    search the web
+                  </SourceLink>{" "}
+                  and save the site.
+                </p>
+              )}
+              {needsWebsiteConfirm(selected) && (
+                <div className="text-sm border p-3 space-y-2">
+                  <p>
+                    This website was matched by name. Confirm it belongs to
+                    this space before accepting its contacts.
+                  </p>
+                  {onConfirmWebsites && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void confirmWebsites([selected.source.id])
+                      }
+                    >
+                      Confirm website
+                    </Button>
+                  )}
+                </div>
+              )}
+              {(siblings.get(selected.source.id)?.length ?? 0) > 0 && (
+                <p className="text-sm">
+                  Same website as:{" "}
+                  {siblings
+                    .get(selected.source.id)!
+                    .map((r) => r.source.name)
+                    .join(", ")}
+                  . If one of these is a duplicate, mark the extra as do not
+                  contact. Exports list each email once.
+                </p>
+              )}
               <div className="text-sm border p-3">
                 <strong>Evidence and fit</strong>
                 <p>

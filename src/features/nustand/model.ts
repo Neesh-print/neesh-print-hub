@@ -118,6 +118,40 @@ export function acceptedContacts(row: Row) {
 export function needsReview(row: Row) {
   return row.source.contacts.some((c) => !row.review.contacts[c.id]);
 }
+/** True while a found website still needs the owner to confirm it is this space's. */
+export function needsWebsiteConfirm(row: Row): boolean {
+  const flag = (row.source as Record<string, unknown>).website_identity_review;
+  return (flag === true || flag === "true") && !!safeUrl(row.source.website);
+}
+/** Research finished without finding any website for this space. */
+export function noWebsiteFound(row: Row): boolean {
+  return row.source.job.status === "needs_website" && !safeUrl(row.source.website);
+}
+export function websiteDomain(value?: string | null): string | undefined {
+  const href = safeUrl(value);
+  return href ? new URL(href).hostname.replace(/^www\./, "").toLowerCase() : undefined;
+}
+/** Other spaces that point at the same website (branches, or duplicate imports). */
+export function sharedWebsite(rows: Row[]): Map<string, Row[]> {
+  const byDomain = new Map<string, Row[]>();
+  for (const row of rows) {
+    const domain = websiteDomain(row.source.website);
+    if (domain) byDomain.set(domain, [...(byDomain.get(domain) ?? []), row]);
+  }
+  const siblings = new Map<string, Row[]>();
+  for (const group of byDomain.values())
+    if (group.length > 1)
+      for (const row of group)
+        siblings.set(row.source.id, group.filter((r) => r !== row));
+  return siblings;
+}
+/** A web search for the space, for finding a site the research missed. */
+export function webSearchUrl(row: Row): string {
+  const place = [row.source.name, row.source.neighborhood, row.source.city || "New York"]
+    .filter(Boolean)
+    .join(" ");
+  return "https://www.google.com/search?q=" + encodeURIComponent(place);
+}
 export function safeUrl(value?: string | null): string | undefined {
   if (!value) return;
   try {
@@ -143,22 +177,39 @@ export function exportContacts(rows: Row[]): string {
       "Instagram",
       "Stage",
       "Next follow-up",
+      "Note",
     ],
   ];
+  // An address shared by several spaces (one shop's branches, or a duplicate
+  // import) is exported once, so outreach never emails the same inbox twice.
+  const emailedBy = new Map<string, string>();
   for (const row of rows) {
     const contacts = acceptedContacts(row);
     if (!contacts.length || row.review.stage !== "Qualified") continue;
+    const shared: string[] = [];
+    const kept = contacts.filter((c) => {
+      if (c.kind !== "email") return true;
+      const key = c.value.toLowerCase();
+      const first = emailedBy.get(key);
+      if (first) {
+        shared.push(`${c.value} is listed under ${first}`);
+        return false;
+      }
+      emailedBy.set(key, row.source.name);
+      return true;
+    });
     lines.push([
       row.source.name,
       row.source.neighborhood ?? "",
       ...(["email", "phone", "instagram"] as const).map((kind) =>
-        contacts
+        kept
           .filter((c) => c.kind === kind)
           .map((c) => c.value + (c.extension ? ` ext ${c.extension}` : ""))
           .join("; "),
       ),
       row.review.stage,
       row.review.next_follow_up,
+      shared.join("; "),
     ]);
   }
   return lines.map((line) => line.map(csvCell).join(",")).join("\r\n");

@@ -209,3 +209,36 @@ describe("Prospect workflow", () => {
     expect(click).not.toHaveBeenCalled();
   });
 });
+
+describe("website confirmation", () => {
+  const row = (id: string, name: string, review = true): Row => ({
+    source: {
+      id, name, city: "New York", neighborhood: null, website: `https://${id}.example`,
+      website_identity_review: review, do_not_contact: false, original_record: {},
+      contacts: [], job: { status: "completed" }, fit: { score: null, segment: null, uncertainties: [] },
+    } as unknown as Row["source"],
+    review: emptyReview(),
+    version: 1,
+  });
+  it("filters to websites to confirm and confirms one from the list", async () => {
+    const onConfirmWebsites = vi.fn().mockResolvedValue(1);
+    render(<Workspace initialRows={[row("a", "Alpha"), row("b", "Beta", false)]} onSave={vi.fn()} onConfirmWebsites={onConfirmWebsites} />);
+    fireEvent.change(screen.getByDisplayValue("All spaces"), { target: { value: "confirm" } });
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Beta")).toHaveLength(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "Confirm" })[0]);
+    await waitFor(() => expect(onConfirmWebsites).toHaveBeenCalledWith(["a"]));
+    await screen.findByText(/1 website confirmed/);
+  });
+  it("asks before confirming several websites at once", async () => {
+    const onConfirmWebsites = vi.fn().mockResolvedValue(2);
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<Workspace initialRows={[row("a", "Alpha"), row("c", "Gamma")]} onSave={vi.fn()} onConfirmWebsites={onConfirmWebsites} />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm 2 websites shown/ }));
+    expect(ask).toHaveBeenCalled();
+    expect(onConfirmWebsites).not.toHaveBeenCalled();
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm 2 websites shown/ }));
+    await waitFor(() => expect(onConfirmWebsites).toHaveBeenCalledWith(["a", "c"]));
+  });
+});
