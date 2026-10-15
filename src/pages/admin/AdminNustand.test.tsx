@@ -23,6 +23,7 @@ vi.mock("@/features/nustand/api", () => ({
   copyCurrentContact: vi.fn(),
   queueResearch: vi.fn(),
   setWebsite: vi.fn(),
+  confirmWebsites: vi.fn(),
   researchStatus: vi.fn().mockResolvedValue({enabled:false,jobs:[]}),
 }));
 import { AdminNustand } from "./AdminNustand";

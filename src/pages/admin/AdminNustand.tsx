@@ -11,6 +11,7 @@ import {
   copyCurrentContact,
   queueResearch,
   setWebsite,
+  confirmWebsites,
 } from "@/features/nustand/api";
 import type { Row } from "@/features/nustand/model";
 
@@ -72,6 +73,7 @@ export function AdminNustand() {
             onCopy={copyCurrentContact}
             onResearch={queueResearch}
             onWebsite={setWebsite}
+            onConfirmWebsites={confirmWebsites}
             onRefresh={refresh}
             onImport={async (rows) => {
               await importRows(rows);

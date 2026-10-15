@@ -134,3 +134,9 @@ export async function discoverSpaces(
 export async function setWebsite(id: string, website: string): Promise<void> {
   await call("nustand_set_website", { prospect_id: id, website });
 }
+export async function confirmWebsites(ids: string[]): Promise<number> {
+  return z
+    .number()
+    .int()
+    .parse(await call("nustand_confirm_websites", { prospect_ids: ids }));
+}
