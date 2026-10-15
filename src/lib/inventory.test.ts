@@ -12,12 +12,12 @@ describe('getStockLevel', () => {
     expect(getStockLevel(0)).toBe('out');
   });
 
-  it('returns "out" for null', () => {
-    expect(getStockLevel(null)).toBe('out');
+  it('treats null (stock not tracked) as available', () => {
+    expect(getStockLevel(null)).toBe('normal');
   });
 
-  it('returns "out" for undefined', () => {
-    expect(getStockLevel(undefined)).toBe('out');
+  it('treats undefined (stock not tracked) as available', () => {
+    expect(getStockLevel(undefined)).toBe('normal');
   });
 
   it('returns "out" for negative numbers', () => {
@@ -70,8 +70,8 @@ describe('getStockMessage', () => {
     expect(getStockMessage(50)).toBeNull();
   });
 
-  it('returns null for null input', () => {
-    expect(getStockMessage(null)).toBe('Out of stock');
+  it('shows no stock message when stock is not tracked', () => {
+    expect(getStockMessage(null)).toBeNull();
   });
 });
 
@@ -98,8 +98,8 @@ describe('isInStock', () => {
     expect(isInStock(0)).toBe(false);
   });
 
-  it('returns false for null', () => {
-    expect(isInStock(null)).toBe(false);
+  it('treats untracked stock as in stock', () => {
+    expect(isInStock(null)).toBe(true);
   });
 
   it('returns true for any positive quantity', () => {
