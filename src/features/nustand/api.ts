@@ -71,3 +71,66 @@ export async function copyCurrentContact(
       }),
     );
 }
+
+export type ResearchJob = {
+  id: string;
+  prospect_id: string | null;
+  kind: "research" | "discovery";
+  status: string;
+  error: string | null;
+  pages: number;
+  requests: number;
+  finished_at: string | null;
+  input: Record<string, unknown>;
+  result?: { candidates?: unknown[]; attribution?: string } | null;
+};
+export async function researchStatus(): Promise<{
+  enabled: boolean;
+  jobs: ResearchJob[];
+}> {
+  return z
+    .object({
+      enabled: z.boolean(),
+      jobs: z.array(
+        z.object({
+          id: z.string(),
+          prospect_id: z.string().nullable(),
+          kind: z.enum(["research", "discovery"]),
+          status: z.string(),
+          error: z.string().nullable(),
+          pages: z.number(),
+          requests: z.number(),
+          finished_at: z.string().nullable(),
+          input: z.record(z.unknown()),
+          result: z
+            .object({
+              candidates: z.array(z.unknown()).optional(),
+              attribution: z.string().optional(),
+            })
+            .nullable()
+            .optional(),
+        }),
+      ),
+    })
+    .parse(await call("nustand_research_status"));
+}
+export async function queueResearch(ids: string[]): Promise<number> {
+  return z
+    .number()
+    .int()
+    .parse(await call("nustand_research_queue", { prospect_ids: ids }));
+}
+export async function discoverSpaces(
+  area: string,
+  segment: string,
+  neighborhood: string,
+): Promise<string> {
+  return z
+    .string()
+    .parse(
+      await call("nustand_discovery_queue", { area, segment, neighborhood }),
+    );
+}
+export async function setWebsite(id: string, website: string): Promise<void> {
+  await call("nustand_set_website", { prospect_id: id, website });
+}

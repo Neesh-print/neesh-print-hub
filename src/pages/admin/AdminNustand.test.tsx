@@ -21,6 +21,9 @@ vi.mock("@/features/nustand/api", () => ({
   saveReview: vi.fn(),
   exportCurrentContacts: vi.fn(),
   copyCurrentContact: vi.fn(),
+  queueResearch: vi.fn(),
+  setWebsite: vi.fn(),
+  researchStatus: vi.fn().mockResolvedValue({enabled:false,jobs:[]}),
 }));
 import { AdminNustand } from "./AdminNustand";
 beforeEach(() => {

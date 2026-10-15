@@ -27,13 +27,14 @@ def urljoin(base: str, target: str) -> str:
 
 
 class Crawler:
-    def __init__(self, transport=None, *, max_pages=4, max_requests=20, max_seconds=150, denied_hosts=(), evidence_dir=None):
+    def __init__(self, transport=None, *, max_pages=4, max_requests=20, max_seconds=150, denied_hosts=(), evidence_dir=None, capture_links=False):
         if not 1 <= max_pages <= 4 or not 1 <= max_requests <= 24 or not 1 <= max_seconds <= 240:
             raise ValueError("Crawl limits exceed the pilot policy")
         self.transport = transport or CurlTransport()
         self.max_pages, self.max_requests, self.max_seconds = max_pages, max_requests, max_seconds
         self.denied_hosts = {x.lower().removeprefix("www.") for x in denied_hosts}
         self.evidence_dir = evidence_dir
+        self.capture_links = capture_links
 
     def crawl(self, website: str, country="US") -> dict:
         started = now_iso()
@@ -160,6 +161,13 @@ class Crawler:
                     job["pages_fetched"] += 1
                     job["pages"].append({"source_url": response.url, "status": response.status, "content_hash": parsed["content_hash"], "text_characters": len(parsed["text"]), "checked_at": started})
                     job["site_signals"].append({"source_url": response.url, "text": parsed["text"][:30000], "content_hash": parsed["content_hash"]})
+                    if self.capture_links:
+                        links = job.setdefault("published_links", [])
+                        for link in parsed["links"]:
+                            if len(links) >= 200: break
+                            try: target=urljoin(response.url,link["url"])
+                            except CrawlError: continue
+                            links.append({"url":target[:2000],"text":link["text"][:500],"source_url":response.url})
                     if self.evidence_dir:
                         self.evidence_dir.mkdir(parents=True, exist_ok=True)
                         path = self.evidence_dir / (parsed["content_hash"] + ".html")

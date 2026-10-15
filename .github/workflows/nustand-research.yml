@@ -1,0 +1,26 @@
+name: Nustand research queue
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: nustand-research
+  cancel-in-progress: false
+jobs:
+  research:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Process at most ten queued jobs
+        env:
+          NUSTAND_BROKER_URL: https://smfzrubkyxejzkblrrjr.supabase.co/functions/v1/nustand-worker
+        run: PYTHONPATH=tools/nns python -m nns.worker
