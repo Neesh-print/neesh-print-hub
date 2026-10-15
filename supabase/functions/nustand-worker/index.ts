@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 import { githubKeys, verifyWorkerToken } from "../_shared/nustand_oidc.ts";
-import { discoverGoogle, discoveryCalls, foursquare, google, SEGMENT_QUERIES, AREAS, validName } from "../_shared/nustand_providers.ts";
+import { discoverGoogle, discoveryCalls, foursquare, google, hunter, SEGMENT_QUERIES, AREAS, validDomain, validName } from "../_shared/nustand_providers.ts";
 
 const reply = (status: number, data: unknown) =>
   new Response(JSON.stringify(data), {
@@ -61,6 +61,17 @@ Deno.serve(async (request: Request) => {
       if (budgetError) return reply(409, { error: "Research operation rejected" });
       if (!allowed) return reply(200, { data: { budget_exhausted: true } });
       return reply(200, { data: await discoverGoogle(segment, area, neighborhood, key) });
+    }
+    if (input.action === "find_emails") {
+      // Off until HUNTER_API_KEY is set in Supabase secrets; the runner never sees it.
+      const key = Deno.env.get("HUNTER_API_KEY");
+      if (!key) return reply(200, { data: { unavailable: true } });
+      if (!validDomain(input.domain)) return reply(400, { error: "Invalid lookup" });
+      try {
+        return reply(200, { data: await hunter(input.domain, key) });
+      } catch {
+        return reply(200, { data: { error: "hunter_unavailable" } });
+      }
     }
     if (input.action === "lookup_website") {
       if (!validName(input.name)) return reply(400, { error: "Invalid lookup" });

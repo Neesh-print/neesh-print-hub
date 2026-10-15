@@ -988,6 +988,12 @@ export function Workspace({
                       </select>
                     </label>
                   </div>
+                  {contact.person_name && (
+                    <p className="text-sm">
+                      {contact.person_name}
+                      {contact.position ? `, ${contact.position}` : ""}
+                    </p>
+                  )}
                   <p className="text-xs">
                     {contact.quality_status.replace(/_/g, " ")} · Checked{" "}
                     {contact.last_checked_at || "unknown"}

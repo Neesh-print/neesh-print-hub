@@ -42,6 +42,22 @@ Google lookups), drop closed places and chains (known chain domains, or one
 domain repeated three or more times), and rank places with a website and phone
 first. The database caps lookups at 600 a day and 2,000 a month.
 
+## Finding emails
+
+Research reads each space's own website (up to four pages) for published emails,
+including obfuscated and Cloudflare-protected addresses. When the site's links
+lead to no email, it also tries `/contact`, `/contact-us`, `/pages/contact` and
+`/about`. A robots.txt that answers 4xx places no limits (RFC 9309); a 5xx or a
+bot challenge still blocks the site. When a space has no website at all but its
+Google listing matches by name, the listing's phone is kept for review.
+
+Optional email finder: set `HUNTER_API_KEY` in Supabase secrets and research asks
+Hunter's domain search about any site that shows no email. Found addresses carry
+the person's name and role when known, are marked "found by email finder", and
+always need review before export. Hunter plans stop at their monthly allowance
+and never bill overage; remove the secret to switch it off.
+`sql/requeue_no_email.sql` re-researches every space without an email.
+
 ## Sources and limits
 
 - Geographic discovery and missing-site lookup use OpenStreetMap / Overpass.

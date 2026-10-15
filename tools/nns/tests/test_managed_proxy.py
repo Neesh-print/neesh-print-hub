@@ -73,7 +73,8 @@ class ManagedProxyTests(unittest.TestCase):
         with patch.dict(os.environ, PROXY, clear=True), patch("subprocess.Popen", side_effect=denied):
             job = Crawler(CurlTransport(network_mode="managed-proxy")).crawl(SITE)
         self.assertEqual(job["status"], "blocked")
-        self.assertEqual(len(self.commands), 1)
+        # robots.txt (a 4xx places no rules) then the homepage, both through the proxy; no retry elsewhere.
+        self.assertEqual(len(self.commands), 2)
 
     def test_local_literals_and_credentialed_targets_remain_blocked(self):
         with patch.dict(os.environ, PROXY, clear=True), patch("subprocess.Popen") as process:

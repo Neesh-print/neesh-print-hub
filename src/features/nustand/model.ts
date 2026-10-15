@@ -18,6 +18,10 @@ const contactSchema = z
     quality_status: text,
     is_primary: z.boolean().optional(),
     relevance: z.number().int().min(0).max(99).optional(),
+    // Set when an email finder named the person behind the address.
+    person_name: text.nullish(),
+    position: text.nullish(),
+    confidence: z.number().nullish(),
     review_reasons: z.array(text).default([]),
     evidence: z.array(evidenceSchema).default([]),
     last_checked_at: text.nullish(),
