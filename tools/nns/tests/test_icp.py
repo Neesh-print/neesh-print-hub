@@ -58,7 +58,7 @@ class WorkerTaggingTests(unittest.TestCase):
         self.assertEqual((out["neighborhood"], out["space_type"], out["fit"]["segment"]), ("Fort Greene", "Hair salon", "Wait"))
 
     def test_existing_segment_and_tags_are_not_overwritten_or_relooked_up(self):
-        src = {"id": "p", "name": "Salon Nordic", "city": "New York", "website": "https://own.example", "space_type": "Spa", "original_record": {}, "fit": {"segment": "Dwell"}}
+        src = {"id": "p", "name": "Salon Nordic", "city": "New York", "website": "https://own.example", "space_type": "Spa", "neighborhood": "SoHo", "original_record": {}, "fit": {"segment": "Dwell"}}
         broker = Broker([{"id": "j", "lease": "l", "kind": "research", "source": src}], lookup={"google": {"candidates": [G]}})
         process(broker, place_fetch=lambda q: [], crawler=Crawler())
         self.assertNotIn("lookup_website", [a for a, _ in broker.calls])
@@ -81,6 +81,12 @@ class WorkerTaggingTests(unittest.TestCase):
         broker = Broker([job], discovered={"unavailable": True})
         process(broker, place_fetch=lambda q: [{"type": "node", "id": 5, "tags": {"name": "Book Shop"}}])
         self.assertEqual(broker.finished[0]["payload"]["candidates"][0]["id"], "osm:node:5")
+
+    def test_space_missing_a_neighborhood_is_looked_up_again(self):
+        src = {"id": "p", "name": "Salon Nordic", "city": "New York", "website": "https://own.example", "space_type": "Spa", "original_record": {}, "fit": {}}
+        broker = Broker([{"id": "j", "lease": "l", "kind": "research", "source": src}], lookup={"google": {"candidates": [G]}})
+        process(broker, place_fetch=lambda q: [], crawler=Crawler())
+        self.assertEqual(broker.finished[0]["payload"]["neighborhood"], "Fort Greene")
 
     def test_confirmed_website_is_not_reflagged(self):
         from nns.worker import research
