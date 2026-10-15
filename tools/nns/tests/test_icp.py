@@ -24,6 +24,11 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(place_tags(G), {"neighborhood": "Fort Greene", "borough": "Brooklyn", "address": "12 Lafayette Ave, Brooklyn, NY", "space_type": "Hair salon", "icp": "Wait"})
         self.assertEqual(place_tags(None), {})
 
+    def test_zip_fills_missing_neighborhood(self):
+        manhattan = {**G, "neighborhood": None, "borough": "Manhattan", "postal_code": "10012"}
+        self.assertEqual(place_tags(manhattan)["neighborhood"], "SoHo")
+        self.assertNotIn("neighborhood", place_tags({**manhattan, "postal_code": "99999"}))
+
 
 class Crawler:
     def crawl(self, url, country):

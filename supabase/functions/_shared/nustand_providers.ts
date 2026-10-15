@@ -6,6 +6,7 @@ export type PlaceCandidate = {
   address: string | null;
   neighborhood?: string | null;
   borough?: string | null;
+  postal_code?: string | null;
   primary_type?: string | null;
   primary_type_label?: string | null;
   types?: string[];
@@ -69,6 +70,7 @@ function mapGoogle(p: Record<string, any>): PlaceCandidate {
     address: text(p.formattedAddress),
     neighborhood: component(p, "neighborhood"),
     borough: component(p, "sublocality_level_1", "sublocality", "locality"),
+    postal_code: component(p, "postal_code"),
     primary_type: text(p.primaryType, 80),
     primary_type_label: text(p.primaryTypeDisplayName?.text, 80),
     types: Array.isArray(p.types) ? p.types.filter((t: unknown) => typeof t === "string").slice(0, 12) : [],

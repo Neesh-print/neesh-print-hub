@@ -78,6 +78,35 @@ TYPES: dict[str, tuple[str, str]] = {
     "liquor_store": ("Wine & liquor shop", "Catalog"),
 }
 
+# NYC ZIP code -> neighborhood, used when Google gives no neighborhood (common
+# in Manhattan). Covers the neighborhoods Neesh sells into; others fall back to
+# the borough. Boundaries are approximate by nature of ZIP codes.
+ZIP_NEIGHBORHOOD: dict[str, str] = {
+    # Manhattan
+    "10001": "Chelsea", "10002": "Lower East Side", "10003": "East Village", "10004": "Financial District",
+    "10005": "Financial District", "10006": "Financial District", "10007": "Tribeca", "10009": "East Village",
+    "10010": "Gramercy", "10011": "Chelsea", "10012": "SoHo", "10013": "Tribeca", "10014": "West Village",
+    "10016": "Murray Hill", "10017": "Midtown East", "10018": "Garment District", "10019": "Midtown West",
+    "10020": "Midtown", "10021": "Upper East Side", "10022": "Midtown East", "10023": "Upper West Side",
+    "10024": "Upper West Side", "10025": "Upper West Side", "10026": "Harlem", "10027": "Harlem",
+    "10028": "Upper East Side", "10029": "East Harlem", "10030": "Harlem", "10031": "Hamilton Heights",
+    "10032": "Washington Heights", "10033": "Washington Heights", "10034": "Inwood", "10035": "East Harlem",
+    "10036": "Midtown West", "10037": "Harlem", "10038": "Financial District", "10039": "Harlem",
+    "10040": "Washington Heights", "10044": "Roosevelt Island", "10065": "Upper East Side",
+    "10069": "Upper West Side", "10075": "Upper East Side", "10128": "Upper East Side",
+    "10280": "Battery Park City", "10282": "Battery Park City",
+    # Brooklyn
+    "11201": "Brooklyn Heights", "11205": "Fort Greene", "11206": "Williamsburg", "11211": "Williamsburg",
+    "11249": "Williamsburg", "11222": "Greenpoint", "11215": "Park Slope", "11217": "Boerum Hill",
+    "11216": "Bed-Stuy", "11221": "Bushwick", "11237": "Bushwick", "11233": "Bed-Stuy", "11238": "Prospect Heights",
+    "11231": "Carroll Gardens", "11225": "Crown Heights", "11213": "Crown Heights", "11218": "Kensington",
+    "11226": "Flatbush", "11232": "Sunset Park", "11220": "Sunset Park", "11209": "Bay Ridge",
+    # Queens
+    "11101": "Long Island City", "11109": "Long Island City", "11102": "Astoria", "11103": "Astoria",
+    "11105": "Astoria", "11106": "Astoria", "11385": "Ridgewood", "11377": "Woodside",
+    "11372": "Jackson Heights", "11375": "Forest Hills",
+}
+
 SEGMENTS = ("Wait", "Presence", "Dwell", "Taste", "Catalog")
 
 
@@ -103,7 +132,7 @@ def place_tags(candidate: dict | None) -> dict:
         return {}
     space_type, segment = classify(candidate.get("primary_type"), candidate.get("types"))
     tags = {
-        "neighborhood": candidate.get("neighborhood") or None,
+        "neighborhood": candidate.get("neighborhood") or ZIP_NEIGHBORHOOD.get(str(candidate.get("postal_code") or "")[:5]) or None,
         "borough": candidate.get("borough") or None,
         "address": candidate.get("address") or None,
         "space_type": space_type or candidate.get("primary_type_label") or None,
