@@ -193,7 +193,7 @@ def process(broker, place_fetch=fetch_places, crawler=None):
             candidate = candidate or (unique_website(job["source"]["name"],elements) if job in missing else None)
             provider_summary, job_error, tags = None, lookup_error, {}
             needs_site = job in missing and not candidate
-            needs_tags = not job["source"].get("space_type")
+            needs_tags = not (job["source"].get("space_type") and job["source"].get("neighborhood"))
             if needs_site or needs_tags:
                 # Paid lookups run inside the broker, which holds the keys and the daily cap.
                 # One lookup serves both: a website if one is missing, and the place tags.
