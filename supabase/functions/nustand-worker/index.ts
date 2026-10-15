@@ -46,9 +46,13 @@ Deno.serve(async (request: Request) => {
     );
     if (input.action === "lookup_website") {
       if (!validName(input.name)) return reply(400, { error: "Invalid lookup" });
+      // Google only: the 25-space test showed Foursquare added no usable sites.
+      // Set NUSTAND_FOURSQUARE=on to call it again as a second source.
       const keys = {
-        foursquare: Deno.env.get("FOURSQUARE_API_KEY"),
         google: Deno.env.get("GOOGLE_PLACES_API_KEY"),
+        foursquare: Deno.env.get("NUSTAND_FOURSQUARE") === "on"
+          ? Deno.env.get("FOURSQUARE_API_KEY")
+          : undefined,
       };
       const enabled = (Object.keys(keys) as (keyof typeof keys)[]).filter((p) => keys[p]);
       if (!enabled.length) return reply(200, { data: {} });

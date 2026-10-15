@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import hashlib
 import json
 from collections import Counter
@@ -13,6 +14,29 @@ def is_suppressed(record: dict) -> bool:
     if any(str(record.get(key, "")).strip().lower() in {"true", "1", "yes"} for key in ("do_not_contact", "opted_out", "suppressed", "unsubscribed")):
         return True
     return any(str(record.get(key, "")).lower().strip() in {"do not contact", "do_not_contact", "unsubscribed", "opted out", "opt_out", "suppressed"} for key in ("status", "stage"))
+
+
+_BUYING = re.compile(r"store|shop|book|retail|buy|wholesale|stockist|magazine|zine|print|merch", re.I)
+_GENERAL = frozenset("hello info contact sales orders general team office welcome studio enquiries inquiries".split())
+_DEPARTMENT = re.compile(r"^(press|media|pr|development|donat|member|ticket|rights|webmaster|career|jobs|hr|privacy|legal|access|director|education|volunteer|rsvp|events?|booking|reservations?|accounting|billing|invoice|finance|support|service|help|customer)", re.I)
+
+
+def relevance(contact: dict, name: str) -> int:
+    """Lower is better. Puts the address a buyer would answer above department inboxes."""
+    reasons = set(contact.get("review_reasons") or [])
+    if contact["kind"] != "email":
+        return (0 if contact.get("is_primary") else 1) + (2 if reasons else 0)
+    if "different_mail_domain" in reasons or "non_reply_address" in reasons:
+        return 6
+    local = contact["value"].split("@")[0].casefold()
+    words = {w for w in re.findall(r"[a-z0-9]+", (name or "").casefold()) if len(w) > 3}
+    if _BUYING.search(local) or any(w in local for w in words):
+        return 0
+    if local.split(".")[0] in _GENERAL:
+        return 1
+    if _DEPARTMENT.match(local):
+        return 4
+    return 2  # A person's name or unknown inbox: may be right, needs a look.
 
 
 def normalized_city(raw: str) -> str:
@@ -89,6 +113,7 @@ def reconcile(record: dict, crawl: dict) -> dict:
         contact["last_checked_at"] = crawl.get("finished_at")
         contact["last_seen_at"] = max((e["observed_at"] for e in contact["evidence"]), default=None)
         contact["evidence"] = list({json.dumps(e, sort_keys=True): e for e in contact["evidence"]}.values())
+        contact["relevance"] = relevance(contact, record.get("business_name") or record.get("name") or "")
     suppressed = is_suppressed(record)
     score = sum(weight for kind, weight in (("email", 60), ("phone", 30), ("instagram", 10)) if primary[kind])
     observed_score = sum(weight for kind, weight in (("email", 60), ("phone", 30), ("instagram", 10)) if primary[kind] and primary[kind]["quality_status"] == "observed_on_website" and not primary[kind].get("review_reasons"))

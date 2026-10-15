@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   acceptedContacts,
+  bestContact,
+  orderedContacts,
+  type Contact,
   emptyReview,
   exportContacts,
   mergeNewRows,
@@ -103,5 +106,19 @@ describe("Nustand review boundaries", () => {
     expect(safeUrl("https://example.org/contact")).toBe(
       "https://example.org/contact",
     );
+  });
+});
+
+describe("contact ordering", () => {
+  const c = (value: string, kind: "email" | "phone" | "instagram", relevance?: number, is_primary = false) =>
+    ({ id: value, value, kind, relevance, is_primary, quality_status: "observed_on_website", review_reasons: [], evidence: [] }) as Contact;
+  it("orders by kind, primary, then relevance, unranked last", () => {
+    const list = [c("dev@x.org", "email", 4), c("+1", "phone", 1), c("store@x.org", "email", 0), c("old@x.org", "email"), c("x", "instagram", 1)];
+    expect(orderedContacts(list).map((x) => x.value)).toEqual(["store@x.org", "dev@x.org", "old@x.org", "x", "+1"]);
+  });
+  it("picks a primary over a better-ranked contact, and the best rank otherwise", () => {
+    expect(bestContact([c("a@x.org", "email", 0), c("b@x.org", "email", 3, true)], "email")?.value).toBe("b@x.org");
+    expect(bestContact([c("a@x.org", "email", 2), c("b@x.org", "email", 1)], "email")?.value).toBe("b@x.org");
+    expect(bestContact([c("a@x.org", "email", 2)], "phone")).toBeUndefined();
   });
 });
