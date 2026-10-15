@@ -12,6 +12,7 @@ import urllib.request
 from .crawler import Crawler, now_iso
 from .network import CurlTransport, CrawlError, normalize_url, site_key
 from .places import PlaceError, fetch_places, query, record, unique_website
+from .providers import choose as choose_provider_candidate
 from .qualification import assess
 from .records import reconcile, normalized_city
 
@@ -66,11 +67,13 @@ def research(source, candidate=None, lookup_error=None, crawler=None):
         for contact in result["contacts"]:
             contact["review_reasons"] = sorted(set(contact.get("review_reasons", [])) | {"website_identity_needs_review"})
             contact["is_primary"] = False
-    source_url = (candidate or {}).get("discovery", {}).get("source_url") or raw.get("source_url")
+    discovery = (candidate or {}).get("discovery", {})
+    source_url = discovery.get("source_url") or raw.get("source_url")
+    label = discovery.get("source_label") or "OpenStreetMap"
     if source_url:
         for contact in result["contacts"]:
             if contact.get("raw_imported_value"):
-                contact["evidence"].append({"source_url":source_url,"extract_method":"open_place_data","observed_at":now_iso(),"excerpt_or_signal":"Business contact published in OpenStreetMap; not website verified."})
+                contact["evidence"].append({"source_url":source_url,"extract_method":"provider_place_data" if discovery.get("provider") else "open_place_data","observed_at":now_iso(),"excerpt_or_signal":f"Business contact listed in {label}; not website verified."})
     contacts = result["contacts"][:100]
     if len(result["contacts"]) > 100:
         fit["uncertainties"].append("Contact candidate limit reached; review the site manually.")
@@ -129,7 +132,17 @@ def process(broker, place_fetch=fetch_places, crawler=None):
         else:
             candidate,source_requests=published_website(job["source"],source_cache,source_crawler) if job in missing else (None,0)
             candidate = candidate or (unique_website(job["source"]["name"],elements) if job in missing else None)
-            result = research(job["source"],candidate,lookup_error if job in missing and not candidate else None,site_crawler)
+            provider_summary, job_error = None, lookup_error
+            if job in missing and not candidate:
+                # Paid lookups run inside the broker, which holds the keys and the daily cap.
+                try: lookup = broker.call("lookup_website", name=job["source"]["name"][:200])
+                except Exception: lookup = None
+                candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup if isinstance(lookup, dict) else None)
+                if candidate is None and isinstance(lookup, dict) and lookup.get("budget_exhausted"):
+                    job_error = job_error or "daily_provider_lookup_limit"
+            result = research(job["source"],candidate,job_error if job in missing and not candidate else None,site_crawler)
+            if provider_summary is not None:
+                result["provider_lookup"] = provider_summary
             result["requests"]+=source_requests
             if missing and job["id"]==missing[0]["id"]: result["requests"]+=lookup_requests
         broker.call("finish",job_id=job["id"],lease=job["lease"],payload=result)
