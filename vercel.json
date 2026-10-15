@@ -2,7 +2,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/nns-contact-enrichment-poc": false,
-      "codex/nustand-csv-import": false
+      "codex/nustand-csv-import": false,
+      "codex/nustand-research": false
     }
   },
   "rewrites": [

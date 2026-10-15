@@ -29,7 +29,11 @@ export type WorkspaceProps = {
   onImport?: (rows: Row[]) => Promise<Row[]>;
   onExport?: (ids: string[]) => Promise<string>;
   onCopy?: (id: string, contactId: string) => Promise<string>;
+  onResearch?: (ids: string[]) => Promise<number>;
+  onWebsite?: (id: string, website: string) => Promise<void>;
+  onRefresh?: () => Promise<void>;
 };
+const EMPTY_ROWS: Row[] = [];
 function download(name: string, data: string, type: string) {
   const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement("a");
@@ -60,11 +64,14 @@ function SourceLink({
   );
 }
 export function Workspace({
-  initialRows = [],
+  initialRows = EMPTY_ROWS,
   onSave,
   onImport,
   onExport,
   onCopy,
+  onResearch,
+  onWebsite,
+  onRefresh,
 }: WorkspaceProps) {
   const active = useRef(true);
   useEffect(() => {
@@ -74,11 +81,18 @@ export function Workspace({
     };
   }, []);
   const [rows, setRows] = useState(initialRows);
+  useEffect(() => {
+    setRows(initialRows);
+  }, [initialRows]);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<Row | null>(null);
   const [draft, setDraft] = useState<Review | null>(null);
+  const [websiteDraft, setWebsiteDraft] = useState("");
+  useEffect(() => {
+    setWebsiteDraft(selected?.source.website || "");
+  }, [selected?.source.id, selected?.source.website]);
   const [pendingImport, setPendingImport] = useState<Row[] | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -90,32 +104,49 @@ export function Workspace({
   const today = new Date().toLocaleDateString("en-CA");
   const filtered = useMemo(
     () =>
-      rows.filter((r) => {
-        const searchable = [
-          r.source.name,
-          r.source.city,
-          r.source.neighborhood,
-          r.source.original_record.address,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return (
-          searchable.includes(query.toLowerCase()) &&
-          (!segment ||
-            (r.review.segment || r.source.fit.segment) === segment) &&
-          (filter === "all" ||
-            (filter === "review" && needsReview(r)) ||
-            (filter === "email" &&
-              acceptedContacts(r).some((c) => c.kind === "email")) ||
-            (filter === "missing" &&
-              !r.source.contacts.some((c) => c.kind === "email")) ||
-            (filter === "due" &&
-              !!r.review.next_follow_up &&
-              r.review.next_follow_up <= today &&
-              !suppressed(r)) ||
-            (filter === "suppressed" && suppressed(r)))
-        );
-      }),
+      rows
+        .filter((r) => {
+          const searchable = [
+            r.source.name,
+            r.source.city,
+            r.source.neighborhood,
+            r.source.original_record.address,
+          ]
+            .join(" ")
+            .toLowerCase();
+          return (
+            searchable.includes(query.toLowerCase()) &&
+            (!segment ||
+              (r.review.segment || r.source.fit.segment) === segment) &&
+            (filter === "all" ||
+              (filter === "unresearched" &&
+                ["not_started", "pending"].includes(r.source.job.status)) ||
+              (filter === "researching" &&
+                ["queued", "running"].includes(r.source.job.status)) ||
+              (filter === "researched" &&
+                ["completed", "partial"].includes(r.source.job.status)) ||
+              (filter === "attention" &&
+                ["failed", "blocked", "needs_website"].includes(
+                  r.source.job.status,
+                )) ||
+              (filter === "review" && needsReview(r)) ||
+              (filter === "email" &&
+                acceptedContacts(r).some((c) => c.kind === "email")) ||
+              (filter === "missing" &&
+                !r.source.contacts.some((c) => c.kind === "email")) ||
+              (filter === "due" &&
+                !!r.review.next_follow_up &&
+                r.review.next_follow_up <= today &&
+                !suppressed(r)) ||
+              (filter === "suppressed" && suppressed(r)))
+          );
+        })
+        .sort(
+          (a, b) =>
+            (b.review.fit_score ?? b.source.fit.score ?? -1) -
+              (a.review.fit_score ?? a.source.fit.score ?? -1) ||
+            (b.source.contact_score ?? 0) - (a.source.contact_score ?? 0),
+        ),
     [rows, query, segment, filter, today],
   );
   const counts = [
@@ -172,6 +203,38 @@ export function Workspace({
       setError(
         e instanceof Error ? e.message : "Could not read this pilot file.",
       );
+    }
+  }
+  async function researchSpaces(ids: string[]) {
+    if (!onResearch) return;
+    setBusy(true);
+    setError("");
+    try {
+      const count = await onResearch(ids);
+      setMessage(
+        `${count} research jobs queued. Already active, suppressed or recently checked spaces were skipped.`,
+      );
+      await onRefresh?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Research could not start.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveWebsite() {
+    if (!selected || !onWebsite || !safeUrl(websiteDraft)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onWebsite(selected.source.id, websiteDraft);
+      setSelected(null);
+      setDraft(null);
+      await onRefresh?.();
+      setMessage("Website saved. Select the space and start research.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Website could not be saved.");
+    } finally {
+      setBusy(false);
     }
   }
   async function confirmImport() {
@@ -244,6 +307,16 @@ export function Workspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {onResearch && (
+            <Button
+              onClick={() =>
+                void researchSpaces(filtered.map((r) => r.source.id))
+              }
+              disabled={busy || !filtered.length}
+            >
+              Research {filtered.length} spaces
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() =>
@@ -320,6 +393,10 @@ export function Workspace({
           >
             {[
               ["all", "All spaces"],
+              ["unresearched", "Not researched"],
+              ["researching", "Queued or researching"],
+              ["researched", "Researched prospects"],
+              ["attention", "Research needs attention"],
               ["review", "Needs contact review"],
               ["email", "Accepted email"],
               ["missing", "No email candidate"],
@@ -362,7 +439,9 @@ export function Workspace({
       )}
       <p className="text-xs text-neutral-600">
         {filtered.length} of {rows.length} spaces. Exports include only
-        qualified, nonsuppressed spaces with manually accepted contacts.
+        qualified, nonsuppressed spaces with manually accepted contacts. Ranked
+        by supported fit, then contact availability. Unknown fit stays
+        unassessed.
       </p>
       {!rows.length ? (
         <div className="py-16 text-center border border-dashed border-neutral-300">
@@ -399,6 +478,25 @@ export function Workspace({
                   }{" "}
                   accepted
                 </p>
+                <p className="text-xs">
+                  Research: {row.source.job.status.replace(/_/g, " ")}
+                </p>
+                {(["email", "phone", "instagram"] as const).map((kind) => {
+                  const contact =
+                    row.source.contacts.find(
+                      (c) => c.kind === kind && c.is_primary,
+                    ) || row.source.contacts.find((c) => c.kind === kind);
+                  return contact ? (
+                    <p className="text-sm break-all" key={kind}>
+                      {kind}: {contact.value}{" "}
+                      <span className="text-xs">
+                        {row.review.contacts[contact.id] === "accepted"
+                          ? "Accepted"
+                          : "Candidate — review source"}
+                      </span>
+                    </p>
+                  ) : null;
+                })}
                 <p className="text-sm">
                   {suppressed(row) ? "Do not contact" : row.review.stage} · Fit:{" "}
                   {row.review.fit_score ?? row.source.fit.score ?? "Unassessed"}
@@ -440,9 +538,10 @@ export function Workspace({
                   const email = row.source.contacts.filter(
                     (c) => c.kind === "email",
                   );
-                  const phone = row.source.contacts.find(
-                    (c) => c.kind === "phone" && c.is_primary,
-                  );
+                  const phone =
+                    row.source.contacts.find(
+                      (c) => c.kind === "phone" && c.is_primary,
+                    ) || row.source.contacts.find((c) => c.kind === "phone");
                   const acceptedEmail = acceptedContacts(row).filter(
                     (c) => c.kind === "email",
                   );
@@ -453,6 +552,16 @@ export function Workspace({
                     >
                       <td className="p-3 min-w-44">
                         <p className="font-semibold">{row.source.name}</p>
+                        {safeUrl(row.source.website) && (
+                          <SourceLink url={row.source.website}>
+                            Website
+                          </SourceLink>
+                        )}
+                        {row.source.website_identity_review === true && (
+                          <p className="text-xs">
+                            Confirm website belongs to this location.
+                          </p>
+                        )}
                         <p className="text-neutral-500 text-xs mt-1">
                           {row.source.neighborhood || "Neighborhood unknown"}
                         </p>
@@ -472,8 +581,10 @@ export function Workspace({
                           <>
                             <p>
                               {email.length
-                                ? `${email.length} candidate${email.length === 1 ? "" : "s"}`
-                                : "No email found"}
+                                ? email[0].value
+                                : row.source.job.status === "not_started"
+                                  ? "Not researched"
+                                  : "No email candidate"}
                             </p>
                             <span className="text-xs text-neutral-500">
                               {email.length
@@ -506,6 +617,10 @@ export function Workspace({
                           {row.review.fit_score !== null
                             ? "Manual"
                             : "Provisional"}
+                        </p>
+                        <p className="text-xs">
+                          Contact availability:{" "}
+                          {row.source.contact_score ?? "Unassessed"}
                         </p>
                       </td>
                       <td className="p-3">
@@ -634,6 +749,39 @@ export function Workspace({
                   Observed fit: {selected.source.fit.score ?? "Unassessed"}.
                   Crawl: {selected.source.job.status}.
                 </p>
+                {onResearch && (
+                  <Button
+                    variant="outline"
+                    disabled={busy || suppressed(selected)}
+                    onClick={() => void researchSpaces([selected.source.id])}
+                  >
+                    Research this space
+                  </Button>
+                )}
+                {onWebsite && (
+                  <div className="space-y-2">
+                    <label className="text-sm">
+                      Business website
+                      <Input
+                        aria-label="Business website"
+                        value={websiteDraft}
+                        onChange={(e) => setWebsiteDraft(e.target.value)}
+                        placeholder="https://business.example"
+                      />
+                    </label>
+                    <Button
+                      variant="outline"
+                      disabled={busy || !safeUrl(websiteDraft)}
+                      onClick={() => void saveWebsite()}
+                    >
+                      Save website
+                    </Button>
+                    <p className="text-xs">
+                      If open-data lookup cannot identify the site, supply its
+                      official business website here.
+                    </p>
+                  </div>
+                )}
                 <p className="text-neutral-600">
                   Unknowns:{" "}
                   {selected.source.fit.uncertainties

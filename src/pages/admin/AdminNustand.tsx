@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Workspace } from "@/features/nustand/Workspace";
+import { ResearchPanel } from "@/features/nustand/ResearchPanel";
 import {
   importRows,
   loadRows,
   saveReview,
   exportCurrentContacts,
   copyCurrentContact,
+  queueResearch,
+  setWebsite,
 } from "@/features/nustand/api";
 import type { Row } from "@/features/nustand/model";
 
@@ -19,6 +22,12 @@ export function AdminNustand() {
     rows?: Row[];
     error?: string;
   } | null>(null);
+  const refresh = useCallback(async () => {
+    const rows = await loadRows();
+    setState((current) =>
+      current?.userId === userId ? { userId: current.userId, rows } : current,
+    );
+  }, [userId]);
   useEffect(() => {
     let active = true;
     setState(null);
@@ -53,17 +62,23 @@ export function AdminNustand() {
           {state.error}
         </p>
       ) : state.rows ? (
-        <Workspace
-          key={user.id}
-          initialRows={state.rows}
-          onSave={saveReview}
-          onExport={exportCurrentContacts}
-          onCopy={copyCurrentContact}
-          onImport={async (rows) => {
-            await importRows(rows);
-            return loadRows();
-          }}
-        />
+        <div key={user.id}>
+          <ResearchPanel rows={state.rows} onRefresh={refresh} />
+          <Workspace
+            key={user.id}
+            initialRows={state.rows}
+            onSave={saveReview}
+            onExport={exportCurrentContacts}
+            onCopy={copyCurrentContact}
+            onResearch={queueResearch}
+            onWebsite={setWebsite}
+            onRefresh={refresh}
+            onImport={async (rows) => {
+              await importRows(rows);
+              return loadRows();
+            }}
+          />
+        </div>
       ) : null}
     </AdminLayout>
   );
