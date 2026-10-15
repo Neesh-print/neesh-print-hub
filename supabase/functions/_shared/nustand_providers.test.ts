@@ -32,19 +32,43 @@ Deno.test("foursquare maps fields and reports HTTP errors", async () => {
   assert(bad.error === "foursquare_401" && bad.candidates.length === 0, "error surfaced");
 });
 
-import { discoverGoogle } from "./nustand_providers.ts";
+import { discoverGoogle, targetIndependents } from "./nustand_providers.ts";
 
-Deno.test("discovery runs one search per segment query, maps tags and de-duplicates", async () => {
+Deno.test("discovery pages each query, maps tags, de-duplicates and drops chains", async () => {
   const seen: Request[] = [];
-  const place = { id: "p1", displayName: { text: "Salon Nordic" }, primaryType: "hair_salon", types: ["hair_salon"],
+  const place = (id: string, name: string, website: string, extra: Record<string, unknown> = {}) => ({
+    id, displayName: { text: name }, primaryType: "hair_salon", types: ["hair_salon"], userRatingCount: 120,
     addressComponents: [{ longText: "Fort Greene", types: ["neighborhood", "political"] }, { longText: "Brooklyn", types: ["sublocality_level_1", "sublocality"] }],
-    websiteUri: "https://salon.example", businessStatus: "OPERATIONAL" };
-  const result = await discoverGoogle("Wait", "Brooklyn", "Fort Greene", "k", fake(200, { places: [place, place] }, seen));
-  assert(result.calls === 3 && seen.length === 3, "three queries");
-  assert(result.candidates.length === 1, "same place once");
+    websiteUri: website, businessStatus: "OPERATIONAL", ...extra,
+  });
+  const pages = [
+    { places: [place("p1", "Salon Nordic", "https://salon.example"), place("c1", "Drybar", "https://www.drybar.com/x")], nextPageToken: "t2" },
+    { places: [place("p1", "Salon Nordic", "https://salon.example"), place("closed", "Shut", "https://shut.example", { businessStatus: "CLOSED_TEMPORARILY" })] },
+  ];
+  let i = 0;
+  const fetcher = ((input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push(new Request(input, init));
+    const body = JSON.parse(String(init?.body));
+    return Promise.resolve(new Response(JSON.stringify(body.pageToken ? pages[1] : pages[0]), { status: 200 }));
+  }) as typeof fetch;
+  const result = await discoverGoogle("Wait", "Brooklyn", "Fort Greene", "k", fetcher);
+  assert(result.calls === 10 && seen.length === 10, "five queries x two pages");
+  assert(result.candidates.length === 1 && result.candidates[0].name === "Salon Nordic", "chain, closed and duplicate dropped");
   const c = result.candidates[0];
-  assert(c.neighborhood === "Fort Greene" && c.borough === "Brooklyn" && c.primary_type === "hair_salon", "tags mapped");
-  const body = JSON.parse(await seen[0].text());
-  assert(body.textQuery === "hair salon in Fort Greene, Brooklyn, New York, NY" && body.pageSize === 20, "query shape");
-  assert(seen[0].headers.get("X-Goog-FieldMask")!.includes("places.addressComponents"), "fields requested");
+  assert(c.neighborhood === "Fort Greene" && c.borough === "Brooklyn" && c.reviews === 120, "tags mapped");
+  const first = JSON.parse(await seen[0].text());
+  assert(first.textQuery.endsWith("in Fort Greene, Brooklyn, New York, NY") && first.pageSize === 20, "query shape");
+  assert(seen[0].headers.get("X-Goog-FieldMask")!.includes("nextPageToken"), "page token requested");
+  void i;
+});
+
+Deno.test("independents rank above listings with less to contact", () => {
+  const ranked = targetIndependents([
+    { name: "No site", address: null, website: null, phone: null, email: null, instagram: null, source_url: "" },
+    { name: "Has site", address: null, website: "https://a.example", phone: "1", email: null, instagram: null, source_url: "", reviews: 80 },
+    { name: "Repeated 1", address: null, website: "https://chain.example/1", phone: null, email: null, instagram: null, source_url: "" },
+    { name: "Repeated 2", address: null, website: "https://chain.example/2", phone: null, email: null, instagram: null, source_url: "" },
+    { name: "Repeated 3", address: null, website: "https://chain.example/3", phone: null, email: null, instagram: null, source_url: "" },
+  ]);
+  assert(ranked.map((p) => p.name).join(",") === "Has site,No site", "repeated domain treated as a chain");
 });

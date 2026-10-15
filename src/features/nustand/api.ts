@@ -13,6 +13,15 @@ const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
   args?: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
+/** Ask the worker to start now. Best effort: if it can't, the 5-minute schedule picks the job up. */
+export async function startWorker(): Promise<boolean> {
+  try {
+    const { data } = await supabase.functions.invoke("nustand-start", { body: {} });
+    return Boolean((data as { started?: boolean } | null)?.started);
+  } catch {
+    return false;
+  }
+}
 async function call(name: string, args?: Record<string, unknown>) {
   const result = await rpc(name, args);
   if (result.error) throw new Error(result.error.message);
@@ -115,21 +124,25 @@ export async function researchStatus(): Promise<{
     .parse(await call("nustand_research_status"));
 }
 export async function queueResearch(ids: string[]): Promise<number> {
-  return z
+  const queued = z
     .number()
     .int()
     .parse(await call("nustand_research_queue", { prospect_ids: ids }));
+  if (queued > 0) void startWorker();
+  return queued;
 }
 export async function discoverSpaces(
   area: string,
   segment: string,
   neighborhood: string,
 ): Promise<string> {
-  return z
+  const id = z
     .string()
     .parse(
       await call("nustand_discovery_queue", { area, segment, neighborhood }),
     );
+  void startWorker();
+  return id;
 }
 export async function setWebsite(id: string, website: string): Promise<void> {
   await call("nustand_set_website", { prospect_id: id, website });

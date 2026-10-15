@@ -18,3 +18,7 @@ verify_jwt = false
 # This broker verifies GitHub's signed, scoped OIDC identity in its handler.
 [functions.nustand-worker]
 verify_jwt = false
+
+# Owner-checked inside the handler via the caller's own session.
+[functions.nustand-start]
+verify_jwt = true

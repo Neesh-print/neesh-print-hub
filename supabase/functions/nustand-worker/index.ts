@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 import { githubKeys, verifyWorkerToken } from "../_shared/nustand_oidc.ts";
-import { discoverGoogle, foursquare, google, SEGMENT_QUERIES, AREAS, validName } from "../_shared/nustand_providers.ts";
+import { discoverGoogle, discoveryCalls, foursquare, google, SEGMENT_QUERIES, AREAS, validName } from "../_shared/nustand_providers.ts";
 
 const reply = (status: number, data: unknown) =>
   new Response(JSON.stringify(data), {
@@ -52,7 +52,8 @@ Deno.serve(async (request: Request) => {
       if (!Object.hasOwn(SEGMENT_QUERIES, segment) || !Object.hasOwn(AREAS, area))
         return reply(400, { error: "Invalid discovery" });
       if (!key) return reply(200, { data: { unavailable: true } });
-      const calls = SEGMENT_QUERIES[segment].length;
+      // Reserve the most this search can use; unused pages are not charged by Google.
+      const calls = discoveryCalls(segment);
       const { data: allowed, error: budgetError } = await client.rpc(
         "nustand_worker_provider_budget",
         { calls },

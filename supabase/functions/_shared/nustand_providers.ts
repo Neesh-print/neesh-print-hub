@@ -10,6 +10,7 @@ export type PlaceCandidate = {
   primary_type?: string | null;
   primary_type_label?: string | null;
   types?: string[];
+  reviews?: number | null;
   website: string | null;
   phone: string | null;
   email: string | null;
@@ -33,7 +34,8 @@ const web = (v: unknown) => {
 const FIELDS = [
   "id", "displayName", "formattedAddress", "addressComponents", "websiteUri",
   "nationalPhoneNumber", "businessStatus", "primaryType", "primaryTypeDisplayName", "types",
-].map((f) => "places." + f).join(",");
+  "userRatingCount",
+].map((f) => "places." + f).join(",") + ",nextPageToken";
 
 // Borough boxes for discovery, matching the database's allowed areas.
 export const AREAS: Record<string, { low: { latitude: number; longitude: number }; high: { latitude: number; longitude: number } }> = {
@@ -45,14 +47,51 @@ export const AREAS: Record<string, { low: { latitude: number; longitude: number 
   "Staten Island": { low: { latitude: 40.49, longitude: -74.26 }, high: { latitude: 40.65, longitude: -74.05 } },
 };
 
-// What to search for in each ICP segment. Kept short: one Google call each.
+// What to search for in each ICP segment. Each query costs one Google call
+// per page of up to 20 results.
 export const SEGMENT_QUERIES: Record<string, string[]> = {
-  Wait: ["hair salon", "day spa", "dentist office"],
-  Presence: ["specialty coffee shop", "wine bar", "members club"],
-  Dwell: ["clothing boutique", "furniture design store", "art gallery"],
-  Taste: ["boutique hotel", "coworking space", "design studio"],
-  Catalog: ["independent bookstore", "newsstand magazines", "record store"],
+  Wait: ["independent hair salon", "barbershop", "nail salon", "day spa", "dental office"],
+  Presence: ["specialty coffee shop", "natural wine bar", "cocktail bar", "bakery cafe", "members club"],
+  Dwell: ["independent clothing boutique", "home goods store", "furniture design store", "art gallery", "concept store"],
+  Taste: ["boutique hotel", "coworking space", "design studio", "architecture firm", "creative agency"],
+  Catalog: ["independent bookstore", "newsstand", "record store", "museum shop", "specialty grocery"],
 };
+export const PAGES_PER_QUERY = 2;
+export const discoveryCalls = (segment: string) => (SEGMENT_QUERIES[segment]?.length ?? 0) * PAGES_PER_QUERY;
+
+// Chains and franchises: not Neesh buyers. Matched on website domain.
+const CHAIN_DOMAINS = new Set([
+  "starbucks.com", "dunkindonuts.com", "bluebottlecoffee.com", "joeandthejuice.com", "pretamanger.com",
+  "drybar.com", "supercuts.com", "greatclips.com", "europeanwax.com", "heyday.com", "ulta.com", "sephora.com",
+  "aspendental.com", "marriott.com", "hilton.com", "hyatt.com", "ihg.com", "wework.com", "regus.com",
+  "industriousoffice.com", "barnesandnoble.com", "hudsonbooksellers.com", "cvs.com", "walgreens.com",
+  "duanereade.com", "zara.com", "hm.com", "uniqlo.com", "gap.com", "anthropologie.com", "urbanoutfitters.com",
+  "westelm.com", "potterybarn.com", "crateandbarrel.com", "ikea.com", "wholefoodsmarket.com", "traderjoes.com",
+]);
+const domainOf = (url: string | null) => {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+};
+/** Drop chains (known domains, or one domain repeated across results) and rank independents first. */
+export function targetIndependents(places: PlaceCandidate[]): PlaceCandidate[] {
+  const counts = new Map<string, number>();
+  for (const p of places) {
+    const d = domainOf(p.website);
+    if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  const kept = places.filter((p) => {
+    const d = domainOf(p.website);
+    return !d || (!CHAIN_DOMAINS.has(d) && (counts.get(d) ?? 0) < 3);
+  });
+  // A website and an established-but-not-huge following read as independents worth contacting.
+  const score = (p: PlaceCandidate) =>
+    (p.website ? 2 : 0) + (p.phone ? 1 : 0) + ((p.reviews ?? 0) >= 20 && (p.reviews ?? 0) <= 2000 ? 1 : 0);
+  return kept.sort((a, b) => score(b) - score(a));
+}
 
 function component(p: Record<string, any>, ...kinds: string[]): string | null {
   const parts = Array.isArray(p.addressComponents) ? p.addressComponents : [];
@@ -74,6 +113,7 @@ function mapGoogle(p: Record<string, any>): PlaceCandidate {
     primary_type: text(p.primaryType, 80),
     primary_type_label: text(p.primaryTypeDisplayName?.text, 80),
     types: Array.isArray(p.types) ? p.types.filter((t: unknown) => typeof t === "string").slice(0, 12) : [],
+    reviews: typeof p.userRatingCount === "number" ? p.userRatingCount : null,
     website: web(p.websiteUri),
     phone: text(p.nationalPhoneNumber, 50),
     email: null,
@@ -89,7 +129,8 @@ async function searchText(
   area: keyof typeof AREAS | string,
   pageSize: number,
   fetcher: typeof fetch,
-): Promise<ProviderResult> {
+  pageToken?: string,
+): Promise<ProviderResult & { next?: string }> {
   const response = await fetcher("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     signal: AbortSignal.timeout(8000),
@@ -98,6 +139,7 @@ async function searchText(
       textQuery: query,
       pageSize,
       locationBias: { rectangle: AREAS[area as string] ?? NYC },
+      ...(pageToken ? { pageToken } : {}),
     }),
   });
   if (!response.ok) return { candidates: [], error: "google_" + response.status };
@@ -105,8 +147,9 @@ async function searchText(
   const places = Array.isArray(data.places) ? data.places.slice(0, pageSize) : [];
   return {
     candidates: places
-      .filter((p: Record<string, unknown>) => p.businessStatus !== "CLOSED_PERMANENTLY")
+      .filter((p: Record<string, unknown>) => !p.businessStatus || p.businessStatus === "OPERATIONAL")
       .map(mapGoogle),
+    next: typeof data.nextPageToken === "string" ? data.nextPageToken : undefined,
   };
 }
 
@@ -127,22 +170,32 @@ export async function discoverGoogle(
   const seen = new Set<string>();
   const candidates: PlaceCandidate[] = [];
   const errors: string[] = [];
-  for (const q of queries) {
-    try {
-      const result = await searchText(`${q} in ${where}`, key, area, 20, fetcher);
-      if (result.error) errors.push(result.error);
-      for (const c of result.candidates) {
-        const id = c.place_id || c.name + "|" + c.address;
-        if (!seen.has(id)) {
-          seen.add(id);
-          candidates.push(c);
+  let calls = 0;
+  const runQuery = async (q: string) => {
+    let token: string | undefined;
+    for (let page = 0; page < PAGES_PER_QUERY; page++) {
+      try {
+        calls++;
+        const result = await searchText(`${q} in ${where}`, key, area, 20, fetcher, token);
+        if (result.error) errors.push(result.error);
+        for (const c of result.candidates) {
+          const id = c.place_id || c.name + "|" + c.address;
+          if (!seen.has(id)) {
+            seen.add(id);
+            candidates.push(c);
+          }
         }
+        token = result.next;
+        if (!token) break;
+      } catch {
+        errors.push("google_unavailable");
+        break;
       }
-    } catch {
-      errors.push("google_unavailable");
     }
-  }
-  return { candidates, error: errors[0], calls: queries.length };
+  };
+  // Queries run side by side; pages within a query follow each other.
+  await Promise.all(queries.map(runQuery));
+  return { candidates: targetIndependents(candidates), error: errors[0], calls };
 }
 
 export async function foursquare(

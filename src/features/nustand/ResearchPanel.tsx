@@ -108,7 +108,7 @@ export function ResearchPanel({
     try {
       await discoverSpaces(area, segment, neighborhood.trim());
       setMessage(
-        `Searching for ${segment} spaces in ${neighborhood.trim() || area}. New leads appear here within a few minutes.`,
+        `Searching for ${segment} spaces in ${neighborhood.trim() || area}. New leads usually appear here in a minute or two.`,
       );
       await refresh();
     } catch (e) {
@@ -128,7 +128,7 @@ export function ResearchPanel({
       const n = await queueResearch(chosen.map((c) => c.id));
       setSelected([]);
       setMessage(
-        `${chosen.length} new lead${chosen.length === 1 ? "" : "s"} added. Finding their contacts now (${n} queued); they appear in the list below as research finishes.`,
+        `${chosen.length} new lead${chosen.length === 1 ? "" : "s"} added. Finding their contacts now (${n} queued, 5 at a time); they appear in the list below as research finishes.`,
       );
       await onRefresh();
       await refresh();
@@ -206,9 +206,8 @@ export function ResearchPanel({
           : "Research worker is not enabled yet."}
       </p>
       <p className="text-xs">
-        Each search uses three Google lookups and returns up to about 60
-        places. Up to 10 searches a day; lookups stay inside the free monthly
-        allowance.
+        Each search runs five Google queries and returns up to about 200
+        places, skipping chains and closed places. Up to 10 searches a day.
       </p>
       {message && <p role="status">{message}</p>}
       {latestDiscovery && (

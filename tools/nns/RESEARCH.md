@@ -29,6 +29,19 @@ Taste, Catalog; see `nns/icp.py`). An owner-set segment is never overwritten.
 Tags are a starting point to confirm, not verified facts. Lookups share the
 database cap of 1,000 a month.
 
+## Speed
+
+Queueing research or a lead search calls the owner-only `nustand-start` function,
+which starts the worker immediately (GitHub token `GITHUB_DISPATCH_TOKEN` in
+Supabase secrets, scoped to this repository's Actions). Without the token the
+5-minute schedule still runs. Each run researches 5 spaces at once and keeps
+claiming batches until the queue is empty or about 11 minutes pass.
+
+Lead searches run five queries per ICP with up to two pages each (up to 10
+Google lookups), drop closed places and chains (known chain domains, or one
+domain repeated three or more times), and rank places with a website and phone
+first. The database caps lookups at 600 a day and 2,000 a month.
+
 ## Sources and limits
 
 - Geographic discovery and missing-site lookup use OpenStreetMap / Overpass.
