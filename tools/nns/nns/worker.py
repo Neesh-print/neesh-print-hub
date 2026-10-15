@@ -45,12 +45,21 @@ class Broker:
         return json.loads(body)["data"]
 
 
+SOCIAL_HOSTS = frozenset({"instagram.com", "facebook.com", "m.facebook.com", "tiktok.com", "twitter.com", "x.com", "linktr.ee", "yelp.com"})
+
+
 def research(source, candidate=None, lookup_error=None, crawler=None):
     raw = copy.deepcopy(source.get("original_record", {}))
     raw.update(id=source["id"], name=source["name"], city=source.get("city") or "")
     website = source.get("website") or (candidate or {}).get("website")
     if website:
         website = clean_url(website)  # Drop listing tracking tags before crawling and saving.
+        host = (urllib.parse.urlsplit(website).hostname or "").casefold().removeprefix("www.")
+        if host in SOCIAL_HOSTS:
+            # A social profile is a contact, not a website to crawl.
+            if host == "instagram.com" and not raw.get("instagram_handle") and not raw.get("instagram_url"):
+                raw["instagram_url"] = website
+            website = None
     raw["website"] = website
     needs_identity_review = bool(source.get("website_identity_review")) or bool(candidate) or bool(source.get("discovery") and source.get("website_source") != "owner_supplied")
     if candidate:

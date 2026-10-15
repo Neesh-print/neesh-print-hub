@@ -16,7 +16,7 @@ def is_suppressed(record: dict) -> bool:
     return any(str(record.get(key, "")).lower().strip() in {"do not contact", "do_not_contact", "unsubscribed", "opted out", "opt_out", "suppressed"} for key in ("status", "stage"))
 
 
-_BUYING = re.compile(r"store|shop|book|retail|buy|wholesale|stockist|magazine|zine|print|merch", re.I)
+_BUYING = re.compile(r"store|shop|book|retail|buy|wholesale|trade|stockist|magazine|zine|print|merch", re.I)
 _GENERAL = frozenset("hello info contact sales orders general team office welcome studio enquiries inquiries".split())
 _DEPARTMENT = re.compile(r"^(press|media|pr|development|donat|member|ticket|rights|webmaster|career|jobs|hr|privacy|legal|access|director|education|volunteer|rsvp|events?|booking|reservations?|accounting|billing|invoice|finance|support|service|help|customer)", re.I)
 
