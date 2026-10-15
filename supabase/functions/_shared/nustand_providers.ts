@@ -259,6 +259,49 @@ export async function foursquare(
   };
 }
 
+// Email finder (Hunter.io domain search). One credit per search that returns
+// emails. Hunter plans stop at their monthly allowance; they never bill overage.
+export type FoundEmail = {
+  value: string;
+  first_name: string | null;
+  last_name: string | null;
+  position: string | null;
+  confidence: number | null;
+  verification: string | null;
+  source: string | null;
+};
+export const validDomain = (v: unknown): v is string =>
+  typeof v === "string" && v.length <= 253 && /^(?!-)[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+$/.test(v) && !onPlatform("https://" + v);
+
+export async function hunter(
+  domain: string,
+  key: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ emails: FoundEmail[] } | { limit_reached: true } | { error: string }> {
+  const response = await fetcher(
+    "https://api.hunter.io/v2/domain-search?" + new URLSearchParams({ domain, limit: "10" }),
+    { signal: AbortSignal.timeout(10000), headers: { Accept: "application/json", "X-API-KEY": key } },
+  );
+  // 429: out of searches or rate limited; 401/403: key revoked or plan lapsed.
+  if ([401, 402, 403, 429].includes(response.status)) return { limit_reached: true };
+  if (!response.ok) return { error: "hunter_" + response.status };
+  const data = (await response.json())?.data ?? {};
+  const emails = Array.isArray(data.emails) ? data.emails.slice(0, 10) : [];
+  return {
+    emails: emails
+      .filter((e: Record<string, any>) => typeof e?.value === "string")
+      .map((e: Record<string, any>) => ({
+        value: text(e.value, 320)!,
+        first_name: text(e.first_name, 80),
+        last_name: text(e.last_name, 80),
+        position: text(e.position, 120),
+        confidence: typeof e.confidence === "number" ? e.confidence : null,
+        verification: text(e.verification?.status, 40),
+        source: web(Array.isArray(e.sources) ? e.sources[0]?.uri : null),
+      })),
+  };
+}
+
 export function validName(value: unknown): value is string {
   return typeof value === "string" && value.trim().length >= 1 && value.length <= 200;
 }

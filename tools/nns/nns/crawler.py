@@ -10,6 +10,9 @@ from urllib.parse import urljoin as _urljoin, urlsplit, urlunsplit
 from .contacts import extract_contacts
 from .network import CrawlError, CurlTransport, Robots, normalize_url, site_key
 
+# Tried only when a site's own links led to no email (menus built in JavaScript).
+FALLBACK_PATHS = ("/contact", "/contact-us", "/pages/contact", "/about")
+QUIET_FALLBACK = {"http_error", "robots_disallowed", "unsupported_content_type", "redirect_loop", "redirect_limit", "cross_site_redirect", "insecure_redirect"}
 CONTACT_PATH = re.compile(r"contact|about|team|visit|location|stockist|wholesale|store|shop|imprint", re.I)
 SKIP_PATH = re.compile(r"\.(?:pdf|jpg|jpeg|gif|png|zip|webp|mp4|svg|css|js)$|/(?:cart|checkout|account|login|search|feed)(?:/|$)", re.I)
 PROHIBITION = re.compile(r"(?:scraping|automated (?:access|collection)|web crawlers?) (?:is |are )?(?:prohibited|not permitted|forbidden)", re.I)
@@ -84,7 +87,9 @@ class Crawler:
                             raise CrawlError("robots_unavailable")
                         robot_url = urljoin(robot_url, res.headers["location"])
                         continue
-                    if res.status in {404, 410}:
+                    if 400 <= res.status < 500 and res.status != 429:
+                        # RFC 9309: an unavailable robots.txt (any 4xx) places no limits.
+                        # A 5xx or a challenge page still blocks the site.
                         robots_by_origin[origin] = Robots("")
                     elif res.status == 200:
                         if re.search(r"<\s*(?:html|!doctype|script)|captcha|just a moment|access denied", res.body[:1500], re.I):
@@ -145,10 +150,21 @@ class Crawler:
             queue, seen, contacts = [homepage], set(), {}
             if seed != homepage:
                 queue.append(seed)
-            while queue and len(seen) < self.max_pages:
+            guessed: set[str] = set()
+            has_email = lambda: any(k[0] == "email" for k in contacts)
+            while len(seen) < self.max_pages:
+                if not queue:
+                    if guessed or not job["pages"] or has_email():
+                        break
+                    guessed = {homepage.rstrip("/") + path for path in FALLBACK_PATHS} - seen
+                    queue = [homepage.rstrip("/") + path for path in FALLBACK_PATHS if homepage.rstrip("/") + path in guessed]
+                    if not queue:
+                        break
                 url = queue.pop(0)
                 if url in seen:
                     continue
+                if url in guessed and has_email():
+                    break
                 seen.add(url)
                 try:
                     response = page(url)
@@ -156,6 +172,9 @@ class Crawler:
                     if response.url in {p["source_url"] for p in job["pages"]}:
                         continue
                     parsed = extract_contacts(response.body, response.url, started, country)
+                    # A guessed path that serves the homepage again adds nothing.
+                    if url in guessed and parsed["content_hash"] in {p["content_hash"] for p in job["pages"]}:
+                        continue
                     if PROHIBITION.search(parsed["text"]):
                         raise CrawlError("policy_denied")
                     job["pages_fetched"] += 1
@@ -192,6 +211,8 @@ class Crawler:
                             candidates.append((rank, len(path), target))
                     queue.extend(x[2] for x in sorted(set(candidates)))
                 except CrawlError as exc:
+                    if url in guessed and exc.code in QUIET_FALLBACK:
+                        continue  # A guessed page that doesn't exist is not a site problem.
                     job["errors"].append({"source_url": url, "code": exc.code, "detail": exc.detail})
                     if not job["pages"] or exc.code in {"rate_limited", "access_blocked", "policy_denied", "unsafe_destination", "request_budget_exhausted", "job_timeout"}:
                         break

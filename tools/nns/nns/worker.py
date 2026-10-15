@@ -18,6 +18,7 @@ from .providers import best_match, choose as choose_provider_candidate, clean_ur
 from .icp import SEGMENTS, place_tags
 from .qualification import assess
 from .records import reconcile, normalized_city
+from .contacts import email_role, email_value
 
 
 class Broker:
@@ -51,7 +52,41 @@ class Broker:
 SOCIAL_HOSTS = frozenset({"instagram.com", "facebook.com", "m.facebook.com", "tiktok.com", "twitter.com", "x.com", "linktr.ee", "yelp.com"})
 
 
-def research(source, candidate=None, lookup_error=None, crawler=None):
+def finder_contacts(broker, website):
+    """Emails an email-finder service knows for this domain (via the broker, which
+    holds the key). Each needs review: the finder is a third party, not the site."""
+    if getattr(broker, "finder_off", False):
+        return []
+    domain = site_key(website)
+    try: found = broker.call("find_emails", domain=domain)
+    except Exception: return []
+    if not isinstance(found, dict) or found.get("unavailable") or found.get("limit_reached"):
+        broker.finder_off = True  # not set up, or out of credits: stop asking this run
+        return []
+    contacts = []
+    for e in (found.get("emails") or [])[:10]:
+        if not isinstance(e, dict): continue
+        value = email_value(str(e.get("value") or ""))
+        if not value: continue
+        mail_domain = value.split("@")[1]
+        reasons = ["found_by_email_finder"]
+        if not (mail_domain == domain or mail_domain.endswith("." + domain) or domain.endswith("." + mail_domain)):
+            reasons.append("different_mail_domain")
+        who = " ".join(str(x) for x in (e.get("first_name"), e.get("last_name")) if x)[:120]
+        position = str(e.get("position") or "")[:120]
+        confidence = e.get("confidence") if isinstance(e.get("confidence"), (int, float)) else None
+        detail = ", ".join(x for x in (who, position) if x)
+        excerpt = "Found by Hunter" + (": " + detail if detail else "") + (f" · {confidence:g}% confidence" if confidence is not None else "") + (" · " + str(e["verification"])[:40] if e.get("verification") else "")
+        source = e.get("source") if isinstance(e.get("source"), str) and e["source"].startswith(("http://", "https://")) else "https://hunter.io/"
+        contacts.append({"kind": "email", "value": value, "extension": None, "role_type": email_role(value),
+                         "quality_status": "found_by_email_finder", "mail_domain_status": "not_checked", "attribution": "hunter",
+                         "person_name": who or None, "position": position or None, "confidence": confidence,
+                         "review_reasons": reasons,
+                         "evidence": [{"source_url": source[:2000], "extract_method": "email_finder", "excerpt_or_signal": excerpt[:240], "observed_at": now_iso()}]})
+    return contacts
+
+
+def research(source, candidate=None, lookup_error=None, crawler=None, email_finder=None):
     raw = copy.deepcopy(source.get("original_record", {}))
     raw.update(id=source["id"], name=source["name"], city=source.get("city") or "")
     website = source.get("website") or (candidate or {}).get("website")
@@ -72,12 +107,15 @@ def research(source, candidate=None, lookup_error=None, crawler=None):
         crawl = (crawler or Crawler(CurlTransport(max_bytes=3_000_000), max_requests=16, max_seconds=40)).crawl(website, raw.get("country") or "US")
     else:
         crawl = {"status": "failed" if lookup_error else "needs_website", "contacts": [], "site_signals": [], "finished_at": now_iso(), "errors": [{"code": lookup_error or "website_not_found_in_open_data"}], "http_requests": 0, "pages_fetched": 0}
+    if email_finder and website and not raw.get("email") and not any(c["kind"] == "email" for c in crawl.get("contacts", [])):
+        # The site shows no email (or couldn't be read): ask the email finder, if set up.
+        crawl["contacts"] = [*crawl.get("contacts", []), *email_finder(website)]
     result = reconcile(raw, crawl)
     fit = assess(raw, crawl.get("site_signals", []))
     if not fit.get("segment"):
         fit["segment"] = source.get("fit", {}).get("segment")
     if needs_identity_review:
-        fit["uncertainties"].append("Website matched by name from a published source; confirm this physical location.")
+        fit["uncertainties"].append("Website matched by name from a published source; confirm this physical location." if website or not candidate else "Phone from a map listing matched by name; confirm this location.")
         for contact in result["contacts"]:
             contact["review_reasons"] = sorted(set(contact.get("review_reasons", [])) | {"website_identity_needs_review"})
             contact["is_primary"] = False
@@ -186,8 +224,14 @@ def _research_job(broker, job, missing, elements, lookup_error, lookup_requests,
             candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup)
             if candidate is None and lookup and lookup.get("budget_exhausted"):
                 job_error = job_error or "daily_provider_lookup_limit"
-        tags = place_tags(best_match(job["source"]["name"], lookup))
-    result = research(job["source"], candidate, job_error if job in missing and not candidate else None, site_crawler)
+        match = best_match(job["source"]["name"], lookup)
+        tags = place_tags(match)
+        if needs_site and candidate is None and match and match.get("phone"):
+            # No website anywhere, but the listing that is this space has a phone: keep it.
+            candidate = {"website": None, "original_record": {"phone": match["phone"]},
+                         "discovery": {"source_url": match.get("source_url"), "source_label": "Google Places", "provider": "google"}}
+    result = research(job["source"], candidate, job_error if job in missing and not candidate else None, site_crawler,
+                      email_finder=lambda website: finder_contacts(broker, website))
     apply_tags(result, tags)
     if provider_summary is not None:
         result["provider_lookup"] = provider_summary

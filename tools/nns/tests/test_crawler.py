@@ -43,10 +43,31 @@ class CrawlerTests(unittest.TestCase):
         self.assertEqual(job["status"], "blocked")
         self.assertEqual(transport.calls, [BASE + "/robots.txt"])
 
-    def test_robots_403_fail_closed(self):
-        job, transport = crawl({BASE + "/robots.txt": (403, "Denied", {})})
+    def test_robots_403_means_no_rules(self):
+        # RFC 9309: a 4xx robots.txt places no limits; the pages themselves still decide.
+        job, transport = crawl({BASE + "/robots.txt": (403, "Denied", {}), BASE + "/": (200, "hello@shop.neesh-fixture.org", {})})
+        self.assertEqual(job["status"], "completed")
+        self.assertEqual(job["contacts"][0]["value"], "hello@shop.neesh-fixture.org")
+
+    def test_robots_403_with_blocked_pages_stays_blocked(self):
+        job, _ = crawl({BASE + "/robots.txt": (403, "Denied", {}), BASE + "/": (403, "Denied", {})})
+        self.assertEqual(job["status"], "blocked")
+
+    def test_robots_5xx_fail_closed(self):
+        job, transport = crawl({BASE + "/robots.txt": (503, "Down", {})})
         self.assertEqual(job["status"], "blocked")
         self.assertEqual(len(transport.calls), 1)
+
+    def test_guesses_contact_page_when_no_links(self):
+        job, transport = crawl({BASE + "/": (200, "<p>Welcome</p>", {}), BASE + "/contact-us": (200, "Write to shop@shop.neesh-fixture.org", {})})
+        self.assertEqual(job["status"], "completed")
+        self.assertEqual([c["value"] for c in job["contacts"] if c["kind"] == "email"], ["shop@shop.neesh-fixture.org"])
+        self.assertEqual(job["errors"], [])  # the missing /contact is not a site error
+        self.assertNotIn(BASE + "/about", transport.calls)  # stops once an email is found
+
+    def test_no_guessing_when_email_found(self):
+        job, transport = crawl({BASE + "/": (200, "info@shop.neesh-fixture.org", {})})
+        self.assertEqual(transport.calls, [BASE + "/robots.txt", BASE + "/"])
 
     def test_robots_html_fail_closed(self):
         job, _ = crawl({BASE + "/robots.txt": (200, "<html>Challenge</html>", {})})

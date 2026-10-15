@@ -1,4 +1,6 @@
 import { foursquare, google } from "./nustand_providers.ts";
+import { hunter, validDomain, type FoundEmail } from "./nustand_providers.ts";
+const assertEquals = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); };
 
 const assert = (ok: unknown, msg: string) => { if (!ok) throw new Error(msg); };
 const fake = (status: number, body: unknown, seen: Request[] = []) =>
@@ -81,4 +83,30 @@ Deno.test("booking-platform links are not websites; keyword-stuffed names are tr
   assert(result.candidates[0].website === null && result.candidates[0].name === "ARYA HAIR SALON NYC", "platform dropped, name trimmed");
   assert(result.candidates[1].website === "https://www.vuhair.com" && result.candidates[1].name === "Vu Hair", "own site kept");
   assert(cleanName("Smile Tonight - Dentist Office Dr. Michael C. Iott, DDS") === "Smile Tonight", "dash split");
+});
+
+Deno.test("hunter maps domain search emails and stops at the plan limit", async () => {
+  let seen: Request | undefined;
+  const ok = (async (url: string, init: RequestInit) => {
+    seen = new Request(url, init);
+    return new Response(JSON.stringify({ data: { emails: [
+      { value: "maya@shop.org", first_name: "Maya", last_name: "Lee", position: "Owner", confidence: 94, verification: { status: "valid" }, sources: [{ uri: "https://shop.org/team" }] },
+      { value: 5 },
+    ] } }));
+  }) as typeof fetch;
+  const found = await hunter("shop.org", "k", ok) as { emails: FoundEmail[] };
+  assertEquals(found.emails.length, 1);
+  assertEquals(found.emails[0].verification, "valid");
+  assertEquals(found.emails[0].source, "https://shop.org/team");
+  assertEquals(seen!.headers.get("X-API-KEY"), "k");
+  assertEquals(new URL(seen!.url).searchParams.get("api_key"), null);
+  const out = (async () => new Response("{}", { status: 429 })) as typeof fetch;
+  assertEquals(await hunter("shop.org", "k", out), { limit_reached: true });
+});
+
+Deno.test("validDomain rejects platforms and junk", () => {
+  assertEquals(validDomain("fixture-shop.org"), true);
+  assertEquals(validDomain("vagaro.com"), false);
+  assertEquals(validDomain("shop.org/../x"), false);
+  assertEquals(validDomain("localhost"), false);
 });
