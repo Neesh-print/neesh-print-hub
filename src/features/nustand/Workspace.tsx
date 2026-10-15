@@ -19,6 +19,8 @@ import {
   needsWebsiteConfirm,
   noWebsiteFound,
   orderedContacts,
+  placeArea,
+  spaceType,
   reviewSchema,
   safeUrl,
   sharedWebsite,
@@ -94,6 +96,8 @@ export function Workspace({
   }, [initialRows]);
   const [query, setQuery] = useState("");
   const [segment, setSegment] = useState("");
+  const [area, setArea] = useState("");
+  const [kind, setKind] = useState("");
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<Row | null>(null);
   const [draft, setDraft] = useState<Review | null>(null);
@@ -108,7 +112,15 @@ export function Workspace({
   const [page, setPage] = useState(0);
   useEffect(() => {
     setPage(0);
-  }, [query, segment, filter, rows.length]);
+  }, [query, segment, area, kind, filter, rows.length]);
+  const areas = useMemo(
+    () => [...new Set(rows.flatMap((r) => placeArea(r) ?? []))].sort(),
+    [rows],
+  );
+  const kinds = useMemo(
+    () => [...new Set(rows.flatMap((r) => spaceType(r) ?? []))].sort(),
+    [rows],
+  );
   const today = new Date().toLocaleDateString("en-CA");
   const filtered = useMemo(
     () =>
@@ -126,6 +138,8 @@ export function Workspace({
             searchable.includes(query.toLowerCase()) &&
             (!segment ||
               (r.review.segment || r.source.fit.segment) === segment) &&
+            (!area || placeArea(r) === area) &&
+            (!kind || spaceType(r) === kind) &&
             (filter === "all" ||
               (filter === "unresearched" &&
                 ["not_started", "pending"].includes(r.source.job.status)) ||
@@ -157,7 +171,7 @@ export function Workspace({
               (a.review.fit_score ?? a.source.fit.score ?? -1) ||
             (b.source.contact_score ?? 0) - (a.source.contact_score ?? 0),
         ),
-    [rows, query, segment, filter, today],
+    [rows, query, segment, area, kind, filter, today],
   );
   const counts = [
     ["Spaces", rows.length],
@@ -423,13 +437,39 @@ export function Workspace({
           />
         </label>
         <label className="text-sm">
-          Segment
+          Neighborhood
+          <select
+            className="block border rounded-md p-2 h-10 mt-1 max-w-48"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+          >
+            <option value="">All neighborhoods</option>
+            {areas.map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          Space type
+          <select
+            className="block border rounded-md p-2 h-10 mt-1 max-w-48"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+          >
+            <option value="">All types</option>
+            {kinds.map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          ICP
           <select
             className="block border rounded-md p-2 h-10 mt-1"
             value={segment}
             onChange={(e) => setSegment(e.target.value)}
           >
-            <option value="">All segments</option>
+            <option value="">All ICPs</option>
             {["Wait", "Presence", "Dwell", "Taste", "Catalog"].map((v) => (
               <option key={v}>{v}</option>
             ))}
@@ -520,7 +560,7 @@ export function Workspace({
                   {row.source.neighborhood || "Neighborhood unknown"} ·{" "}
                   {row.review.segment ||
                     row.source.fit.segment ||
-                    "Segment unassigned"}
+                    "ICP not set"}
                 </p>
                 <p className="text-sm">
                   {row.source.contacts.filter((c) => c.kind === "email").length}{" "}
@@ -630,12 +670,14 @@ export function Workspace({
                           </p>
                         )}
                         <p className="text-neutral-500 text-xs mt-1">
-                          {row.source.neighborhood || "Neighborhood unknown"}
+                          {[spaceType(row), placeArea(row)]
+                            .filter(Boolean)
+                            .join(" · ") || "Type and neighborhood unknown"}
                         </p>
                         <p className="text-xs mt-1">
                           {row.review.segment ||
                             row.source.fit.segment ||
-                            "Segment unassigned"}
+                            "ICP not set"}
                         </p>
                       </td>
                       <td className="p-3 min-w-40">

@@ -104,3 +104,13 @@ def choose(imported_name: str, lookup: dict | None) -> tuple[dict | None, dict]:
                 "discovery": {"source_url": chosen.get("source_url"), "source_label": LABELS[provider], "provider": provider},
             }
     return picked, summary
+
+
+def best_match(imported_name: str, lookup: dict | None) -> dict | None:
+    """The listing that is this space, for tagging, whether or not it has a website."""
+    for provider in PROVIDERS:
+        rows = ((lookup or {}).get(provider) or {}).get("candidates") or []
+        for r in rows:
+            if isinstance(r, dict) and names_match(imported_name, r.get("name", "")):
+                return r
+    return None

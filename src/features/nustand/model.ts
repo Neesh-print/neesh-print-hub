@@ -127,6 +127,16 @@ export function needsWebsiteConfirm(row: Row): boolean {
 export function noWebsiteFound(row: Row): boolean {
   return row.source.job.status === "needs_website" && !safeUrl(row.source.website);
 }
+/** Neighborhood, or borough when Google gave no neighborhood. */
+export function placeArea(row: Row): string | undefined {
+  const src = row.source as Record<string, unknown>;
+  const value = row.source.neighborhood || src.borough;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+export function spaceType(row: Row): string | undefined {
+  const value = (row.source as Record<string, unknown>).space_type;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
 export function websiteDomain(value?: string | null): string | undefined {
   const href = safeUrl(value);
   return href ? new URL(href).hostname.replace(/^www\./, "").toLowerCase() : undefined;

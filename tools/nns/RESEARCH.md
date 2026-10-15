@@ -16,6 +16,19 @@ separately. New evidence increments the record version so an unsaved older revie
 cannot silently overwrite newer state. Name matches never automatically merge
 entities. Unresolved websites remain an attention state, not a successful crawl.
 
+## Lead discovery and tags
+
+Discovery searches Google Places for one ICP segment in an area or neighborhood
+(three searches per run, up to about 60 places) and shows the places you don't
+already have, matched by ID, name or website. Adding them queues research.
+Without a Google key it falls back to OpenStreetMap.
+
+Every researched space is tagged from its Google listing with a neighborhood
+(or borough), a readable space type and an ICP segment (Wait, Presence, Dwell,
+Taste, Catalog; see `nns/icp.py`). An owner-set segment is never overwritten.
+Tags are a starting point to confirm, not verified facts. Lookups share the
+database cap of 1,000 a month.
+
 ## Sources and limits
 
 - Geographic discovery and missing-site lookup use OpenStreetMap / Overpass.

@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 import { githubKeys, verifyWorkerToken } from "../_shared/nustand_oidc.ts";
-import { foursquare, google, validName } from "../_shared/nustand_providers.ts";
+import { discoverGoogle, foursquare, google, SEGMENT_QUERIES, AREAS, validName } from "../_shared/nustand_providers.ts";
 
 const reply = (status: number, data: unknown) =>
   new Response(JSON.stringify(data), {
@@ -44,6 +44,23 @@ Deno.serve(async (request: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
+    if (input.action === "discover_places") {
+      const key = Deno.env.get("GOOGLE_PLACES_API_KEY");
+      const segment = String(input.segment ?? "");
+      const area = String(input.area ?? "");
+      const neighborhood = typeof input.neighborhood === "string" ? input.neighborhood.trim().slice(0, 100) : "";
+      if (!Object.hasOwn(SEGMENT_QUERIES, segment) || !Object.hasOwn(AREAS, area))
+        return reply(400, { error: "Invalid discovery" });
+      if (!key) return reply(200, { data: { unavailable: true } });
+      const calls = SEGMENT_QUERIES[segment].length;
+      const { data: allowed, error: budgetError } = await client.rpc(
+        "nustand_worker_provider_budget",
+        { calls },
+      );
+      if (budgetError) return reply(409, { error: "Research operation rejected" });
+      if (!allowed) return reply(200, { data: { budget_exhausted: true } });
+      return reply(200, { data: await discoverGoogle(segment, area, neighborhood, key) });
+    }
     if (input.action === "lookup_website") {
       if (!validName(input.name)) return reply(400, { error: "Invalid lookup" });
       // Google only: the 25-space test showed Foursquare added no usable sites.
