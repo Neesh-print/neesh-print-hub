@@ -67,7 +67,27 @@ const CHAIN_DOMAINS = new Set([
   "industriousoffice.com", "barnesandnoble.com", "hudsonbooksellers.com", "cvs.com", "walgreens.com",
   "duanereade.com", "zara.com", "hm.com", "uniqlo.com", "gap.com", "anthropologie.com", "urbanoutfitters.com",
   "westelm.com", "potterybarn.com", "crateandbarrel.com", "ikea.com", "wholefoodsmarket.com", "traderjoes.com",
+  "dior.com", "chanel.com", "columbiadoctors.org", "dental.columbia.edu", "nyulangone.org", "mountsinai.org",
+  "aspendental.com", "smiledirectclub.com", "zzdayspa.com",
 ]);
+// Booking and listing platforms: a link there is not the business's own site,
+// and crawling it would return the platform's contacts.
+const PLATFORM_HOSTS = [
+  "vagaro.com", "booker.com", "zoca.com", "fresha.com", "mindbodyonline.com", "mindbody.io", "squareup.com",
+  "square.site", "schedulicity.com", "glossgenius.com", "styleseat.com", "booksy.com", "setmore.com",
+  "yelp.com", "facebook.com", "instagram.com", "linktr.ee", "opentable.com", "resy.com", "toasttab.com",
+];
+const onPlatform = (url: string | null) => {
+  const d = url ? (() => { try { return new URL(url).hostname.toLowerCase(); } catch { return ""; } })() : "";
+  return PLATFORM_HOSTS.some((h) => d === h || d.endsWith("." + h));
+};
+/** Listing names padded with keywords ("Salon NYC, Highlights, Balayage...") trimmed to the name. */
+export function cleanName(name: string): string {
+  const n = name.trim();
+  if (n.length <= 40) return n;
+  const cut = n.split(/\s[|\-–]\s|,\s/)[0].trim();
+  return cut.length >= 3 ? cut : n.slice(0, 60).trim();
+}
 const domainOf = (url: string | null) => {
   if (!url) return null;
   try {
@@ -104,7 +124,7 @@ function component(p: Record<string, any>, ...kinds: string[]): string | null {
 
 function mapGoogle(p: Record<string, any>): PlaceCandidate {
   return {
-    name: text(p.displayName?.text, 200) ?? "",
+    name: cleanName(text(p.displayName?.text, 200) ?? ""),
     place_id: text(p.id, 200),
     address: text(p.formattedAddress),
     neighborhood: component(p, "neighborhood"),
@@ -114,7 +134,7 @@ function mapGoogle(p: Record<string, any>): PlaceCandidate {
     primary_type_label: text(p.primaryTypeDisplayName?.text, 80),
     types: Array.isArray(p.types) ? p.types.filter((t: unknown) => typeof t === "string").slice(0, 12) : [],
     reviews: typeof p.userRatingCount === "number" ? p.userRatingCount : null,
-    website: web(p.websiteUri),
+    website: onPlatform(web(p.websiteUri)) ? null : web(p.websiteUri),
     phone: text(p.nationalPhoneNumber, 50),
     email: null,
     instagram: null,

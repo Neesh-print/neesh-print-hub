@@ -32,7 +32,7 @@ Deno.test("foursquare maps fields and reports HTTP errors", async () => {
   assert(bad.error === "foursquare_401" && bad.candidates.length === 0, "error surfaced");
 });
 
-import { discoverGoogle, targetIndependents } from "./nustand_providers.ts";
+import { cleanName, discoverGoogle, targetIndependents } from "./nustand_providers.ts";
 
 Deno.test("discovery pages each query, maps tags, de-duplicates and drops chains", async () => {
   const seen: Request[] = [];
@@ -71,4 +71,14 @@ Deno.test("independents rank above listings with less to contact", () => {
     { name: "Repeated 3", address: null, website: "https://chain.example/3", phone: null, email: null, instagram: null, source_url: "" },
   ]);
   assert(ranked.map((p) => p.name).join(",") === "Has site,No site", "repeated domain treated as a chain");
+});
+
+Deno.test("booking-platform links are not websites; keyword-stuffed names are trimmed", async () => {
+  const result = await google("x", "k", fake(200, { places: [
+    { id: "a", displayName: { text: "ARYA HAIR SALON NYC, Highlights, Balayage Highlights, Hair Color, Color Correction" }, websiteUri: "https://www.vagaro.com/arya", businessStatus: "OPERATIONAL" },
+    { id: "b", displayName: { text: "Vu Hair" }, websiteUri: "https://www.vuhair.com", businessStatus: "OPERATIONAL" },
+  ] }));
+  assert(result.candidates[0].website === null && result.candidates[0].name === "ARYA HAIR SALON NYC", "platform dropped, name trimmed");
+  assert(result.candidates[1].website === "https://www.vuhair.com" && result.candidates[1].name === "Vu Hair", "own site kept");
+  assert(cleanName("Smile Tonight - Dentist Office Dr. Michael C. Iott, DDS") === "Smile Tonight", "dash split");
 });
