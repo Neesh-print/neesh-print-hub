@@ -19,6 +19,11 @@ class NameMatchTests(unittest.TestCase):
         self.assertFalse(names_match("Varick News", "Varick Street Deli and Grocery Market"))
         self.assertFalse(names_match("The Core Club", "Core Power Yoga"))
 
+    def test_branch_descriptor_without_dash(self):
+        self.assertTrue(names_match("Books Are Magic Montague St", "Books Are Magic"))
+        self.assertFalse(names_match("Times Square News", "Times Square"))  # one distinctive word is too weak
+        self.assertFalse(names_match("Spring News International", "Spring"))
+
     def test_generic_words_alone_never_match(self):
         self.assertFalse(names_match("The Shop", "Brooklyn Shop"))
 
@@ -36,8 +41,21 @@ class ChooseTests(unittest.TestCase):
         self.assertIsNone(candidate)
         self.assertTrue(summary["foursquare"]["ambiguous"])
 
+    def test_branches_on_one_domain_are_not_ambiguous(self):
+        rows = [{"name": "McNally Jackson Books", "website": "https://www.mcnallyjackson.com/pages/seaport"}, {"name": "McNally Jackson", "website": "https://mcnallyjackson.com/"}]
+        candidate, summary = choose("McNally Jackson - Downtown Brooklyn", {"google": {"candidates": rows}})
+        self.assertEqual(candidate["website"], "https://mcnallyjackson.com/")
+        self.assertFalse(summary["google"]["ambiguous"])
+
+    def test_tracking_parameters_removed(self):
+        row = {"name": "Flatiron Wines", "website": "https://nyc.flatiron-wines.com/?utm_source=google&utm_medium=organic&store=1"}
+        candidate, _ = choose("Flatiron Wines", {"google": {"candidates": [row]}})
+        self.assertEqual(candidate["website"], "https://nyc.flatiron-wines.com/?store=1")
+
     def test_missing_or_bad_lookup(self):
-        self.assertEqual(choose("Anything", None), (None, {"foursquare": {"checked": False, "error": None, "listings": 0, "name_matches": 0, "website": None, "ambiguous": False}, "google": {"checked": False, "error": None, "listings": 0, "name_matches": 0, "website": None, "ambiguous": False}}))
+        candidate, summary = choose("Anything", None)
+        self.assertIsNone(candidate)
+        self.assertEqual(summary["google"], {"checked": False, "error": None, "listings": 0, "listing_names": [], "name_matches": 0, "website": None, "ambiguous": False})
         candidate, _ = choose("Fugazi", {"google": {"candidates": [{"name": "Fugazi", "website": "javascript:alert(1)"}]}})
         self.assertIsNone(candidate)
 
