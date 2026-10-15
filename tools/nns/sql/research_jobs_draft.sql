@@ -90,11 +90,16 @@ end $$;
 
 create function nustand_private.research_status() returns jsonb
 language plpgsql security definer set search_path=pg_catalog as $$
-declare result jsonb;
+declare status_json jsonb;
 begin
  perform nustand_private.require_owner();
- select coalesce(jsonb_agg(to_jsonb(j)-'lease'-'lease_until'),'[]') into result from (select id,prospect_id,kind,input,status,created_at,finished_at,error,requests,pages,case when kind='discovery' then result else null end result from nustand_private.research_jobs order by created_at desc limit 600) j;
- return jsonb_build_object('enabled',coalesce((select enabled from nustand_private.research_settings),false),'jobs',result);
+ select coalesce(jsonb_agg(to_jsonb(j)-'lease'-'lease_until'),'[]') into status_json
+ from (
+   select r.id, r.prospect_id, r.kind, r.input, r.status, r.created_at, r.finished_at, r.error, r.requests, r.pages,
+     case when r.kind='discovery' then r.result else null end as result
+   from nustand_private.research_jobs r order by r.created_at desc limit 600
+ ) j;
+ return jsonb_build_object('enabled',coalesce((select enabled from nustand_private.research_settings),false),'jobs',status_json);
 end $$;
 
 create function nustand_private.set_website(prospect_id text, website text) returns void

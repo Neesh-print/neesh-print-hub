@@ -139,6 +139,11 @@ await assert.rejects(() =>
 );
 await as(owner);
 let row = (await db.query("select public.nustand_list() rows")).rows[0].rows[0];
+{
+  // This call was never exercised before, which is how a name clash shipped.
+  const status = (await db.query("select public.nustand_research_status() s")).rows[0].s;
+  assert.ok(Array.isArray(status.jobs) && status.jobs.length > 0, "research status loads for the owner");
+}
 assert.equal(row.source.neighborhood, "Fort Greene", "place tags persist through research");
 assert.equal(row.source.space_type, "Hair salon");
 assert.deepEqual(row.source.original_record, source.original_record);
