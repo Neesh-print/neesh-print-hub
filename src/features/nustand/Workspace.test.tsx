@@ -242,3 +242,24 @@ describe("website confirmation", () => {
     await waitFor(() => expect(onConfirmWebsites).toHaveBeenCalledWith(["a", "c"]));
   });
 });
+
+describe("neighborhood and type filters", () => {
+  const tagged = (id: string, neighborhood: string, space_type: string): Row => ({
+    source: {
+      id, name: `Space ${id}`, city: "New York", neighborhood, space_type, website: null,
+      do_not_contact: false, original_record: {}, contacts: [], job: { status: "completed" },
+      fit: { score: null, segment: null, uncertainties: [] },
+    } as unknown as Row["source"],
+    review: emptyReview(),
+    version: 1,
+  });
+  it("filters the list by neighborhood and space type", () => {
+    render(<Workspace initialRows={[tagged("a", "Fort Greene", "Hair salon"), tagged("b", "SoHo", "Cafe"), tagged("c", "SoHo", "Hair salon")]} onSave={vi.fn()} />);
+    fireEvent.change(screen.getByDisplayValue("All neighborhoods"), { target: { value: "SoHo" } });
+    fireEvent.change(screen.getByDisplayValue("All types"), { target: { value: "Hair salon" } });
+    expect(screen.getAllByText("Space c").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Space a")).toHaveLength(0);
+    expect(screen.queryAllByText("Space b")).toHaveLength(0);
+    expect(screen.getAllByText("Hair salon · SoHo").length).toBeGreaterThan(0);
+  });
+});

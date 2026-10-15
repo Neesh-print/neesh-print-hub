@@ -12,7 +12,8 @@ import urllib.request
 from .crawler import Crawler, now_iso
 from .network import CurlTransport, CrawlError, normalize_url, site_key
 from .places import PlaceError, fetch_places, query, record, unique_website
-from .providers import choose as choose_provider_candidate, clean_url
+from .providers import best_match, choose as choose_provider_candidate, clean_url
+from .icp import SEGMENTS, place_tags
 from .qualification import assess
 from .records import reconcile, normalized_city
 
@@ -61,7 +62,7 @@ def research(source, candidate=None, lookup_error=None, crawler=None):
                 raw["instagram_url"] = website
             website = None
     raw["website"] = website
-    needs_identity_review = bool(source.get("website_identity_review")) or bool(candidate) or bool(source.get("discovery") and source.get("website_source") != "owner_supplied")
+    needs_identity_review = bool(source.get("website_identity_review")) or bool(candidate) or bool(source.get("discovery") and source.get("website_source") not in ("owner_supplied", "owner_confirmed"))
     if candidate:
         for key in ("email", "phone", "instagram_handle", "business_type"):
             if not raw.get(key): raw[key] = candidate["original_record"].get(key)
@@ -114,6 +115,48 @@ def published_website(source, cache, source_crawler=None):
     return {"website":target,"original_record":{},"discovery":{"source_url":targets[target]}},requests
 
 
+def apply_tags(result, tags):
+    """Store neighborhood, type and ICP on a researched space. A segment the
+    owner or import already set is kept; the place type only fills a gap."""
+    for key in ("neighborhood", "borough", "address", "space_type"):
+        if tags.get(key):
+            result[key] = tags[key]
+    icp = tags.get("icp")
+    if icp in SEGMENTS and not result["fit"].get("segment"):
+        result["fit"]["segment"] = icp
+        result["fit"]["segment_source"] = {"type": "place_type", "value": tags.get("space_type")}
+
+
+def provider_record(c, segment):
+    """A discovered place as a new space: tagged, not yet researched, never auto-contacted."""
+    tags = place_tags(c)
+    ident = c.get("place_id") or (c.get("name", "") + "|" + (c.get("address") or ""))
+    name = str(c.get("name") or "").strip()[:200]
+    if not name:
+        return None
+    original = {"name": name, "address": c.get("address"), "website": c.get("website"), "phone": c.get("phone"),
+                "business_type": tags.get("space_type"), "source_url": c.get("source_url"), "source": "Google Places discovery"}
+    return {"id": "gp:" + re.sub(r"[^A-Za-z0-9_-]", "", str(ident))[:120], "name": name, "city": "New York",
+            "website": c.get("website"), "neighborhood": tags.get("neighborhood") or tags.get("borough"),
+            "borough": tags.get("borough"), "address": tags.get("address"), "space_type": tags.get("space_type"),
+            "do_not_contact": False, "original_record": {k: v for k, v in original.items() if v},
+            "contacts": [], "job": {"status": "not_started"},
+            "fit": {"score": None, "segment": tags.get("icp") or segment, "uncertainties": ["Matched by place type; confirm fit."]},
+            "discovery": {"source_url": c.get("source_url"), "source_label": "Google Places", "provider": "google"}}
+
+
+def discover_with_provider(broker, params):
+    """Discovery through Google (via the broker). None means fall back to open map data."""
+    try: found = broker.call("discover_places", **{k: params.get(k) for k in ("area", "segment", "neighborhood")})
+    except Exception: return None
+    if not isinstance(found, dict) or found.get("unavailable"):
+        return None
+    if found.get("budget_exhausted"):
+        return {"status": "failed", "error": "Monthly lookup limit reached; discovery resumes next month", "requests": 0, "pages": 0}
+    rows = [r for c in (found.get("candidates") or [])[:100] if isinstance(c, dict) and (r := provider_record(c, params.get("segment")))]
+    return {"status": "completed", "candidates": rows, "attribution": "Google Places", "requests": int(found.get("calls") or 0), "pages": 0}
+
+
 def process(broker, place_fetch=fetch_places, crawler=None):
     site_crawler=crawler or Crawler(CurlTransport(max_bytes=3_000_000),max_requests=16,max_seconds=40)
     source_crawler=Crawler(site_crawler.transport,max_pages=2,max_requests=8,max_seconds=20,capture_links=True) if isinstance(site_crawler,Crawler) else None
@@ -132,6 +175,11 @@ def process(broker, place_fetch=fetch_places, crawler=None):
     for job in jobs:
         if job["kind"] == "discovery":
             discovery_requests=0
+            google = discover_with_provider(broker, job["input"])
+            if google is not None:
+                broker.call("finish",job_id=job["id"],lease=job["lease"],payload=google)
+                completed += 1
+                continue
             try:
                 if not broker.call("place_budget"): raise PlaceError("Daily place lookup limit reached")
                 discovery_requests=1
@@ -143,15 +191,22 @@ def process(broker, place_fetch=fetch_places, crawler=None):
         else:
             candidate,source_requests=published_website(job["source"],source_cache,source_crawler) if job in missing else (None,0)
             candidate = candidate or (unique_website(job["source"]["name"],elements) if job in missing else None)
-            provider_summary, job_error = None, lookup_error
-            if job in missing and not candidate:
+            provider_summary, job_error, tags = None, lookup_error, {}
+            needs_site = job in missing and not candidate
+            needs_tags = not job["source"].get("space_type")
+            if needs_site or needs_tags:
                 # Paid lookups run inside the broker, which holds the keys and the daily cap.
+                # One lookup serves both: a website if one is missing, and the place tags.
                 try: lookup = broker.call("lookup_website", name=job["source"]["name"][:200])
                 except Exception: lookup = None
-                candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup if isinstance(lookup, dict) else None)
-                if candidate is None and isinstance(lookup, dict) and lookup.get("budget_exhausted"):
-                    job_error = job_error or "daily_provider_lookup_limit"
+                lookup = lookup if isinstance(lookup, dict) else None
+                if needs_site:
+                    candidate, provider_summary = choose_provider_candidate(job["source"]["name"], lookup)
+                    if candidate is None and lookup and lookup.get("budget_exhausted"):
+                        job_error = job_error or "daily_provider_lookup_limit"
+                tags = place_tags(best_match(job["source"]["name"], lookup))
             result = research(job["source"],candidate,job_error if job in missing and not candidate else None,site_crawler)
+            apply_tags(result, tags)
             if provider_summary is not None:
                 result["provider_lookup"] = provider_summary
             result["requests"]+=source_requests

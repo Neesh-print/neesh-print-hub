@@ -31,3 +31,20 @@ Deno.test("foursquare maps fields and reports HTTP errors", async () => {
   const bad = await foursquare("Fugazi", "k", fake(401, {}));
   assert(bad.error === "foursquare_401" && bad.candidates.length === 0, "error surfaced");
 });
+
+import { discoverGoogle } from "./nustand_providers.ts";
+
+Deno.test("discovery runs one search per segment query, maps tags and de-duplicates", async () => {
+  const seen: Request[] = [];
+  const place = { id: "p1", displayName: { text: "Salon Nordic" }, primaryType: "hair_salon", types: ["hair_salon"],
+    addressComponents: [{ longText: "Fort Greene", types: ["neighborhood", "political"] }, { longText: "Brooklyn", types: ["sublocality_level_1", "sublocality"] }],
+    websiteUri: "https://salon.example", businessStatus: "OPERATIONAL" };
+  const result = await discoverGoogle("Wait", "Brooklyn", "Fort Greene", "k", fake(200, { places: [place, place] }, seen));
+  assert(result.calls === 3 && seen.length === 3, "three queries");
+  assert(result.candidates.length === 1, "same place once");
+  const c = result.candidates[0];
+  assert(c.neighborhood === "Fort Greene" && c.borough === "Brooklyn" && c.primary_type === "hair_salon", "tags mapped");
+  const body = JSON.parse(await seen[0].text());
+  assert(body.textQuery === "hair salon in Fort Greene, Brooklyn, New York, NY" && body.pageSize === 20, "query shape");
+  assert(seen[0].headers.get("X-Goog-FieldMask")!.includes("places.addressComponents"), "fields requested");
+});

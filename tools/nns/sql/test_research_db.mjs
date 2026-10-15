@@ -86,6 +86,9 @@ assert.equal(
 );
 const payload = {
   status: "completed",
+  neighborhood: "Fort Greene",
+  borough: "Brooklyn",
+  space_type: "Hair salon",
   contacts: [
     {
       id: "new-email",
@@ -136,6 +139,8 @@ await assert.rejects(() =>
 );
 await as(owner);
 let row = (await db.query("select public.nustand_list() rows")).rows[0].rows[0];
+assert.equal(row.source.neighborhood, "Fort Greene", "place tags persist through research");
+assert.equal(row.source.space_type, "Hair salon");
 assert.deepEqual(row.source.original_record, source.original_record);
 assert.equal(row.source.contacts[0].value, "hello@example.org");
 assert.equal(row.source.fit.score, 20);
