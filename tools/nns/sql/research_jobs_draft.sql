@@ -32,7 +32,7 @@ begin
    prior := contacts->(item->>'id');
    if prior is not null then
      select coalesce(jsonb_agg(distinct e),'[]') into combined from jsonb_array_elements(coalesce(prior->'evidence','[]') || coalesce(item->'evidence','[]')) e;
-     item := prior || jsonb_build_object('evidence',combined);
+     item := prior || item || jsonb_build_object('evidence',combined);
    end if;
    contacts := jsonb_set(contacts,array[item->>'id'],item);
  end loop;
