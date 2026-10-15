@@ -1,4 +1,4 @@
-import { start } from "./index.ts";
+import { start } from "./start.ts";
 
 const assert = (ok: unknown, msg: string) => { if (!ok) throw new Error(msg); };
 const env = (vars: Record<string, string>) => (n: string) => vars[n];
