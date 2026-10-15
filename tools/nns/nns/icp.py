@@ -72,6 +72,8 @@ TYPES: dict[str, tuple[str, str]] = {
     "record_store": ("Record store", "Catalog"),
     "music_store": ("Record store", "Catalog"),
     "convenience_store": ("Deli / convenience", "Catalog"),
+    "deli": ("Deli / convenience", "Catalog"),
+    "food_store": ("Specialty food shop", "Catalog"),
     "grocery_store": ("Grocery", "Catalog"),
     "supermarket": ("Grocery", "Catalog"),
     "market": ("Market", "Catalog"),
