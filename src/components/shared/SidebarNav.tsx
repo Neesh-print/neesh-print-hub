@@ -21,7 +21,8 @@ import {
   Truck,
   HelpCircle,
   Banknote,
-  CreditCard
+  CreditCard,
+  ClipboardCheck
 } from "lucide-react";
 import { Logo } from "@/components/neesh/Logo";
 import { CartSidebarBadge } from "@/components/retailer/CartSidebarBadge";
@@ -73,6 +74,7 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
 
   const adminNavItems: NavItem[] = [
     { label: "Nustand", icon: <Store className="w-5 h-5" />, path: "/admin/nustand" },
+    { label: "Index review", icon: <ClipboardCheck className="w-5 h-5" />, path: "/admin/index-review" },
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/admin" },
     { label: "Fulfillment", icon: <Truck className="w-5 h-5" />, path: "/admin/fulfillment" },
     { label: "Applications", icon: <FileText className="w-5 h-5" />, path: "/admin/applications" },

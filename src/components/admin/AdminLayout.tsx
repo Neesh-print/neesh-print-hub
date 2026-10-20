@@ -6,7 +6,8 @@ import {
   Store, 
   BarChart3, 
   Settings, 
-  LogOut 
+  LogOut,
+  ClipboardCheck
 } from "lucide-react";
 import { NavigationMenu, MobileBottomNav, SidebarNav } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,6 +31,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
 
   const moreMenuItems = [
     { label: "Nustand", icon: <Store className="w-5 h-5" />, path: "/admin/nustand" },
+    { label: "Index review", icon: <ClipboardCheck className="w-5 h-5" />, path: "/admin/index-review" },
     { label: "Applications", icon: <FileText className="w-5 h-5" />, path: "/admin/applications" },
     { label: "Publishers", icon: <Users className="w-5 h-5" />, path: "/admin/publishers" },
     { label: "Retailers", icon: <Store className="w-5 h-5" />, path: "/admin/retailers" },
