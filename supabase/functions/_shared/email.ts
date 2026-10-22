@@ -194,7 +194,7 @@ export const panel = (content: Content, title?: string): Html =>
 export const details = (pairs: [string, string][]): Html => {
   const rows = pairs.map(([k, v], i) => html`<tr>
     <td valign="top" width="140" style="padding: ${i === 0 ? '0' : '8px'} 12px 0 0; font-family: ${FONT_MONO}; font-size: 11px; line-height: 20px; letter-spacing: 0.14em; text-transform: uppercase; color: ${C.muted2};">${k}</td>
-    <td valign="top" style="padding: ${i === 0 ? '0' : '8px'} 0 0; font-family: ${FONT_MONO}; font-size: 13px; line-height: 20px; color: ${C.prose}; word-break: break-all;">${v}</td>
+    <td valign="top" style="padding: ${i === 0 ? '0' : '8px'} 0 0; font-family: ${FONT_MONO}; font-size: 13px; line-height: 20px; color: ${C.prose}; word-break: break-word; overflow-wrap: anywhere;">${v}</td>
   </tr>`)
   return row(html`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid ${C.border}; border-radius: 8px; border-collapse: separate;"><tr><td style="padding: 18px 22px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>

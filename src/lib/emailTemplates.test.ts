@@ -6,7 +6,10 @@ import {
   stats,
   titleList,
 } from "../../supabase/functions/_shared/email";
-import { generateConfirmEmail } from "../../supabase/functions/_shared/retailer-emails";
+import {
+  generateConfirmEmail,
+  generateOrderConfirmationEmail,
+} from "../../supabase/functions/_shared/retailer-emails";
 import {
   EMAIL_SUBJECTS,
   generateApplicationReceivedEmail,
@@ -84,5 +87,44 @@ describe("application and retailer emails", () => {
     expect(emails[0]).toContain("token_hash=a&amp;type=recovery");
     expect(emails[4]).toContain("https://neesh.art/verify-email?token=t");
     expect(emails[4]).not.toContain("Hi ,");
+  });
+});
+
+describe("retailer order confirmation", () => {
+  const base = {
+    shopName: "Periodicals",
+    lines: [
+      { title: "Good Sport", subtitle: "Good Sport Magazine", quantity: 4, amount: 74.8 },
+      { title: "The Drift", subtitle: "The Drift Magazine Foundation", quantity: 4, amount: 52.8 },
+    ],
+    subtotal: 127.6,
+    tax: 0,
+    total: 127.6,
+    shipTo: { name: "Aleiya", line1: "1 Main St", city: "Brooklyn", state: "NY", postalCode: "11201", country: "US" },
+  };
+
+  it("shows a paid card order with totals, address and no tax row when tax is zero", () => {
+    const out = generateOrderConfirmationEmail(base);
+    expect(out).toContain("Paid");
+    expect(out).toContain("Total paid");
+    expect(out).toContain("$127.60");
+    expect(out).toContain("1 Main St, Brooklyn, NY 11201, US");
+    expect(out).toContain("2 publishers");
+    expect(out).not.toContain(">Tax<");
+    expect(out).not.toMatch(EMOJI);
+  });
+
+  it("shows terms, the due date and the invoice link for a Net order", () => {
+    const out = generateOrderConfirmationEmail({
+      ...base,
+      tax: 11.32,
+      total: 138.92,
+      terms: { days: 30, dueDate: new Date("2026-11-21T00:00:00Z"), invoiceUrl: "https://invoice.stripe.com/i/abc" },
+    });
+    expect(out).toContain("Net 30");
+    expect(out).toContain("November 21, 2026");
+    expect(out).toContain("Invoice total");
+    expect(out).toContain("$11.32");
+    expect(out).toContain("https://invoice.stripe.com/i/abc");
   });
 });
