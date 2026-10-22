@@ -411,8 +411,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 6: Update application status
-    const { error: updateError } = await supabaseAdmin
+    // Step 6: Update application status. Only the request that moves the
+    // application to 'approved' goes on to send the welcome email: a second
+    // request for the same application (a double click on Approve) updates no
+    // rows here and stops, instead of minting a second password link.
+    const { data: claimed, error: updateError } = await supabaseAdmin
       .from(table)
       .update({
         status: 'approved',
@@ -420,12 +423,22 @@ Deno.serve(async (req) => {
         reviewed_by: reviewerId,
       })
       .eq('id', applicationId)
+      .or('status.is.null,status.neq.approved')
+      .select('id')
 
     if (updateError) {
       console.error('Error updating application status:', updateError)
       return new Response(
         JSON.stringify({ error: 'Failed to update application status' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!claimed || claimed.length === 0) {
+      console.log(`${type} application ${applicationId} was already approved; not sending another email`)
+      return new Response(
+        JSON.stringify({ success: true, userId, alreadyApproved: true, message: `${type} application already approved` }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 

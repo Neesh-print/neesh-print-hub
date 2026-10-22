@@ -46,6 +46,9 @@ export const AdminApplicationDetail = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  // Keeps the confirm button disabled while a decision is in flight, so a
+  // second click cannot send a second approval email.
+  const [isDeciding, setIsDeciding] = useState(false);
 
   const { approveApplication, rejectApplication } = useApplications();
 
@@ -171,8 +174,10 @@ export const AdminApplicationDetail = () => {
   };
 
   const handleApprove = async () => {
-    if (!application) return;
+    if (!application || isDeciding) return;
+    setIsDeciding(true);
     const success = await approveApplication(application.id, application.type);
+    setIsDeciding(false);
     setShowApproveModal(false);
     if (success) {
       navigate("/admin/applications");
@@ -180,8 +185,10 @@ export const AdminApplicationDetail = () => {
   };
 
   const handleReject = async () => {
-    if (!application) return;
+    if (!application || isDeciding) return;
+    setIsDeciding(true);
     const success = await rejectApplication(application.id, application.type, rejectReason);
+    setIsDeciding(false);
     setShowRejectModal(false);
     if (success) {
       navigate("/admin/applications");
@@ -478,6 +485,7 @@ export const AdminApplicationDetail = () => {
         isOpen={showApproveModal}
         onClose={() => setShowApproveModal(false)}
         onConfirm={handleApprove}
+        isLoading={isDeciding}
         title="Approve Application"
         message={`Are you sure you want to approve ${application.name}? This will create their account and send an approval email.`}
         confirmLabel="Approve"
@@ -488,6 +496,7 @@ export const AdminApplicationDetail = () => {
         isOpen={showRejectModal}
         onClose={() => setShowRejectModal(false)}
         onConfirm={handleReject}
+        isLoading={isDeciding}
         title="Reject Application"
         message="Are you sure you want to reject this application?"
         confirmLabel="Reject"

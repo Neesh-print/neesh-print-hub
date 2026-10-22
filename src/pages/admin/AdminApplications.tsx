@@ -52,6 +52,9 @@ export const AdminApplications = () => {
   // Quick approve confirmation state
   const [showQuickApprove, setShowQuickApprove] = useState(false);
   const [pendingApprovalId, setPendingApprovalId] = useState<{id: string, type: 'publisher' | 'retailer'} | null>(null);
+  // Keeps confirm buttons disabled while approvals are in flight, so a second
+  // click cannot send a second approval email.
+  const [isApproving, setIsApproving] = useState(false);
   
   // Slide-over state
   const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
@@ -273,6 +276,8 @@ export const AdminApplications = () => {
 
   // Bulk actions
   const handleBulkApprove = async () => {
+    if (isApproving) return;
+    setIsApproving(true);
     let successCount = 0;
     for (const id of selectedRows) {
       const app = applications.find(a => a.id === id);
@@ -281,6 +286,7 @@ export const AdminApplications = () => {
         if (success) successCount++;
       }
     }
+    setIsApproving(false);
     toast.success(`${successCount} application${successCount !== 1 ? 's' : ''} approved`);
     setShowBulkApprove(false);
     setSelectedRows([]);
@@ -308,9 +314,11 @@ export const AdminApplications = () => {
   };
 
   const handleConfirmQuickApprove = async () => {
-    if (!pendingApprovalId) return;
+    if (!pendingApprovalId || isApproving) return;
     const { id, type } = pendingApprovalId;
+    setIsApproving(true);
     const success = await approveApplication(id, type);
+    setIsApproving(false);
     if (success) {
       toast.success('Application approved and welcome email sent');
     }
@@ -655,6 +663,7 @@ export const AdminApplications = () => {
         isOpen={showBulkApprove}
         onClose={() => setShowBulkApprove(false)}
         onConfirm={handleBulkApprove}
+        isLoading={isApproving}
         title="Approve Applications"
         message={`Approve ${selectedRows.length} application${selectedRows.length !== 1 ? 's' : ''}? This will send approval emails to all selected applicants.`}
         confirmLabel="Approve All"
@@ -693,6 +702,7 @@ export const AdminApplications = () => {
           setPendingApprovalId(null);
         }}
         onConfirm={handleConfirmQuickApprove}
+        isLoading={isApproving}
         title="Approve Application"
         message="Approve this application? A welcome email with account setup instructions will be sent automatically."
         confirmLabel="Approve & Send Email"
