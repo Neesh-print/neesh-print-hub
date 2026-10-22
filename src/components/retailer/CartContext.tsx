@@ -5,6 +5,8 @@ export interface CartItem {
   title: string;
   coverImage: string;
   publisher: string;
+  /** publishers.id; optional because carts saved before shipping_v2 lack it. */
+  publisherId?: string;
   issue?: string;
   quantity: number;
   price: number;

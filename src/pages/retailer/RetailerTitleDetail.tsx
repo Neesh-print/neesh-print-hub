@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Heart, Copy, AlertCircle, Bell, BellOff } from "lucide-react";
 import { RetailerLayout, useCart, useWishlistContext } from "@/components/retailer";
@@ -16,11 +16,20 @@ import { useMagazine } from "@/hooks/useMagazine";
 import { useMagazines } from "@/hooks/useMagazines";
 import { useStockNotification } from "@/hooks/useStockNotification";
 import { ImagePlaceholder } from "@/components/shared/ImagePlaceholder";
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { useShippingQuote } from "@/hooks/useShippingQuote";
+import { useShippingAddress } from "@/hooks/useShippingAddress";
+import { usePublisherShippingPublic } from "@/hooks/usePublisherShippingPublic";
+import { countryShortName, minimumSelectableQuantity, normalizeCountry, zoneFor } from "@/lib/shipping";
+import { blockedText, money } from "@/lib/shippingCopy";
+
+const samePublisherInCartItems = (items: { magazineId: string; quantity: number }[]) =>
+  items.map((i) => ({ magazine_id: i.magazineId, quantity: i.quantity }));
 
 export const RetailerTitleDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { addToCart } = useCart();
+  const { addToCart, cartItems } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlistContext();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -43,10 +52,64 @@ export const RetailerTitleDetail = () => {
   const stockLevel = getStockLevel(maxQuantity);
   const outOfStock = !isInStock(maxQuantity);
 
-  // Reset quantity when magazine changes
+  // --- shipping_v2: minimums, live shipping and landed margin (T8, T17, T18) ---
+  const { enabled: shippingV2 } = useShippingV2();
+  const { address } = useShippingAddress();
+  const publisherId = magazine?.publisher?.id ?? null;
+  const { data: pubShipping } = usePublisherShippingPublic(publisherId, shippingV2);
+  const destinationCountry = normalizeCountry(address?.country ?? null) ?? "US";
+  const zone = zoneFor(pubShipping?.ships_from_country ?? magazine?.origin_country_code ?? null, destinationCountry);
+
+  // Other copies from this publisher already in the cart count towards the
+  // international minimum, and only the extra shipping is shown (T8).
+  const samePublisherInCart = useMemo(
+    () => cartItems.filter((i) => i.magazineId !== id && (!i.publisherId || i.publisherId === publisherId)),
+    [cartItems, id, publisherId],
+  );
+  const otherCopiesFromPublisher = samePublisherInCart
+    .filter((i) => i.publisherId === publisherId)
+    .reduce((n, i) => n + i.quantity, 0);
+
+  const titleMinimum = Math.max(1, magazine?.minimum_order_quantity ?? 1);
+  const minQuantity = shippingV2
+    ? minimumSelectableQuantity({
+        zone,
+        minimumOrderQuantity: titleMinimum,
+        intlMinCopies: pubShipping?.intl_min_copies,
+        otherCopiesFromPublisher,
+      })
+    : titleMinimum;
+
+  const withThis = useMemo(
+    () => [
+      ...samePublisherInCartItems(samePublisherInCart),
+      ...(id ? [{ magazine_id: id, quantity }] : []),
+    ],
+    [samePublisherInCart, id, quantity],
+  );
+  const quoteWith = useShippingQuote(withThis, {
+    enabled: shippingV2 && !!magazine && quantity >= minQuantity,
+    persist: false,
+    allowReference: true,
+    addressKey: address?.id ?? null,
+  });
+  const groupWith = quoteWith.data?.groups.find((g) => g.publisher_id === publisherId) ?? null;
+  const publisherAlreadyInCart = !!groupWith && groupWith.items.some((i) => i.magazine_id !== id);
+  const quoteWithout = useShippingQuote(samePublisherInCartItems(samePublisherInCart), {
+    enabled: shippingV2 && publisherAlreadyInCart,
+    persist: false,
+    allowReference: true,
+    addressKey: address?.id ?? null,
+  });
+  const groupWithout = quoteWithout.data?.groups.find((g) => g.publisher_id === publisherId) ?? null;
+
+  // Reset quantity to the lowest allowed when the magazine changes
   useEffect(() => {
     setQuantity(1);
   }, [id]);
+  useEffect(() => {
+    setQuantity((q) => (q < minQuantity ? minQuantity : q));
+  }, [minQuantity]);
 
   const handleQuantityChange = useCallback((newQuantity: number) => {
     setQuantity(newQuantity);
@@ -87,12 +150,43 @@ export const RetailerTitleDetail = () => {
   const wspPrice = magazine.wholesale_price || magazine.price;
   const msrpPrice = magazine.suggested_retail_price || null;
 
+  // Landed pricing for the DynamicPricing card (shipping_v2)
+  const destinationLabel = quoteWith.data?.destination_is_reference
+    ? "New York (estimate)"
+    : quoteWith.data?.destination?.city || countryShortName(destinationCountry);
+  let shippingUsd: number | null = groupWith?.can_ship ? groupWith.shipping_usd : null;
+  let shippingNote: string | null = null;
+  if (groupWith && !groupWith.can_ship && groupWith.blocked_reason !== "minimum") {
+    shippingNote = blockedText(groupWith);
+  } else if (publisherAlreadyInCart && shippingUsd !== null) {
+    if (groupWithout?.can_ship && groupWithout.shipping_usd !== null) {
+      shippingUsd = Math.max(0, shippingUsd - groupWithout.shipping_usd);
+      shippingNote = `${magazine.publisher?.company_name || "This publisher"} is already in your cart, so this is only the extra shipping. Their parcel ships for ${money(groupWith.shipping_usd!)} in total.`;
+    } else {
+      shippingNote = `Shipping for the whole ${magazine.publisher?.company_name || "publisher"} parcel, including titles already in your cart.`;
+    }
+  } else if (quoteWith.data?.status === "needs_address") {
+    shippingNote = "Add your shipping address in your cart to see shipping.";
+  }
+  if (quoteWith.isError) shippingNote = "Shipping couldn't be quoted right now.";
+
+  const minimumNotes: string[] = [];
+  if (shippingV2 && zone === "international" && pubShipping) {
+    minimumNotes.push(`${countryShortName(destinationCountry)} minimum ${pubShipping.intl_min_copies} copies${otherCopiesFromPublisher > 0 ? ` from this publisher (${otherCopiesFromPublisher} already in your cart)` : ""}.`);
+  }
+  if (titleMinimum > 1) minimumNotes.push(`Minimum ${titleMinimum} copies of this title.`);
+
   const handleAddToCart = () => {
+    if (quantity < minQuantity) {
+      toast.error(`Add at least ${minQuantity} copies.`);
+      return;
+    }
     addToCart({
       magazineId: magazine.id,
       title: magazine.title,
       coverImage: magazine.cover_image_url || "/placeholder.svg",
       publisher: magazine.publisher?.company_name || "Unknown Publisher",
+      publisherId: magazine.publisher?.id,
       issue: magazine.issue_number || "",
       price: wspPrice,
       quantity,
@@ -316,6 +410,14 @@ export const RetailerTitleDetail = () => {
                 maxQuantity={maxQuantity}
                 disabled={maxQuantity <= 0}
                 onMaxExceeded={handleMaxExceeded}
+                minQuantity={Math.min(minQuantity, Math.max(1, maxQuantity))}
+                minimumNote={minimumNotes.join(" ") || null}
+                landed={shippingV2 ? {
+                  shippingUsd,
+                  shippingLabel: `${publisherAlreadyInCart ? "Extra shipping" : "Shipping"} to ${destinationLabel}`,
+                  shippingNote,
+                  loading: quoteWith.isLoading || quoteWith.isFetching,
+                } : undefined}
               />
             </div>
 

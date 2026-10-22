@@ -21,6 +21,9 @@ export interface Magazine {
   sold_count: number;
   created_at: string;
   origin_country_code: string | null;
+  weight_grams: number | null;
+  width_mm: number | null;
+  height_mm: number | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -81,6 +84,9 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
           sold_count,
           created_at,
           origin_country_code,
+          weight_grams,
+          width_mm,
+          height_mm,
           publisher_id,
           publishers (
             id,
@@ -131,6 +137,9 @@ export const useMagazines = (options: UseMagazinesOptions = {}): UseMagazinesRet
         sold_count: item.sold_count || 0,
         created_at: item.created_at,
         origin_country_code: item.origin_country_code,
+        weight_grams: item.weight_grams != null ? Number(item.weight_grams) : null,
+        width_mm: item.width_mm != null ? Number(item.width_mm) : null,
+        height_mm: item.height_mm != null ? Number(item.height_mm) : null,
         publisher: item.publishers ? {
           id: item.publishers.id,
           company_name: item.publishers.company_name,

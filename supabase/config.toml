@@ -22,3 +22,7 @@ verify_jwt = false
 # Owner-checked inside the handler via the caller's own session.
 [functions.nustand-start]
 verify_jwt = true
+
+# shipping_v2: Shippo calls this with a secret token in the URL, not a Supabase JWT.
+[functions.shippo-webhook]
+verify_jwt = false

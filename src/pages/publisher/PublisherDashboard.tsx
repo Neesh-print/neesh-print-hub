@@ -10,6 +10,7 @@ import { useMagazines } from "@/hooks/useMagazines";
 import { Order, useOrders } from "@/hooks/useOrders";
 import { PublisherOnboardingPrompt } from "@/components/publisher/PublisherOnboardingPrompt";
 import { PublisherPayoutBanner } from "@/components/publisher/PublisherPayoutBanner";
+import { PublisherShippingBanner } from "@/components/publisher/shipping/PublisherShippingBanner";
 import { usePublisherAnalytics } from "@/hooks/usePublisherAnalytics";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 
@@ -126,6 +127,9 @@ export const PublisherDashboard = () => {
         publisher={publisher}
         onboardingChecklistVisible={!onboarding.dismissed && !onboarding.allComplete}
       />
+
+      {/* shipping_v2: ships-from address needed before spaces can check out */}
+      <PublisherShippingBanner publisherId={publisher?.id} />
 
       {/* Onboarding Checklist for new users */}
       {!onboarding.dismissed && !onboarding.allComplete && (

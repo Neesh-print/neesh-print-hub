@@ -1,53 +1,30 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RetailerLayout, useCart } from "@/components/retailer";
-import { BackNavigation, FormInput, FormSelect, ButtonPrimary } from "@/components/neesh";
+import { BackNavigation, ButtonPrimary } from "@/components/neesh";
 import { toast } from "@/hooks/use-toast";
 import { CreditCard, Lock, MailWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmailVerification } from "@/hooks/useEmailVerification";
-
-const countries = [
-  { value: "us", label: "United States" },
-  { value: "uk", label: "United Kingdom" },
-  { value: "ca", label: "Canada" },
-  { value: "au", label: "Australia" },
-];
-
-const states = [
-  { value: "ca", label: "California" },
-  { value: "ny", label: "New York" },
-  { value: "tx", label: "Texas" },
-  { value: "or", label: "Oregon" },
-  { value: "wa", label: "Washington" },
-];
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { useShippingQuote } from "@/hooks/useShippingQuote";
+import { useShippingAddress } from "@/hooks/useShippingAddress";
+import { calculateRetailerPrice } from "@/utils/pricing";
+import { round2 } from "@/lib/shipping";
 
 export const RetailerCheckout = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cartItems, cartTotal, clearCart } = useCart();
+  const { cartItems, clearCart } = useCart();
   const { isVerified, isResending, resend, refetch } = useEmailVerification();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [sameAsShipping, setSameAsShipping] = useState(true);
-
-  const [shipping, setShipping] = useState({
-    address: "",
-    apt: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "us",
-  });
-
-  const [billing, setBilling] = useState({
-    address: "",
-    apt: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "us",
-  });
+  const { enabled: shippingV2 } = useShippingV2();
+  const { address } = useShippingAddress();
+  const quote = useShippingQuote(
+    cartItems.map((i) => ({ magazine_id: i.magazineId, quantity: i.quantity })),
+    { enabled: shippingV2 && cartItems.length > 0, addressKey: address ? `${address.id}:${address.updated_at}` : "none" },
+  );
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -56,9 +33,13 @@ export const RetailerCheckout = () => {
     }).format(price);
   };
 
-  const shippingCost = 12.50;
-  const tax = cartTotal * 0.08;
-  const total = cartTotal + shippingCost + tax;
+  // Spaces pay WSP x 1.10. Shipping comes from the live quote (shipping_v2);
+  // tax is calculated by Stripe automatic tax at payment.
+  const subtotal = round2(cartItems.reduce((sum, item) => sum + calculateRetailerPrice(item.price) * item.quantity, 0));
+  const groups = quote.data?.groups ?? [];
+  const shippingBlocked = shippingV2 && (quote.data?.status !== "ok" || groups.some((g) => !g.can_ship));
+  const shippingCost = shippingV2 ? round2(groups.reduce((sum, g) => sum + (g.shipping_usd ?? 0), 0)) : null;
+  const total = subtotal + (shippingCost ?? 0);
 
   const handleResend = async () => {
     const sent = await resend();
@@ -97,7 +78,10 @@ export const RetailerCheckout = () => {
 
       // Invoke the create-checkout Edge Function
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { cart_items },
+        body: {
+          cart_items,
+          ...(shippingV2 ? { quote_ids: groups.map((g) => g.quote_id).filter(Boolean) } : {}),
+        },
       });
 
       if (error) {
@@ -166,116 +150,26 @@ export const RetailerCheckout = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Forms */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Shipping Address */}
+            {/* Shipping address: set and changed in the cart, where shipping is quoted */}
             <section className="card-neesh">
-              <h2 className="font-display font-semibold text-lg text-foreground mb-4">
+              <h2 className="font-display font-semibold text-lg text-foreground mb-2">
                 Shipping Address
               </h2>
-              <div className="space-y-4">
-                <FormInput
-                  label="Street address"
-                  value={shipping.address}
-                  onChange={(value) => setShipping({ ...shipping, address: value })}
-                  required
-                />
-                <FormInput
-                  label="Apt / Suite (optional)"
-                  value={shipping.apt}
-                  onChange={(value) => setShipping({ ...shipping, apt: value })}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput
-                    label="City"
-                    value={shipping.city}
-                    onChange={(value) => setShipping({ ...shipping, city: value })}
-                    required
-                  />
-                  <FormSelect
-                    label="State / Province"
-                    options={states}
-                    value={shipping.state}
-                    onChange={(value) => setShipping({ ...shipping, state: value })}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput
-                    label="Postal code"
-                    value={shipping.postalCode}
-                    onChange={(value) => setShipping({ ...shipping, postalCode: value })}
-                    required
-                  />
-                  <FormSelect
-                    label="Country"
-                    options={countries}
-                    value={shipping.country}
-                    onChange={(value) => setShipping({ ...shipping, country: value })}
-                    required
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Billing Address */}
-            <section className="card-neesh">
-              <h2 className="font-display font-semibold text-lg text-foreground mb-4">
-                Billing Address
-              </h2>
-              <label className="flex items-center gap-2 mb-4 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sameAsShipping}
-                  onChange={(e) => setSameAsShipping(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                />
-                <span className="text-sm text-muted-foreground">Same as shipping address</span>
-              </label>
-
-              {!sameAsShipping && (
-                <div className="space-y-4">
-                  <FormInput
-                    label="Street address"
-                    value={billing.address}
-                    onChange={(value) => setBilling({ ...billing, address: value })}
-                    required
-                  />
-                  <FormInput
-                    label="Apt / Suite (optional)"
-                    value={billing.apt}
-                    onChange={(value) => setBilling({ ...billing, apt: value })}
-                  />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormInput
-                      label="City"
-                      value={billing.city}
-                      onChange={(value) => setBilling({ ...billing, city: value })}
-                      required
-                    />
-                    <FormSelect
-                      label="State / Province"
-                      options={states}
-                      value={billing.state}
-                      onChange={(value) => setBilling({ ...billing, state: value })}
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormInput
-                      label="Postal code"
-                      value={billing.postalCode}
-                      onChange={(value) => setBilling({ ...billing, postalCode: value })}
-                      required
-                    />
-                    <FormSelect
-                      label="Country"
-                      options={countries}
-                      value={billing.country}
-                      onChange={(value) => setBilling({ ...billing, country: value })}
-                      required
-                    />
-                  </div>
-                </div>
+              {address ? (
+                <p className="text-sm text-muted-foreground">
+                  {address.recipient_name}, {address.address_line_1}
+                  {address.address_line_2 ? `, ${address.address_line_2}` : ""}, {address.city}, {address.state} {address.postal_code}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No shipping address yet.</p>
               )}
+              <button
+                type="button"
+                onClick={() => navigate("/retailer/cart")}
+                className="text-sm font-medium text-accent hover:underline mt-2"
+              >
+                Change in cart
+              </button>
             </section>
 
             {/* Payment - PCI-Compliant Placeholder */}
@@ -334,7 +228,7 @@ export const RetailerCheckout = () => {
               </section>
             )}
 
-            <ButtonPrimary type="submit" fullWidth loading={isSubmitting} disabled={isVerified === false}>
+            <ButtonPrimary type="submit" fullWidth loading={isSubmitting} disabled={isVerified === false || shippingBlocked}>
               Place Order
             </ButtonPrimary>
           </div>
@@ -361,7 +255,7 @@ export const RetailerCheckout = () => {
                       <p className="text-sm font-medium line-clamp-1">{item.title}</p>
                       <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                     </div>
-                    <p className="text-sm font-medium">{formatPrice(item.price * item.quantity)}</p>
+                    <p className="text-sm font-medium">{formatPrice(calculateRetailerPrice(item.price) * item.quantity)}</p>
                   </div>
                 ))}
               </div>
@@ -369,15 +263,21 @@ export const RetailerCheckout = () => {
               <div className="border-t border-border pt-4 space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>{formatPrice(cartTotal)}</span>
+                  <span>{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Shipping</span>
-                  <span>{formatPrice(shippingCost)}</span>
+                  <span>
+                    {!shippingV2
+                      ? "Calculated at payment"
+                      : shippingBlocked
+                        ? "See cart"
+                        : quote.isLoading ? "Quoting..." : formatPrice(shippingCost ?? 0)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Tax</span>
-                  <span>{formatPrice(tax)}</span>
+                  <span>Calculated at payment</span>
                 </div>
               </div>
 

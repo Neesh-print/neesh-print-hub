@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         const { data: transfer, error: fetchError } = await supabaseAdmin
           .from('publisher_transfers')
           .select(`
-            id, order_id, net_amount, status,
+            id, order_id, shipment_id, kind, hold_reason, net_amount, status,
             publishers!inner (
               id, stripe_account_id, company_name
             )
@@ -111,6 +111,23 @@ Deno.serve(async (req) => {
 
         if (transfer.status !== 'pending') {
           results.push({ id: transferId, success: false, error: `Transfer already ${transfer.status}` })
+          continue
+        }
+
+        // shipping_v2: a Neesh-label shipping transfer waits for the label so its
+        // cost can be deducted first.
+        if (transfer.hold_reason === 'awaiting_label') {
+          results.push({ id: transferId, success: false, error: 'Held until the publisher prints the shipping label' })
+          continue
+        }
+
+        // A shipping transfer whose label cost used up the shipping has nothing to send.
+        if (Number(transfer.net_amount) <= 0) {
+          await supabaseAdmin
+            .from('publisher_transfers')
+            .update({ status: 'transferred', released_by: user.id, released_at: new Date().toISOString(), transferred_at: new Date().toISOString() })
+            .eq('id', transferId)
+          results.push({ id: transferId, success: true })
           continue
         }
 
@@ -138,8 +155,10 @@ Deno.serve(async (req) => {
           amount: amountInCents,
           currency: 'usd',
           destination: publisher.stripe_account_id,
-          transfer_group: transfer.order_id,
-          description: `Neesh payout for order ${transfer.order_id}`,
+          transfer_group: transfer.order_id ?? transfer.shipment_id,
+          description: transfer.kind === 'shipping'
+            ? `Neesh shipping payout for shipment ${transfer.shipment_id}`
+            : `Neesh payout for order ${transfer.order_id}`,
         })
 
         // Mark as transferred

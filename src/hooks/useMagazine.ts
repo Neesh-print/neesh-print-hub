@@ -21,6 +21,8 @@ export interface MagazineDetail {
   issue_frequency: string | null;
   volume_pricing_tiers: any | null;
   origin_country_code: string | null;
+  minimum_order_quantity: number | null;
+  weight_grams: number | null;
   publisher: {
     id: string;
     company_name: string | null;
@@ -73,6 +75,8 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency,
           volume_pricing_tiers,
           origin_country_code,
+          minimum_order_quantity,
+          weight_grams,
           publisher_id,
           publishers (
             id,
@@ -107,6 +111,8 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency: string | null;
           volume_pricing_tiers: unknown;
           origin_country_code: string | null;
+          minimum_order_quantity: number | null;
+          weight_grams: number | null;
           publishers: {
             id: string;
             company_name: string | null;
@@ -144,6 +150,8 @@ export const useMagazine = (magazineId: string | undefined): UseMagazineReturn =
           issue_frequency: rawData.issue_frequency,
           volume_pricing_tiers: rawData.volume_pricing_tiers,
           origin_country_code: rawData.origin_country_code,
+          minimum_order_quantity: rawData.minimum_order_quantity ?? null,
+          weight_grams: rawData.weight_grams ?? null,
           publisher: publisherData ? {
             id: publisherData.id,
             company_name: publisherData.company_name,

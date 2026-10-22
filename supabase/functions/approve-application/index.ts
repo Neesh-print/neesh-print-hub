@@ -339,6 +339,10 @@ Deno.serve(async (req) => {
           application_status: 'approved',
           verified: true,
           verified_at: new Date().toISOString(),
+          // shipping_v2: where they ship from (application stores an ISO code)
+          ...(/^[A-Za-z]{2}$/.test(application.shipping_country ?? '')
+            ? { ships_from_country: String(application.shipping_country).toUpperCase() }
+            : {}),
         }, {
           onConflict: 'user_id',
         })
@@ -372,6 +376,10 @@ Deno.serve(async (req) => {
             price: wholesalePrice,
             suggested_retail_price: application.suggested_retail_price ?? null,
             inventory_count: application.available_quantity ?? null,
+            // Weight is collected on the application (shipping_v2) and kept in additional_info.
+            weight_grams: Number(application.additional_info?.weightGrams) > 0
+              ? Math.round(Number(application.additional_info.weightGrams))
+              : null,
             is_active: wholesalePrice !== null,
           })
 

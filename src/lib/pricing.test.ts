@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  NEESH_MARKUP_MULTIPLIER,
+  NEESH_SPACE_MULTIPLIER,
   formatPrice,
   calculateEffectiveCost,
   calculateMarginPerUnit,
@@ -12,9 +12,9 @@ import {
 } from "./pricing";
 
 describe("pricing utilities", () => {
-  describe("NEESH_MARKUP_MULTIPLIER", () => {
-    it("should be 1.20 (20% markup)", () => {
-      expect(NEESH_MARKUP_MULTIPLIER).toBe(1.20);
+  describe("NEESH_SPACE_MULTIPLIER", () => {
+    it("should be 1.10 (10% on top for spaces)", () => {
+      expect(NEESH_SPACE_MULTIPLIER).toBe(1.10);
     });
   });
 
@@ -32,14 +32,14 @@ describe("pricing utilities", () => {
   });
 
   describe("calculateEffectiveCost", () => {
-    it("should calculate WSP × 1.20 × quantity", () => {
-      expect(calculateEffectiveCost(10, 1)).toBe(12);
-      expect(calculateEffectiveCost(10, 2)).toBe(24);
-      expect(calculateEffectiveCost(14, 1)).toBeCloseTo(16.8, 2);
+    it("should calculate WSP × 1.10 × quantity", () => {
+      expect(calculateEffectiveCost(10, 1)).toBeCloseTo(11, 2);
+      expect(calculateEffectiveCost(10, 2)).toBeCloseTo(22, 2);
+      expect(calculateEffectiveCost(14, 1)).toBeCloseTo(15.4, 2);
     });
 
     it("should default quantity to 1", () => {
-      expect(calculateEffectiveCost(10)).toBe(12);
+      expect(calculateEffectiveCost(10)).toBeCloseTo(11, 2);
     });
 
     it("should return 0 for invalid inputs", () => {
@@ -49,9 +49,9 @@ describe("pricing utilities", () => {
   });
 
   describe("calculateMarginPerUnit", () => {
-    it("should calculate MSRP - (WSP × 1.20)", () => {
-      // WSP $14, MSRP $28 → 28 - (14 × 1.20) = 28 - 16.80 = 11.20
-      expect(calculateMarginPerUnit(14, 28)).toBeCloseTo(11.20, 2);
+    it("should calculate MSRP - (WSP × 1.10)", () => {
+      // WSP $14, MSRP $28 → 28 - (14 × 1.10) = 28 - 15.40 = 12.60
+      expect(calculateMarginPerUnit(14, 28)).toBeCloseTo(12.60, 2);
     });
 
     it("should return 0 for invalid inputs", () => {
@@ -60,15 +60,15 @@ describe("pricing utilities", () => {
     });
 
     it("should handle negative margins", () => {
-      // WSP $20, MSRP $20 → 20 - (20 × 1.20) = 20 - 24 = -4
-      expect(calculateMarginPerUnit(20, 20)).toBeCloseTo(-4, 2);
+      // WSP $20, MSRP $20 → 20 - (20 × 1.10) = 20 - 22 = -2
+      expect(calculateMarginPerUnit(20, 20)).toBeCloseTo(-2, 2);
     });
   });
 
   describe("calculateMarginPercentage", () => {
     it("should calculate (margin / MSRP) × 100", () => {
-      // WSP $14, MSRP $28 → margin $11.20, percentage = (11.20 / 28) × 100 = 40%
-      expect(calculateMarginPercentage(14, 28)).toBe(40);
+      // WSP $14, MSRP $28 → margin $12.60, percentage = (12.60 / 28) × 100 = 45%
+      expect(calculateMarginPercentage(14, 28)).toBeCloseTo(45, 5);
     });
 
     it("should return 0 for invalid retail price", () => {
@@ -78,8 +78,8 @@ describe("pricing utilities", () => {
 
   describe("calculateTotalMargin", () => {
     it("should multiply margin per unit by quantity", () => {
-      // Margin per unit = $11.20, quantity 3 → $33.60
-      expect(calculateTotalMargin(14, 28, 3)).toBeCloseTo(33.60, 2);
+      // Margin per unit = $12.60, quantity 3 → $37.80
+      expect(calculateTotalMargin(14, 28, 3)).toBeCloseTo(37.80, 2);
     });
   });
 

@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { ShippingSettingsCard } from "@/components/publisher/shipping/ShippingSettingsCard";
 
 export const PublisherSettings = () => {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export const PublisherSettings = () => {
   const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [hasStripeAccount, setHasStripeAccount] = useState<boolean | null>(null);
+  const { enabled: shippingV2 } = useShippingV2();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -131,6 +134,9 @@ export const PublisherSettings = () => {
               />
             </div>
           </div>
+
+          {/* Shipping (shipping_v2) */}
+          {shippingV2 && publisher?.id && <ShippingSettingsCard publisherId={publisher.id} />}
 
           {/* Notification Preferences */}
           <div className="card-neesh">
