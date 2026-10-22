@@ -11,7 +11,6 @@ import {
   renderEmail,
   strong,
 } from '../_shared/email.ts'
-import { type OrderConfirmationData, generateOrderConfirmationEmail } from '../_shared/retailer-emails.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -153,7 +152,7 @@ Deno.serve(async (req) => {
     // ============================================================
     const { data: retailerRow, error: retailerError } = await supabaseAdmin
       .from('retailers')
-      .select('id, shop_name, payment_terms_enabled, net_terms_days, terms_status, credit_limit')
+      .select('id, payment_terms_enabled, net_terms_days, terms_status, credit_limit')
       .eq('user_id', user.id)
       .single()
 
@@ -467,7 +466,6 @@ Deno.serve(async (req) => {
     // ============================================================
     // Notify publishers: new order, payout delayed until retailer pays
     // ============================================================
-    const publisherNames = new Map<string, string>()
     try {
       const byPublisher = new Map<string, Line[]>()
       for (const line of lines) {
@@ -482,7 +480,6 @@ Deno.serve(async (req) => {
           .eq('id', publisherId)
           .single()
         if (!publisher) continue
-        publisherNames.set(publisherId, publisher.company_name || 'Publisher')
         const { data: pubUser } = await supabaseAdmin
           .from('users')
           .select('email')
@@ -501,42 +498,6 @@ Deno.serve(async (req) => {
       }
     } catch (emailErr) {
       console.error('Publisher notification failed (non-fatal):', emailErr)
-    }
-
-    // ============================================================
-    // Confirm the order to the retailer (Stripe sends the invoice itself)
-    // ============================================================
-    try {
-      if (user.email) {
-        await sendNetOrderRetailerEmail(user.email, {
-          shopName: retailerRow.shop_name ?? null,
-          lines: lines.map(l => ({
-            title: l.title,
-            subtitle: publisherNames.get(l.publisher_id),
-            quantity: l.quantity,
-            amount: l.line_total,
-          })),
-          subtotal: (finalized.subtotal ?? 0) / 100,
-          tax: Math.max(0, (finalized.total ?? 0) - (finalized.subtotal ?? 0)) / 100,
-          total: (finalized.total ?? 0) / 100,
-          shipTo: {
-            name: shippingAddr.recipient_name,
-            line1: shippingAddr.address_line_1,
-            line2: shippingAddr.address_line_2,
-            city: shippingAddr.city,
-            state: shippingAddr.state,
-            postalCode: shippingAddr.postal_code,
-            country: shippingAddr.country,
-          },
-          terms: {
-            days: termsDays,
-            dueDate: finalized.due_date ? new Date(finalized.due_date * 1000) : new Date(dueAt),
-            invoiceUrl: finalized.hosted_invoice_url ?? null,
-          },
-        })
-      }
-    } catch (emailErr) {
-      console.error('Retailer confirmation failed (non-fatal):', emailErr)
     }
 
     return json(200, {
@@ -610,33 +571,5 @@ async function sendNetOrderPublisherEmail(
     if (!response.ok) console.error('Failed to send publisher email:', await response.text())
   } catch (error) {
     console.error('Error sending publisher email:', error)
-  }
-}
-
-// ------------------------------------------------------------------
-// Retailer email: order confirmation on payment terms
-// ------------------------------------------------------------------
-async function sendNetOrderRetailerEmail(retailerEmail: string, data: OrderConfirmationData) {
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  if (!resendApiKey) {
-    console.error('RESEND_API_KEY not configured')
-    return
-  }
-
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Neesh <hi@neesh.art>',
-        to: retailerEmail,
-        subject: `Your Neesh order is confirmed (Net ${data.terms?.days})`,
-        reply_to: 'hi@neesh.art',
-        html: generateOrderConfirmationEmail(data),
-      }),
-    })
-    if (!response.ok) console.error('Failed to send retailer confirmation:', await response.text())
-  } catch (error) {
-    console.error('Error sending retailer confirmation:', error)
   }
 }

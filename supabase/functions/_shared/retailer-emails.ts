@@ -1,19 +1,16 @@
 // Retailer emails: the confirm-email welcome sent at signup (signup-retailer)
-// and its resend (verify-retailer-email), and the order confirmation sent for
-// card checkouts (stripe-webhook) and payment-terms orders (create-net-order).
+// and its resend (verify-retailer-email), and the order confirmation sent
+// after a paid checkout (stripe-webhook). Neesh is upfront payment only.
 
 import {
   BRAND_URL,
   type LineItem,
   button,
   details,
-  formatDate,
   html,
   lineItems,
-  link,
   linkFallback,
   money,
-  panel,
   renderEmail,
   smallText,
   steps,
@@ -76,8 +73,6 @@ export interface OrderConfirmationData {
   tax: number
   total: number
   shipTo: ShippingAddress | null
-  // Set for payment-terms orders; absent for card checkouts.
-  terms?: { days: number; dueDate: Date; invoiceUrl: string | null }
 }
 
 const formatAddress = (a: ShippingAddress): string =>
@@ -94,38 +89,27 @@ export const generateOrderConfirmationEmail = (data: OrderConfirmationData): str
   const copiesText = `${copies} ${copies === 1 ? 'copy' : 'copies'}`
   const publishers = new Set(data.lines.map((l) => l.subtitle).filter(Boolean)).size
   const fromText = publishers === 1 ? 'the publisher' : `${publishers} publishers`
-  const terms = data.terms
-  const dueStr = terms ? formatDate(terms.dueDate) : ''
 
   const summary: [string, string][] = []
   if (data.tax > 0) summary.push(['Subtotal', money(data.subtotal)], ['Tax', money(data.tax)])
-  summary.push([terms ? 'Invoice total' : 'Total paid', money(data.total)])
+  summary.push(['Total paid', money(data.total)])
   if (data.shipTo) summary.push(['Ship to', formatAddress(data.shipTo)])
 
   return renderEmail({
-    preheader: terms
-      ? `${copiesText} on Net ${terms.days} terms. Invoice of ${money(data.total)} due ${dueStr}.`
-      : `${copiesText} for ${money(data.total)}. Publishers ship directly and add tracking.`,
-    label: terms ? `Order · Net ${terms.days}` : 'Order',
-    badge: terms ? { text: `Net ${terms.days}`, tone: 'pending' } : { text: 'Paid', tone: 'success' },
+    preheader: `${copiesText} for ${money(data.total)}. Publishers ship directly and add tracking.`,
+    label: 'Order',
+    badge: { text: 'Paid', tone: 'success' },
     heading: 'Your order is in.',
     intro: html`${data.shopName ? html`Thanks, ${strong(data.shopName)}. ` : 'Thanks. '}We sent your order to ${fromText}. Each one ships directly to you and adds tracking as it goes out.`,
     blocks: [
       lineItems(data.lines),
       details(summary),
-      ...(terms
-        ? [panel(
-            html`Your invoice of ${strong(money(data.total))} is due ${strong(dueStr)}. Stripe emails it to you separately, and you can pay by card or bank transfer.`,
-            `Net ${terms.days} payment terms`,
-          )]
-        : []),
       steps('What happens next', [
         `${publishers === 1 ? 'The publisher packs' : 'Each publisher packs'} your copies and ships them.`,
         'Tracking appears on the order as soon as it is added.',
         'Something wrong with a delivery? Reply to this email.',
       ]),
       button('View your orders', `${BRAND_URL}/retailer/orders`),
-      ...(terms?.invoiceUrl ? [smallText(html`Ready to pay now? ${link('Open the invoice', terms.invoiceUrl)}.`)] : []),
     ],
     footerNote: 'You are getting this because you placed an order on Neesh.',
   })

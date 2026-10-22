@@ -114,17 +114,11 @@ describe("retailer order confirmation", () => {
     expect(out).not.toMatch(EMOJI);
   });
 
-  it("shows terms, the due date and the invoice link for a Net order", () => {
-    const out = generateOrderConfirmationEmail({
-      ...base,
-      tax: 11.32,
-      total: 138.92,
-      terms: { days: 30, dueDate: new Date("2026-11-21T00:00:00Z"), invoiceUrl: "https://invoice.stripe.com/i/abc" },
-    });
-    expect(out).toContain("Net 30");
-    expect(out).toContain("November 21, 2026");
-    expect(out).toContain("Invoice total");
+  it("lists subtotal and tax when tax was charged, and never mentions payment terms", () => {
+    const out = generateOrderConfirmationEmail({ ...base, tax: 11.32, total: 138.92 });
+    expect(out).toContain("$127.60");
     expect(out).toContain("$11.32");
-    expect(out).toContain("https://invoice.stripe.com/i/abc");
+    expect(out).toContain("$138.92");
+    expect(out).not.toMatch(/Net \d+|invoice/i);
   });
 });
