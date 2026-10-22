@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { NEESH_SPACE_MULTIPLIER } from "@/lib/shipping";
 
 /**
  * PriceDisplay Component
@@ -82,10 +83,10 @@ export const PriceDisplay = ({
   const hasWholesale = wholesalePrice !== null && wholesalePrice !== undefined && !isNaN(wholesalePrice);
   const hasRetail = retailPrice !== null && retailPrice !== undefined && !isNaN(retailPrice);
 
-  // Calculate margin: MSRP - (WSP × 1.20) to account for 20% markup
+  // Calculate margin before shipping: MSRP - (WSP × 1.10). Spaces pay 1.10.
   const margin = useMemo(() => {
     if (!hasWholesale || !hasRetail) return null;
-    const wspWithMarkup = wholesalePrice! * 1.20;
+    const wspWithMarkup = wholesalePrice! * NEESH_SPACE_MULTIPLIER;
     const dollarAmount = retailPrice! - wspWithMarkup;
     const percentage = retailPrice! > 0 ? (dollarAmount / retailPrice!) * 100 : 0;
     return {
