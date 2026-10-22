@@ -252,14 +252,15 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
         ? (application.business_name || application.magazine_title || 'Your Business')
         : (application.shop_name || 'Your Shop');
 
-      // Generate a placeholder magic link URL (actual link will be generated when sending)
-      const magicLinkUrl = `${window.location.origin}/${type}`;
+      // Placeholder link for the preview; the real one is generated when sending
+      const recoveryLinkUrl = `${window.location.origin}/${type}`;
 
       const html = generateApprovalEmail({
         firstName,
         businessName,
         role: type,
-        magicLinkUrl,
+        recoveryLinkUrl,
+        forgotPasswordUrl: `${window.location.origin}/forgot-password`,
       });
 
       return {

@@ -1,5 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
+import {
+  BRAND_URL,
+  button,
+  formatDate,
+  html as emailHtml,
+  lineItems,
+  money,
+  panel,
+  renderEmail,
+  strong,
+} from '../_shared/email.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -522,61 +533,28 @@ async function sendNetOrderPublisherEmail(
     return
   }
 
-  const rows = lines.map(l => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #1A1A1A;">${l.title}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #4A4A4A; text-align: center;">${l.quantity}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #1A1A1A; text-align: right; font-weight: 600;">$${l.net_amount.toFixed(2)}</td>
-    </tr>`).join('')
-
   const netTotal = lines.reduce((s, l) => s + l.net_amount, 0)
-  const dueStr = dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const copies = lines.reduce((s, l) => s + l.quantity, 0)
+  const dueStr = formatDate(dueDate)
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New Order (Payment Terms)</title></head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-        <tr><td style="background-color: #1A1A1A; padding: 40px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; letter-spacing: 0.5px;">NEESH</h1>
-          <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">New Order</p>
-        </td></tr>
-        <tr><td style="padding: 40px;">
-          <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px;">📦 You have a new order!</h2>
-          <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-            Hi ${publisherName},<br><br>
-            <strong>${retailerName}</strong> just ordered your magazine${lines.length > 1 ? 's' : ''}. Please prepare this order for shipping and add tracking in your dashboard.
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border: 1px solid #E5E5E5; border-radius: 8px; overflow: hidden;">
-            <tr style="background-color: #F8F8F6;">
-              <th style="padding: 12px; text-align: left; color: #6B6B6B; font-size: 14px;">Magazine</th>
-              <th style="padding: 12px; text-align: center; color: #6B6B6B; font-size: 14px;">Qty</th>
-              <th style="padding: 12px; text-align: right; color: #6B6B6B; font-size: 14px;">Your payout</th>
-            </tr>
-            ${rows}
-            <tr style="background-color: #F8F8F6;">
-              <td colspan="2" style="padding: 12px; text-align: right; font-weight: 600; color: #1A1A1A;">Total payout:</td>
-              <td style="padding: 12px; text-align: right; font-weight: 600; color: #C49A6C; font-size: 18px;">$${netTotal.toFixed(2)}</td>
-            </tr>
-          </table>
-          <div style="margin: 24px 0; padding: 20px; background-color: #FFF9F5; border-radius: 8px; border-left: 4px solid #C49A6C;">
-            <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
-              <strong>Heads up — this order is on Net ${termsDays} payment terms.</strong><br>
-              The retailer has until <strong>${dueStr}</strong> to pay. Your payout of <strong>$${netTotal.toFixed(2)}</strong> will be released automatically once their invoice is paid. Please still ship on your normal schedule.
-            </p>
-          </div>
-        </td></tr>
-        <tr><td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5; border-radius: 0 0 12px 12px;">
-          <p style="margin: 0; color: #A0A0A0; font-size: 12px;">© ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`.trim()
+  const html = renderEmail({
+    preheader: `${retailerName} ordered ${copies} ${copies === 1 ? 'copy' : 'copies'} on Net ${termsDays} terms. Ship as normal.`,
+    label: `Publisher · Net ${termsDays}`,
+    eyebrow: 'New wholesale order',
+    heading: `Your ${lines.length > 1 ? 'magazines are' : 'magazine is'} going to ${retailerName}.`,
+    intro: `Hi ${publisherName}, a retailer just ordered from your catalog on payment terms. Ship on your normal schedule and add tracking in your dashboard.`,
+    blocks: [
+      lineItems(
+        lines.map((l) => ({ title: l.title, quantity: l.quantity, amount: l.net_amount })),
+        { amountLabel: 'Your payout', total: { label: 'Total payout', amount: netTotal } }
+      ),
+      panel(
+        emailHtml`The retailer has until ${strong(dueStr)} to pay. Your payout of ${strong(money(netTotal))} is released automatically once their invoice is paid.`,
+        `Net ${termsDays} payment terms`
+      ),
+      button('Add tracking', `${BRAND_URL}/publisher/orders`),
+    ],
+  })
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -585,7 +563,8 @@ async function sendNetOrderPublisherEmail(
       body: JSON.stringify({
         from: 'Neesh <hi@neesh.art>',
         to: publisherEmail,
-        subject: `New Order from ${retailerName} (Net ${termsDays})`,
+        subject: `New order from ${retailerName} (Net ${termsDays})`,
+        reply_to: 'hi@neesh.art',
         html,
       }),
     })

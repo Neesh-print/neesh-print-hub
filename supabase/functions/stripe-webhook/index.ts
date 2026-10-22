@@ -1,5 +1,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
+import {
+  BRAND_URL,
+  type LineItem,
+  button,
+  details,
+  formatDate,
+  lineItems,
+  money,
+  reference,
+  renderEmail,
+  stats,
+  steps,
+} from '../_shared/email.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -200,7 +213,7 @@ Deno.serve(async (req) => {
         const magazineIds = cartItems.map(item => item.magazine_id)
         const { data: magazines, error: magazinesError } = await supabaseAdmin
           .from('magazines')
-          .select('id, title, wholesale_price, publisher_id, cover_image_url, fulfillment_method')
+          .select('id, title, issue_number, wholesale_price, publisher_id, cover_image_url, fulfillment_method')
           .in('id', magazineIds)
 
         if (magazinesError || !magazines) {
@@ -218,12 +231,6 @@ Deno.serve(async (req) => {
             }
         }
 
-        interface OrderNotificationItem {
-          order_id: string;
-          magazine_title: string;
-          quantity: number;
-          total_price: number;
-        }
 
         // Create orders for each cart item
         const createdOrders: string[] = []
@@ -298,6 +305,7 @@ Deno.serve(async (req) => {
           publisherEmails.get(publisherId)!.push({
             order_id: order.id,
             magazine_title: magazine.title,
+            issue_number: magazine.issue_number ?? null,
             quantity: item.quantity,
             total_price: totalPrice,
           })
@@ -392,39 +400,60 @@ Deno.serve(async (req) => {
 
         const retailerShopName = retailerProfile?.shop_name || retailer?.email || 'Unknown Retailer'
 
-        // Send email to admin (Gem)
-        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
-        await sendOrderNotificationToAdmin(
-          adminEmail,
-          session.id,
-          retailerShopName,
-          createdOrders.length,
-          (session.amount_total || 0) / 100 // Convert to dollars
-        )
-
-        // Send emails to publishers
-        for (const [publisherId, orders] of publisherEmails) {
+        // Resolve each publisher once: the admin email lists them per line,
+        // and each publisher gets their own email.
+        const publishers = new Map<string, { name: string; email: string | null }>()
+        for (const publisherId of publisherEmails.keys()) {
           const { data: publisher } = await supabaseAdmin
             .from('publishers')
             .select('company_name, user_id')
             .eq('id', publisherId)
             .single()
+          if (!publisher) continue
 
-          if (publisher) {
-            const { data: publisherUser } = await supabaseAdmin
-              .from('users')
-              .select('email')
-              .eq('id', publisher.user_id)
-              .single()
+          const { data: publisherUser } = await supabaseAdmin
+            .from('users')
+            .select('email')
+            .eq('id', publisher.user_id)
+            .single()
 
-            if (publisherUser?.email) {
-              await sendOrderNotificationToPublisher(
-                publisherUser.email,
-                publisher.company_name || 'Publisher',
-                retailerShopName,
-                orders
-              )
-            }
+          publishers.set(publisherId, {
+            name: publisher.company_name || 'Publisher',
+            email: publisherUser?.email ?? null,
+          })
+        }
+
+        // Send email to admin (Gem)
+        const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
+        const adminLines: LineItem[] = []
+        for (const [publisherId, orders] of publisherEmails) {
+          for (const o of orders) {
+            adminLines.push({
+              title: titleWithIssue(o),
+              subtitle: publishers.get(publisherId)?.name,
+              quantity: o.quantity,
+              amount: o.total_price,
+            })
+          }
+        }
+        await sendOrderNotificationToAdmin(
+          adminEmail,
+          session.id,
+          retailerShopName,
+          adminLines,
+          (session.amount_total || 0) / 100 // Convert to dollars
+        )
+
+        // Send emails to publishers
+        for (const [publisherId, orders] of publisherEmails) {
+          const publisher = publishers.get(publisherId)
+          if (publisher?.email) {
+            await sendOrderNotificationToPublisher(
+              publisher.email,
+              publisher.name,
+              retailerShopName,
+              orders
+            )
           }
         }
 
@@ -475,11 +504,17 @@ Deno.serve(async (req) => {
 
         // Notify admin
         const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
-        await sendSimpleAdminNotification(
-          adminEmail,
-          'Payment Failed',
-          `A payment of $${((charge.amount || 0) / 100).toFixed(2)} failed.\n\nReason: ${charge.failure_message || 'Unknown'}\nCharge ID: ${charge.id}`
-        )
+        await sendSimpleAdminNotification(adminEmail, {
+          subject: 'Payment failed',
+          heading: 'A payment failed',
+          summary: `A ${money((charge.amount || 0) / 100)} payment failed. Its orders are marked payment_failed.`,
+          details: [
+            ['Amount', money((charge.amount || 0) / 100)],
+            ['Reason', charge.failure_message || 'Unknown'],
+            ['Charge', charge.id],
+          ],
+          action: { text: 'Open in Stripe', href: `https://dashboard.stripe.com/payments/${charge.payment_intent || charge.id}` },
+        })
         break
       }
 
@@ -497,11 +532,23 @@ Deno.serve(async (req) => {
 
         // Notify admin immediately — disputes are time-sensitive
         const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
-        await sendSimpleAdminNotification(
-          adminEmail,
-          'URGENT: Chargeback/Dispute Created',
-          `A dispute has been opened for $${((dispute.amount || 0) / 100).toFixed(2)}.\n\nReason: ${dispute.reason}\nDispute ID: ${dispute.id}\n\nYou have limited time to respond. Please check the Stripe Dashboard immediately.`
-        )
+        const dueBy = dispute.evidence_details?.due_by
+        const respondBy = dueBy ? formatDate(new Date(dueBy * 1000)) : null
+        const disputeCharge = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id
+        await sendSimpleAdminNotification(adminEmail, {
+          subject: 'URGENT: Chargeback/Dispute Created',
+          urgent: true,
+          heading: 'Dispute opened on a charge',
+          summary: `A ${money((dispute.amount || 0) / 100)} dispute needs a response in Stripe${respondBy ? ` by ${respondBy}` : ''}.`,
+          details: [
+            ['Amount', money((dispute.amount || 0) / 100)],
+            ['Reason', dispute.reason],
+            ['Respond by', respondBy || 'See Stripe'],
+            ['Charge', disputeCharge || 'Unknown'],
+            ['Dispute', dispute.id],
+          ],
+          action: { text: 'Respond in Stripe', href: `https://dashboard.stripe.com/disputes/${dispute.id}` },
+        })
         break
       }
 
@@ -522,11 +569,17 @@ Deno.serve(async (req) => {
         }
 
         const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
-        await sendSimpleAdminNotification(
-          adminEmail,
-          'Refund Processed',
-          `A refund of $${((charge.amount_refunded || 0) / 100).toFixed(2)} was processed.\n\nCharge ID: ${charge.id}`
-        )
+        await sendSimpleAdminNotification(adminEmail, {
+          subject: 'Refund processed',
+          heading: 'A refund was processed',
+          summary: `${money((charge.amount_refunded || 0) / 100)} was refunded on a Neesh charge.`,
+          details: [
+            ['Refunded', money((charge.amount_refunded || 0) / 100)],
+            ['Charge total', money((charge.amount || 0) / 100)],
+            ['Charge', charge.id],
+          ],
+          action: { text: 'Open in Stripe', href: `https://dashboard.stripe.com/payments/${charge.payment_intent || charge.id}` },
+        })
         break
       }
 
@@ -578,11 +631,18 @@ Deno.serve(async (req) => {
           // If account became disabled/restricted, notify admin
           if (!account.charges_enabled || !account.payouts_enabled) {
             const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
-            await sendSimpleAdminNotification(
-              adminEmail,
-              'Publisher Stripe Account Issue',
-              `The Stripe account for publisher "${publisherRecord.company_name}" (${account.id}) has an issue.\n\nCharges enabled: ${account.charges_enabled}\nPayouts enabled: ${account.payouts_enabled}\n\nThe publisher may need to complete onboarding or provide additional verification.`
-            )
+            await sendSimpleAdminNotification(adminEmail, {
+              subject: 'Publisher Stripe account issue',
+              heading: `${publisherRecord.company_name || 'A publisher'}'s Stripe account needs attention`,
+              summary: 'Charges or payouts are switched off. The publisher may need to finish onboarding or verify details.',
+              details: [
+                ['Publisher', publisherRecord.company_name || 'Unknown'],
+                ['Account', account.id],
+                ['Charges', account.charges_enabled ? 'Enabled' : 'Disabled'],
+                ['Payouts', account.payouts_enabled ? 'Enabled' : 'Disabled'],
+              ],
+              action: { text: 'Open in Stripe', href: `https://dashboard.stripe.com/connect/accounts/${account.id}` },
+            })
           }
           console.log(`Account update for publisher: ${publisherRecord.company_name}`)
         } else {
@@ -617,78 +677,24 @@ Deno.serve(async (req) => {
   }
 })
 
-// Helper function to send email to admin
-async function sendOrderNotificationToAdmin(
-  adminEmail: string,
-  sessionId: string,
-  retailerName: string,
-  orderCount: number,
-  totalAmount: number
-) {
+
+interface OrderNotificationItem {
+  order_id: string
+  magazine_title: string
+  issue_number: string | null
+  quantity: number
+  total_price: number
+}
+
+const titleWithIssue = (o: OrderNotificationItem): string =>
+  o.issue_number ? `${o.magazine_title}, issue ${o.issue_number}` : o.magazine_title
+
+async function sendViaResend(to: string, subject: string, html: string, label: string) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
   if (!resendApiKey) {
     console.error('RESEND_API_KEY not configured')
     return
   }
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Order Received</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; letter-spacing: 0.5px;">NEESH</h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">New Order Alert</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px;">💰 New Order Received!</h2>
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Great news! <strong>${retailerName}</strong> just completed a purchase.
-              </p>
-              <div style="margin: 24px 0; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid #C49A6C;">
-                <table width="100%">
-                  <tr>
-                    <td style="color: #6B6B6B; font-size: 14px; padding: 4px 0;">Order Items:</td>
-                    <td style="color: #1A1A1A; font-size: 16px; font-weight: 600; text-align: right;">${orderCount}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #6B6B6B; font-size: 14px; padding: 4px 0;">Total Amount:</td>
-                    <td style="color: #1A1A1A; font-size: 16px; font-weight: 600; text-align: right;">$${totalAmount.toFixed(2)}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #6B6B6B; font-size: 14px; padding: 4px 0;">Session ID:</td>
-                    <td style="color: #6B6B6B; font-size: 12px; text-align: right; font-family: monospace;">${sessionId}</td>
-                  </tr>
-                </table>
-              </div>
-              <p style="margin: 24px 0 0; color: #4A4A4A; font-size: 15px;">
-                View the order details in your admin dashboard to process fulfillment.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5; border-radius: 0 0 12px 12px;">
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">© ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -699,21 +705,55 @@ async function sendOrderNotificationToAdmin(
       },
       body: JSON.stringify({
         from: 'Neesh <hi@neesh.art>',
-        to: adminEmail,
-        subject: `🎉 New Order from ${retailerName}`,
+        to,
+        reply_to: 'hi@neesh.art',
+        subject,
         html,
       }),
     })
 
     if (!response.ok) {
       const error = await response.text()
-      console.error('Failed to send admin email:', error)
+      console.error(`Failed to send ${label}:`, error)
     } else {
-      console.log(`Admin notification sent to ${adminEmail}`)
+      console.log(`${label} sent to ${to}`)
     }
   } catch (error) {
-    console.error('Error sending admin email:', error)
+    console.error(`Error sending ${label}:`, error)
   }
+}
+
+// Helper function to send email to admin
+async function sendOrderNotificationToAdmin(
+  adminEmail: string,
+  sessionId: string,
+  retailerName: string,
+  lines: LineItem[],
+  totalAmount: number
+) {
+  const copies = lines.reduce((sum, l) => sum + l.quantity, 0)
+  const copiesText = `${copies} ${copies === 1 ? 'copy' : 'copies'}`
+
+  const body = renderEmail({
+    preheader: `${retailerName} paid ${money(totalAmount)} for ${copiesText}.`,
+    label: 'Admin · Order',
+    eyebrow: 'New order',
+    heading: `${retailerName} placed an order.`,
+    intro: 'Payment cleared on Stripe. Publishers have been emailed and will add tracking as each title ships.',
+    blocks: [
+      stats([
+        { label: 'Total', value: money(totalAmount) },
+        { label: 'Copies', value: String(copies) },
+        { label: 'Status', badge: { text: 'Paid', tone: 'success' } },
+      ]),
+      lineItems(lines),
+      button('Open orders in admin', `${BRAND_URL}/admin/orders`),
+      reference('Stripe session', sessionId),
+    ],
+    footerNote: 'You are receiving this because you are an admin on Neesh.',
+  })
+
+  await sendViaResend(adminEmail, `New order from ${retailerName}`, body, 'Admin order notification')
 }
 
 // Helper function to send email to publisher
@@ -723,184 +763,57 @@ async function sendOrderNotificationToPublisher(
   retailerName: string,
   orders: OrderNotificationItem[]
 ) {
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  if (!resendApiKey) {
-    console.error('RESEND_API_KEY not configured')
-    return
-  }
-
-  const orderItems = orders.map(order => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #1A1A1A;">${order.magazine_title}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #4A4A4A; text-align: center;">${order.quantity}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #E5E5E5; color: #1A1A1A; text-align: right; font-weight: 600;">$${order.total_price.toFixed(2)}</td>
-    </tr>
-  `).join('')
-
   const totalAmount = orders.reduce((sum, order) => sum + order.total_price, 0)
+  const copies = orders.reduce((sum, order) => sum + order.quantity, 0)
+  const copiesText = `${copies} ${copies === 1 ? 'copy' : 'copies'}`
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Order for Your Magazine</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; letter-spacing: 0.5px;">NEESH</h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">New Order</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px;">📦 You have a new order!</h2>
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Hi ${publisherName},<br><br>
-                Great news! <strong>${retailerName}</strong> just ordered your magazine${orders.length > 1 ? 's' : ''}.
-              </p>
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border: 1px solid #E5E5E5; border-radius: 8px; overflow: hidden;">
-                <tr style="background-color: #F8F8F6;">
-                  <th style="padding: 12px; text-align: left; color: #6B6B6B; font-size: 14px; font-weight: 600;">Magazine</th>
-                  <th style="padding: 12px; text-align: center; color: #6B6B6B; font-size: 14px; font-weight: 600;">Qty</th>
-                  <th style="padding: 12px; text-align: right; color: #6B6B6B; font-size: 14px; font-weight: 600;">Amount</th>
-                </tr>
-                ${orderItems}
-                <tr style="background-color: #F8F8F6;">
-                  <td colspan="2" style="padding: 12px; text-align: right; font-weight: 600; color: #1A1A1A;">Total:</td>
-                  <td style="padding: 12px; text-align: right; font-weight: 600; color: #C49A6C; font-size: 18px;">$${totalAmount.toFixed(2)}</td>
-                </tr>
-              </table>
-              <div style="margin: 24px 0; padding: 20px; background-color: #FFF9F5; border-radius: 8px; border-left: 4px solid #C49A6C;">
-                <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
-                  <strong>Next Steps:</strong><br>
-                  Please prepare this order for shipping. Once it's ready, log in to your Neesh dashboard and add the tracking number to mark it as shipped.
-                </p>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5; border-radius: 0 0 12px 12px;">
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">© ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
+  const body = renderEmail({
+    preheader: `${retailerName} ordered ${copiesText}. Add tracking once it ships.`,
+    label: 'Publisher · Order',
+    eyebrow: 'New wholesale order',
+    heading: `Your ${orders.length > 1 ? 'magazines are' : 'magazine is'} going to ${retailerName}.`,
+    intro: `Hi ${publisherName}, a retailer just ordered from your catalog. Pack it up, then add tracking so the retailer can follow it.`,
+    blocks: [
+      lineItems(
+        orders.map((o) => ({ title: titleWithIssue(o), quantity: o.quantity, amount: o.total_price })),
+        { total: { label: 'Order total', amount: totalAmount } }
+      ),
+      steps('What to do next', [
+        'Pack the copies and ship to the address on the order.',
+        'Add the tracking number to mark the order shipped.',
+        'Follow the payout for this order under Earnings.',
+      ]),
+      button('Add tracking', `${BRAND_URL}/publisher/orders`),
+    ],
+  })
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Neesh <hi@neesh.art>',
-        to: publisherEmail,
-        subject: `New Order from ${retailerName}`,
-        html,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.text()
-      console.error('Failed to send publisher email:', error)
-    } else {
-      console.log(`Publisher notification sent to ${publisherEmail}`)
-    }
-  } catch (error) {
-    console.error('Error sending publisher email:', error)
-  }
+  await sendViaResend(publisherEmail, `New order from ${retailerName}`, body, 'Publisher order notification')
 }
 
-// Helper for simple admin notification emails (failures, disputes, refunds)
-async function sendSimpleAdminNotification(
-  adminEmail: string,
-  subject: string,
-  message: string
-) {
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  if (!resendApiKey) {
-    console.error('RESEND_API_KEY not configured')
-    return
-  }
+interface AdminAlert {
+  subject: string
+  heading: string
+  summary: string
+  details: [string, string][]
+  urgent?: boolean
+  action?: { text: string; href: string }
+}
 
-  const isUrgent = subject.includes('URGENT')
-  const accentColor = isUrgent ? '#EF4444' : '#C49A6C'
+// Helper for admin notification emails (failures, disputes, refunds, accounts)
+async function sendSimpleAdminNotification(adminEmail: string, alert: AdminAlert) {
+  const body = renderEmail({
+    preheader: alert.summary,
+    label: 'Admin · Alert',
+    badge: alert.urgent ? { text: 'Urgent', tone: 'error' } : undefined,
+    eyebrow: 'System alert',
+    heading: alert.heading,
+    intro: alert.summary,
+    blocks: [
+      details(alert.details),
+      ...(alert.action ? [button(alert.action.text, alert.action.href)] : []),
+    ],
+    footerNote: 'Sent automatically by the Stripe webhook to Neesh admins.',
+  })
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${subject}</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; letter-spacing: 0.5px;">NEESH</h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">System Alert</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 22px;">${subject}</h2>
-              <div style="margin: 24px 0; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid ${accentColor};">
-                <p style="margin: 0; color: #4A4A4A; font-size: 15px; line-height: 1.8; white-space: pre-line;">${message}</p>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5; border-radius: 0 0 12px 12px;">
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">&copy; ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
-
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Neesh <hi@neesh.art>',
-        to: adminEmail,
-        subject: `[Neesh] ${subject}`,
-        html,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.text()
-      console.error('Failed to send admin notification:', error)
-    } else {
-      console.log(`Admin notification sent: ${subject}`)
-    }
-  } catch (error) {
-    console.error('Error sending admin notification:', error)
-  }
+  await sendViaResend(adminEmail, `[Neesh] ${alert.subject}`, body, `Admin alert "${alert.subject}"`)
 }

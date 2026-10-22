@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { EMAIL_SUBJECTS, generateApprovalEmail } from '../_shared/application-emails.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,14 +10,6 @@ interface ApproveApplicationRequest {
   applicationId: string
   type: 'publisher' | 'retailer'
   redirectUrl?: string
-}
-
-interface ApprovalEmailData {
-  firstName: string
-  businessName: string
-  role: 'publisher' | 'retailer'
-  recoveryLinkUrl: string
-  forgotPasswordUrl: string
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,127 +37,6 @@ const resolveSiteUrl = (...candidates: (string | undefined | null)[]): string =>
   }
   return PRODUCTION_SITE_URL
 }
-
-const generateApprovalEmail = (data: ApprovalEmailData): string => {
-  const roleTitle = data.role === 'publisher' ? 'Publisher' : 'Retailer'
-
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to Neesh</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden;">
-
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; font-weight: 600; letter-spacing: 0.5px;">
-                NEESH
-              </h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">
-                The OS for Indie Print
-              </p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding: 40px;">
-
-              <!-- Welcome Message -->
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600;">
-                Welcome to Neesh, ${data.firstName}!
-              </h2>
-
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Great news! Your application for <strong>${data.businessName}</strong> has been approved. You're now part of the Neesh community.
-              </p>
-
-              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                We've created your account. Click the button below to <strong>set your password</strong> and access your ${roleTitle} dashboard.
-              </p>
-
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${data.recoveryLinkUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                      Set Your Password
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 24px 0 0; color: #6B6B6B; font-size: 14px; line-height: 1.6;">
-                This link expires in 24 hours.
-              </p>
-
-              <!-- Divider -->
-              <div style="margin: 32px 0; height: 1px; background-color: #E5E5E5;"></div>
-
-              <!-- Next Steps -->
-              <h3 style="margin: 0 0 16px; color: #1A1A1A; font-size: 18px; font-weight: 600;">
-                What's Next?
-              </h3>
-
-              ${data.role === 'publisher' ? `
-                <ul style="margin: 0; padding-left: 20px; color: #4A4A4A; font-size: 15px; line-height: 1.8;">
-                  <li>Add your magazine titles to the catalog</li>
-                  <li>Set up your payment information</li>
-                  <li>Start receiving orders from retailers</li>
-                  <li>Track your sales and earnings</li>
-                </ul>
-              ` : `
-                <ul style="margin: 0; padding-left: 20px; color: #4A4A4A; font-size: 15px; line-height: 1.8;">
-                  <li>Browse our curated catalog of independent magazines</li>
-                  <li>Add titles to your wishlist</li>
-                  <li>Place your first order</li>
-                  <li>Track shipments and manage inventory</li>
-                </ul>
-              `}
-
-              <!-- Help -->
-              <div style="margin-top: 32px; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid #C49A6C;">
-                <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
-                  <strong>Need help?</strong> We're here for you. Reply to this email or reach out to us at
-                  <a href="mailto:hi@neesh.art" style="color: #C49A6C; text-decoration: none;">hi@neesh.art</a>
-                </p>
-              </div>
-
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5;">
-              <p style="margin: 0 0 8px; color: #6B6B6B; font-size: 14px;">
-                Welcome to the future of indie print distribution.
-              </p>
-              <p style="margin: 0 0 8px; color: #A0A0A0; font-size: 12px;">
-                © ${new Date().getFullYear()} Neesh. All rights reserved.
-              </p>
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">
-                Link expired? <a href="${data.forgotPasswordUrl}" style="color: #C49A6C; text-decoration: underline;">Request a new password reset</a>
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
-}
-
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -340,13 +212,25 @@ Deno.serve(async (req) => {
         // Check if user already exists (422 error)
         if (authUserError.message?.includes('already') || authUserError.status === 422) {
           console.log('User already exists, looking up by email...')
-          // Look up existing user by email
-          const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-          if (!listError && existingUsers) {
-            const existingUser = existingUsers.users.find(u => u.email === email)
-            if (existingUser) {
-              userId = existingUser.id
-              console.log(`Found existing user with ID: ${userId}`)
+          // public.users shares ids with auth.users, so check it first. listUsers()
+          // only returns the first page, which misses users once there are many.
+          const { data: existingRow } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .ilike('email', email)
+            .maybeSingle()
+          if (existingRow?.id) {
+            userId = existingRow.id
+            console.log(`Found existing user row with ID: ${userId}`)
+          } else {
+            // Look up existing user by email
+            const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+            if (!listError && existingUsers) {
+              const existingUser = existingUsers.users.find(u => u.email === email)
+              if (existingUser) {
+                userId = existingUser.id
+                console.log(`Found existing user with ID: ${userId}`)
+              }
             }
           }
 
@@ -386,12 +270,36 @@ Deno.serve(async (req) => {
       ? `${application.first_name} ${application.last_name}`
       : application.buyer_name || email.split('@')[0]
 
+    // Keep a username the row already has. The auth signup trigger may have
+    // created the row with a de-duplicated username (e.g. "hello-7b2c"), and
+    // overwriting it with the bare email prefix collides with other users who
+    // share that prefix (hello@, info@, ...). New rows get the email prefix,
+    // suffixed if it is already taken.
+    const { data: existingUserRow } = await supabaseAdmin
+      .from('users')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle()
+
+    let username: string | null = existingUserRow?.username ?? null
+    if (!username) {
+      const base = email.split('@')[0]
+      const { data: takenRows } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('username', base)
+        .limit(1)
+      username = takenRows && takenRows.length > 0
+        ? `${base}-${crypto.randomUUID().slice(0, 4)}`
+        : base
+    }
+
     const { error: userUpsertError } = await supabaseAdmin
       .from('users')
       .upsert({
         id: userId,
         email: email,
-        username: email.split('@')[0],
+        username: username,
         role: type,
         password_hash: 'managed_by_supabase_auth',
       }, { onConflict: 'id' })
@@ -571,7 +479,8 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               from: 'Neesh <hi@neesh.art>',
               to: email,
-              subject: `Welcome to Neesh - ${businessName} Approved!`,
+              subject: EMAIL_SUBJECTS.approval(businessName),
+              reply_to: 'hi@neesh.art',
               html: html,
             }),
           })
@@ -591,10 +500,10 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         userId,
-        message: `${type} application approved successfully` 
+        message: `${type} application approved successfully`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
