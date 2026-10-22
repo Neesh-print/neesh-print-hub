@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { button, formatDate, html as emailHtml, money, renderEmail, stats, strong } from '../_shared/email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,59 +22,29 @@ interface DueInvoice {
 
 const generateReminderEmail = (inv: DueInvoice): string => {
   const shop = inv.shop_name || 'there'
-  const dueStr = new Date(inv.due_at).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  })
+  const dueStr = formatDate(new Date(inv.due_at))
   const overdue = inv.reminder_kind === 'overdue'
-  const headline = overdue ? 'Your invoice is overdue' : 'Your invoice is due soon'
-  const accent = overdue ? '#EF4444' : '#C49A6C'
-  const payUrl = inv.hosted_invoice_url || `${BASE_URL}/retailer/invoices`
-  const intro = overdue
-    ? `Your Neesh invoice was due on <strong>${dueStr}</strong> and is now past due. Please pay it as soon as possible to keep your account in good standing.`
-    : `This is a friendly reminder that your Neesh invoice is due on <strong>${dueStr}</strong>.`
+  const payUrl = inv.hosted_invoice_url || `${BASE_URL}/retailer/orders`
+  const amount = money(Number(inv.amount_due))
 
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${headline}</title></head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden;">
-        <tr><td style="background-color: #1A1A1A; padding: 40px 40px 30px; text-align: center;">
-          <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; font-weight: 600; letter-spacing: 0.5px;">NEESH</h1>
-          <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Payment Reminder</p>
-        </td></tr>
-        <tr><td style="padding: 40px;">
-          <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600;">${headline}</h2>
-          <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">Hi ${shop},</p>
-          <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">${intro}</p>
-          <div style="margin: 28px 0; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid ${accent};">
-            <table width="100%">
-              <tr><td style="color: #6B6B6B; font-size: 14px; padding: 4px 0;">Amount due:</td>
-                  <td style="color: #1A1A1A; font-size: 18px; font-weight: 600; text-align: right;">$${Number(inv.amount_due).toFixed(2)}</td></tr>
-              <tr><td style="color: #6B6B6B; font-size: 14px; padding: 4px 0;">Due date:</td>
-                  <td style="color: #1A1A1A; font-size: 14px; text-align: right;">${dueStr}</td></tr>
-            </table>
-          </div>
-          <div style="text-align: center; margin: 28px 0 8px;">
-            <a href="${payUrl}" style="display: inline-block; background-color: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">Pay invoice</a>
-          </div>
-          <div style="margin-top: 32px; padding: 20px; background-color: #F8F8F6; border-radius: 8px;">
-            <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
-              <strong>Questions?</strong> Reply to this email or reach us at
-              <a href="mailto:hi@neesh.art" style="color: #C49A6C; text-decoration: none;">hi@neesh.art</a>
-            </p>
-          </div>
-        </td></tr>
-        <tr><td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5;">
-          <p style="margin: 0; color: #A0A0A0; font-size: 12px;">© ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`.trim()
+  return renderEmail({
+    preheader: overdue
+      ? `${amount} was due on ${dueStr} and is now past due.`
+      : `${amount} is due on ${dueStr}.`,
+    label: 'Retailer · Invoice',
+    badge: { text: overdue ? 'Overdue' : 'Due soon', tone: overdue ? 'error' : 'pending' },
+    heading: overdue ? 'Your invoice is overdue.' : 'Your invoice is due soon.',
+    intro: overdue
+      ? emailHtml`Hi ${shop}, your Neesh invoice was due on ${strong(dueStr)} and is now past due. Please pay it as soon as you can to keep your account in good standing.`
+      : emailHtml`Hi ${shop}, a quick reminder that your Neesh invoice is due on ${strong(dueStr)}.`,
+    blocks: [
+      stats([
+        { label: 'Amount due', value: amount },
+        { label: 'Due date', value: dueStr },
+      ]),
+      button('Pay invoice', payUrl),
+    ],
+  })
 }
 
 Deno.serve(async (req) => {
@@ -154,7 +125,7 @@ Deno.serve(async (req) => {
     for (const inv of due) {
       try {
         const subject = inv.reminder_kind === 'overdue'
-          ? `Overdue: your Neesh invoice ($${Number(inv.amount_due).toFixed(2)})`
+          ? `Overdue: your Neesh invoice (${money(Number(inv.amount_due))})`
           : `Reminder: your Neesh invoice is due soon`
 
         const resendResponse = await fetch('https://api.resend.com/emails', {

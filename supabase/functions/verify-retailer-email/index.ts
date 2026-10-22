@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { generateConfirmEmail } from '../_shared/retailer-emails.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,72 +17,6 @@ const sha256Hex = async (input: string): Promise<string> => {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
-}
-
-const generateVerificationEmail = (firstName: string, verifyEmailUrl: string): string => {
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Confirm your email</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden;">
-
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; font-weight: 600; letter-spacing: 0.5px;">
-                NEESH
-              </h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">
-                The OS for Indie Print
-              </p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding: 40px;">
-
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600;">
-                Confirm your email${firstName ? `, ${firstName}` : ''}
-              </h2>
-
-              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Click the button below to confirm your email address and unlock ordering on Neesh.
-              </p>
-
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
-                <tr>
-                  <td align="center">
-                    <a href="${verifyEmailUrl}" style="display: inline-block; background-color: #C49A6C; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                      Confirm Your Email
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 24px 0 0; color: #6B6B6B; font-size: 14px; line-height: 1.6;">
-                Questions? Just reply to this email or reach us at <a href="mailto:hi@neesh.art" style="color: #C49A6C;">hi@neesh.art</a>.
-              </p>
-
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-`
 }
 
 Deno.serve(async (req) => {
@@ -188,7 +123,7 @@ Deno.serve(async (req) => {
 
       const { data: retailer, error: retailerError } = await supabaseAdmin
         .from('retailers')
-        .select('id, email_verified_at')
+        .select('id, email_verified_at, shop_name')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -232,10 +167,12 @@ Deno.serve(async (req) => {
 
       const siteUrl = body.redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
       const firstName = (user.user_metadata?.first_name as string | undefined) ?? ''
-      const html = generateVerificationEmail(
+      const html = generateConfirmEmail({
         firstName,
-        `${siteUrl}/verify-email?token=${verificationToken}`
-      )
+        shopName: retailer.shop_name ?? null,
+        verifyEmailUrl: `${siteUrl}/verify-email?token=${verificationToken}`,
+        welcome: false,
+      })
 
       const resendResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -247,6 +184,7 @@ Deno.serve(async (req) => {
           from: 'Neesh <hi@neesh.art>',
           to: user.email,
           subject: 'Confirm your email to start ordering on Neesh',
+          reply_to: 'hi@neesh.art',
           html: html,
         }),
       })

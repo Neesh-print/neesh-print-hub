@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { button, details, html as emailHtml, paragraph, renderEmail, steps, strong } from '../_shared/email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,92 +23,25 @@ const generateReminderEmail = (pub: DuePublisher): string => {
   const logoUrl = `${BASE_URL}/publisher/profile`
   const displayName = pub.company_name || 'your publication'
 
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Neesh page is live</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F5F5F0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F5F5F0; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden;">
-
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #1A1A1A; padding: 40px 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; font-weight: 600; letter-spacing: 0.5px;">NEESH</h1>
-              <p style="margin: 8px 0 0; color: #A0A0A0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">The OS for Indie Print</p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 20px; color: #1A1A1A; font-size: 24px; font-weight: 600;">Your public page is live 🎉</h2>
-
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">Hi ${pub.name},</p>
-
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Every publisher on Neesh gets a shareable public page. It's the easiest way to send retailers straight to ${displayName} &mdash; no login required for them to browse your titles.
-              </p>
-
-              <!-- Profile link CTA -->
-              <div style="margin: 28px 0; padding: 20px; background-color: #F8F8F6; border-radius: 8px; text-align: center;">
-                <p style="margin: 0 0 12px; color: #6B6B6B; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Your page</p>
-                <p style="margin: 0 0 16px; color: #1A1A1A; font-size: 16px; font-weight: 600; word-break: break-all;">${profileUrl}</p>
-                <a href="${profileUrl}" style="display: inline-block; background-color: #1A1A1A; color: #FFFFFF; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 28px; border-radius: 8px;">View your page</a>
-              </div>
-
-              <p style="margin: 0 0 24px; color: #4A4A4A; font-size: 16px; line-height: 1.6;">
-                Share it in your newsletter, link it in your Instagram bio, or send it to shops you'd love to stock you.
-              </p>
-
-              <!-- Divider -->
-              <div style="margin: 32px 0; height: 1px; background-color: #E5E5E5;"></div>
-
-              <!-- Logo how-to -->
-              <h3 style="margin: 0 0 12px; color: #1A1A1A; font-size: 18px; font-weight: 600;">Add your logo first</h3>
-              <p style="margin: 0 0 16px; color: #4A4A4A; font-size: 15px; line-height: 1.6;">
-                Pages with a logo look far more credible to retailers. It takes about 30 seconds:
-              </p>
-              <ol style="margin: 0 0 24px; padding-left: 20px; color: #4A4A4A; font-size: 15px; line-height: 1.8;">
-                <li>Open <strong>My Profile</strong> on your Neesh dashboard</li>
-                <li>Click your profile photo (the circle at the top)</li>
-                <li>Upload a square image &mdash; your logo or cover works great</li>
-              </ol>
-              <div style="text-align: center; margin-bottom: 8px;">
-                <a href="${logoUrl}" style="display: inline-block; background-color: #FFFFFF; color: #1A1A1A; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 28px; border-radius: 8px; border: 1px solid #1A1A1A;">Update your logo</a>
-              </div>
-
-              <!-- Contact -->
-              <div style="margin-top: 32px; padding: 20px; background-color: #F8F8F6; border-radius: 8px; border-left: 4px solid #C49A6C;">
-                <p style="margin: 0; color: #4A4A4A; font-size: 14px; line-height: 1.6;">
-                  <strong>Questions?</strong> Reply to this email or reach us at
-                  <a href="mailto:hi@neesh.art" style="color: #C49A6C; text-decoration: none;">hi@neesh.art</a>
-                </p>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #F8F8F6; padding: 30px 40px; text-align: center; border-top: 1px solid #E5E5E5;">
-              <p style="margin: 0 0 8px; color: #6B6B6B; font-size: 14px;">Thanks for being part of Neesh.</p>
-              <p style="margin: 0; color: #A0A0A0; font-size: 12px;">© ${new Date().getFullYear()} Neesh. All rights reserved.</p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim()
+  return renderEmail({
+    preheader: `Send retailers straight to ${displayName}. No login needed to browse your titles.`,
+    label: 'Your page',
+    eyebrow: 'Your public page is live',
+    heading: 'Share your Neesh page with retailers.',
+    intro: `Hi ${pub.name}, every publisher on Neesh gets a shareable public page. It is the easiest way to send retailers straight to ${displayName}, with no login needed to browse your titles.`,
+    blocks: [
+      details([['Your page', profileUrl]]),
+      button('View your page', profileUrl),
+      paragraph('Share it in your newsletter, link it in your Instagram bio, or send it to shops you would love to stock you.'),
+      steps('Add your logo first', [
+        emailHtml`Open ${strong('My Profile')} on your Neesh dashboard.`,
+        'Click your profile photo, the circle at the top.',
+        'Upload a square image. Your logo or a cover works well.',
+      ]),
+      button('Update your logo', logoUrl),
+    ],
+    footerNote: 'You are getting this because you publish on Neesh.',
+  })
 }
 
 Deno.serve(async (req) => {
@@ -190,7 +124,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             from: 'Neesh <hi@neesh.art>',
             to: pub.email,
-            subject: 'Your Neesh page is live — share it with retailers',
+            subject: 'Your Neesh page is live. Share it with retailers',
             html: generateReminderEmail(pub),
             reply_to: 'hi@neesh.art',
           }),
