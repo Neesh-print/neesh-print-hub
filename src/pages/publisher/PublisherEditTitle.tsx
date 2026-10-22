@@ -12,6 +12,11 @@ import { toast } from "sonner";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { getCategoryOptions } from "@/lib/categories";
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { usePublisherShipping } from "@/hooks/usePublisherShipping";
+import { SpaceEarnsTable } from "@/components/publisher/shipping/SpaceEarnsTable";
+import { countryName, isEU, publisherUnitPayout } from "@/lib/shipping";
+import { money } from "@/lib/shippingCopy";
 
 /**
  * Turn a Supabase/PostgREST error into a message that tells the publisher
@@ -268,10 +273,21 @@ export const PublisherEditTitle = () => {
 
   const { publisher } = usePublisherProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { enabled: shippingV2 } = useShippingV2();
+  const { data: shippingSettings } = usePublisherShipping(publisher?.id, shippingV2);
+  const shipsFrom = shippingSettings?.ships_from_address.country || shippingSettings?.ships_from_country || null;
+  const weightError = formData.weightGrams !== "" && !(parseFloat(formData.weightGrams) > 0)
+    ? "Enter the weight of one copy in grams."
+    : undefined;
 
   const handleSubmit = async () => {
     if (!publisher) {
       toast.error("Publisher profile not found. Please reload.");
+      return;
+    }
+    // Weight is required: live shipping is quoted from it (decision 7).
+    if (!(parseFloat(formData.weightGrams) > 0)) {
+      toast.error("Add the weight of one copy in grams. Spaces see live shipping based on it.");
       return;
     }
 
@@ -364,6 +380,7 @@ export const PublisherEditTitle = () => {
               <div className="space-y-4">
                 <FormInput
                   label="Full Magazine Title"
+                  required
                   value={formData.title}
                   onChange={handleInputChange("title")}
                   placeholder="Enter magazine title"
@@ -431,12 +448,16 @@ export const PublisherEditTitle = () => {
                   />
                   <FormInput
                     label="Weight (g)"
+                    required
                     value={formData.weightGrams}
                     onChange={handleInputChange("weightGrams")}
                     placeholder="e.g., 350"
                     type="number"
+                    min={1}
+                    error={weightError}
                   />
                 </div>
+                <p className="text-caption text-muted-foreground -mt-2">Weight sets the live shipping rate spaces see.</p>
                 <FormInput
                   label="Page Count"
                   value={formData.pageCount}
@@ -565,8 +586,14 @@ export const PublisherEditTitle = () => {
                   onChange={handleInputChange("minimumOrderQuantity")}
                   placeholder="e.g., 1"
                   type="number"
-                  helperText="Minimum copies retailers must purchase in a single order"
+                  helperText={shippingV2 && shippingSettings ? undefined : "Minimum copies retailers must purchase in a single order"}
                 />
+                {shippingV2 && shippingSettings && (
+                  <p className="text-caption text-muted-foreground -mt-2">
+                    {isEU(shipsFrom) ? "Outside the EU" : `Outside ${countryName(shipsFrom) || "your country"}`}, your international minimum of {shippingSettings.intl_min_copies} also applies.{" "}
+                    <button type="button" className="text-accent hover:underline" onClick={() => navigate("/publisher/settings")}>Settings</button>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -665,13 +692,20 @@ export const PublisherEditTitle = () => {
               <div className="space-y-4">
                 <FormInput
                   label="Wholesale Price (WSP)"
+                  required
                   value={formData.wholesalePrice}
                   onChange={handleInputChange("wholesalePrice")}
                   placeholder="e.g., 28.00"
                   type="number"
+                  step="0.5"
+                  helperText={shippingV2 && parseFloat(formData.wholesalePrice) > 0
+                    ? `You receive ${money(publisherUnitPayout(parseFloat(formData.wholesalePrice)))} a copy after Neesh's 10%.`
+                    : undefined}
                 />
                 <FormInput
                   label="Retail Price (SRP)"
+                  required
+                  step="0.5"
                   value={formData.retailPrice}
                   onChange={handleInputChange("retailPrice")}
                   placeholder="e.g., 45.00"
@@ -692,6 +726,18 @@ export const PublisherEditTitle = () => {
                 />
               </div>
             </div>
+
+            {shippingV2 && (
+              <SpaceEarnsTable
+                publisherId={publisher?.id}
+                wsp={parseFloat(formData.wholesalePrice) || 0}
+                srp={parseFloat(formData.retailPrice) || 0}
+                weightGrams={parseFloat(formData.weightGrams) || null}
+                widthMm={parseFloat(formData.widthMm) || null}
+                heightMm={parseFloat(formData.heightMm) || null}
+                titleMinimum={parseInt(formData.minimumOrderQuantity) || 1}
+              />
+            )}
           </div>
         </div>
 

@@ -17,6 +17,7 @@ import {
   FULFILLMENT_OPTIONS,
   PUBLISHER_APPLICATION_STEPS,
 } from "@/lib/constants";
+import { IntlMinimumNote } from "@/components/publisher/shipping/IntlMinimumNote";
 
 const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
 
@@ -59,6 +60,7 @@ interface FormData {
   wholesalePrice: string;
   suggestedRetailPrice: string;
   availableQuantity: string;
+  weightGrams: string;
   // Step 10: Fulfillment
   fulfillmentMethod: string;
   // Step 11: Additional Info
@@ -89,6 +91,7 @@ const defaultFormValues: FormData = {
   wholesalePrice: "",
   suggestedRetailPrice: "",
   availableQuantity: "",
+  weightGrams: "",
   fulfillmentMethod: "",
   cloudLink: "",
   confirmRights: false,
@@ -212,6 +215,7 @@ export const PublisherApplication = () => {
                 wholesalePrice: dbData.wholesale_price?.toString() || '',
                 suggestedRetailPrice: dbData.suggested_retail_price?.toString() || '',
                 availableQuantity: dbData.available_quantity?.toString() || '',
+                weightGrams: additionalInfo.weightGrams || '',
                 fulfillmentMethod: dbData.fulfillment_method || '',
                 cloudLink: dbData.quotes_feedback || '',
                 confirmRights: additionalInfo.confirmRights || false,
@@ -474,7 +478,7 @@ export const PublisherApplication = () => {
       case 8:
         return true; // Optional or simple select
       case 9:
-        return await trigger(["wholesalePrice", "suggestedRetailPrice", "availableQuantity"]);
+        return await trigger(["wholesalePrice", "suggestedRetailPrice", "availableQuantity", "weightGrams"]);
       case 10:
         return true;
       case 11:
@@ -1013,6 +1017,9 @@ export const PublisherApplication = () => {
                   />
                 )}
               />
+              {formValues.shippingCountry && formValues.shippingCountry !== "US" && formValues.shippingCountry !== "OTHER" && (
+                <IntlMinimumNote country={formValues.shippingCountry} />
+              )}
               <Controller
                 name="shippingCity"
                 control={control}
@@ -1218,6 +1225,31 @@ export const PublisherApplication = () => {
                     placeholder="100"
                     helperText="How many copies of this issue you can supply."
                     error={errors.availableQuantity?.message}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+              <Controller
+                name="weightGrams"
+                control={control}
+                rules={{
+                  required: "Add the weight of one copy.",
+                  pattern: {
+                    value: /^\d+(\.\d+)?$/,
+                    message: "Enter grams, like 350.",
+                  },
+                  validate: (value) =>
+                    parseFloat(value) > 0 || "Weight must be more than 0.",
+                }}
+                render={({ field }) => (
+                  <FormInput
+                    id="weightGrams"
+                    label="Weight of one copy (grams)"
+                    inputMode="numeric"
+                    placeholder="350"
+                    helperText="Spaces see live shipping based on it."
+                    error={errors.weightGrams?.message}
                     value={field.value}
                     onChange={field.onChange}
                   />

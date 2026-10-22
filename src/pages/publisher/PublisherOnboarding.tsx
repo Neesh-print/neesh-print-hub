@@ -15,8 +15,10 @@ import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FileUploadZone
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { toast } from "sonner";
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { StepShipping } from "@/components/publisher/shipping/OnboardingShippingStep";
 
-const TOTAL_STEPS = 6;
+const BASE_STEPS = 6;
 
 interface OnboardingData {
   companyName: string;
@@ -31,6 +33,7 @@ interface OnboardingData {
     issueNumber: string;
     wholesalePrice: string;
     quantity: string;
+    weightGrams: string;
     description: string;
   };
 }
@@ -48,6 +51,7 @@ const initialData: OnboardingData = {
     issueNumber: "",
     wholesalePrice: "",
     quantity: "",
+    weightGrams: "",
     description: "",
   },
 };
@@ -59,6 +63,10 @@ export const PublisherOnboarding = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   
   const { publisher } = usePublisherProfile();
+  // shipping_v2 adds a Shipping step between First Title and Payout.
+  const { enabled: shippingV2 } = useShippingV2();
+  const TOTAL_STEPS = BASE_STEPS + (shippingV2 ? 1 : 0);
+  const payoutStep = shippingV2 ? 6 : 5;
   const logoUpload = useFileUpload({ bucket: "magazine-assets", folder: "logos" });
   const bannerUpload = useFileUpload({ bucket: "magazine-assets", folder: "banners" });
   const coverUpload = useFileUpload({ bucket: "magazine-assets", folder: "covers" });
@@ -210,8 +218,18 @@ export const PublisherOnboarding = () => {
           {currentStep === 2 && <StepProfileBasics data={data} setData={setData} onNext={handleNext} onSkip={handleSkipStep} onBack={handleBack} />}
           {currentStep === 3 && <StepBranding data={data} onNext={handleNext} onSkip={handleSkipStep} onBack={handleBack} logoUpload={logoUpload} bannerUpload={bannerUpload} onLogoUpload={handleLogoUpload} onBannerUpload={handleBannerUpload} />}
           {currentStep === 4 && <StepFirstTitle data={data} setData={setData} onNext={handleNext} onSkip={handleSkipStep} onBack={handleBack} coverUpload={coverUpload} onCoverUpload={handleCoverUpload} />}
-          {currentStep === 5 && <StepPayout onNext={handleNext} onBack={handleBack} />}
-          {currentStep === 6 && <StepComplete onComplete={handleComplete} publisherId={publisher?.id} />}
+          {shippingV2 && currentStep === 5 && (
+            <StepShipping
+              publisherId={publisher?.id}
+              companyName={publisher?.company_name ?? data.companyName}
+              weightGrams={parseFloat(data.firstTitle.weightGrams) || null}
+              wholesalePrice={parseFloat(data.firstTitle.wholesalePrice) || null}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          )}
+          {currentStep === payoutStep && <StepPayout onNext={handleNext} onBack={handleBack} />}
+          {currentStep === TOTAL_STEPS && <StepComplete onComplete={handleComplete} publisherId={publisher?.id} />}
         </div>
       </main>
     </div>
@@ -488,7 +506,9 @@ const StepFirstTitle = ({
     }));
   };
 
-  const canSubmit = data.firstTitle.coverUrl && data.firstTitle.title && data.firstTitle.wholesalePrice && data.firstTitle.quantity;
+  // Weight is required: spaces see live shipping based on it (decision 7).
+  const canSubmit = data.firstTitle.coverUrl && data.firstTitle.title && data.firstTitle.wholesalePrice && data.firstTitle.quantity
+    && parseFloat(data.firstTitle.weightGrams) > 0;
 
   return (
     <div className="py-8">
@@ -553,6 +573,19 @@ const StepFirstTitle = ({
               placeholder="50"
               value={data.firstTitle.quantity}
               onChange={(value) => updateTitle("quantity", value)}
+            />
+          </div>
+
+          <div>
+            <FormInput
+              label="Weight of one copy (g)"
+              required
+              type="number"
+              min={1}
+              placeholder="350"
+              value={data.firstTitle.weightGrams}
+              onChange={(value) => updateTitle("weightGrams", value)}
+              helperText="Spaces see live shipping based on it."
             />
           </div>
 
