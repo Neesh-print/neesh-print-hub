@@ -6,6 +6,7 @@ import { RetailerLayout } from '@/components/retailer/RetailerLayout';
 import { CartProvider } from '@/components/retailer/CartContext';
 import { WishlistProvider } from '@/components/retailer/WishlistContext';
 import { ContactSupportButton } from '@/components/messaging';
+import { useShippingV2 } from '@/hooks/useShippingV2';
 import {
   Accordion,
   AccordionContent,
@@ -89,6 +90,36 @@ const publisherFAQs: FAQItem[] = [
   },
 ];
 
+// shipping_v2 (T14): answers that replace the old shipping copy once
+// checkout shipping is on, keyed by the old question.
+const shippingV2Answers: Record<string, FAQItem> = {
+  "How does Neesh work?": {
+    question: "How does Neesh work?",
+    answer: "Neesh connects independent magazine publishers directly with spaces. Publishers list their titles with wholesale pricing, spaces browse and order, and publishers ship directly. Spaces see each publisher's shipping before they pay, and we handle payments.",
+    category: "Getting Started",
+  },
+  "How do shipping rates work?": {
+    question: "How do shipping rates work?",
+    answer: "Spaces pay shipping at checkout, one parcel per publisher. By default it's a live carrier rate from your ships-from address to the space's address, based on each title's weight. You can set your own flat rates instead in Settings > Shipping. Shipping passes to you in full; Neesh takes no fee on it.",
+    category: "Shipping",
+  },
+  "Can I use my own shipping account?": {
+    question: "Do I have to buy my own postage?",
+    answer: "No. Turn on Buy labels through Neesh in Settings > Shipping and print a prepaid label, with customs forms for international parcels, from the order page. The label cost comes out of the shipping the space paid. Or buy your own postage and add tracking when the parcel ships; the shipping the space paid is paid out to you.",
+    category: "Shipping",
+  },
+  "Is there a minimum order?": {
+    question: "Is there a minimum order?",
+    answer: "Some titles have their own minimum. Orders from a publisher in another country also start at a minimum number of copies from that publisher, usually 5, so shipping stays worth it. Your cart shows how many more to add.",
+    category: "Orders",
+  },
+  "How do I place an order?": {
+    question: "How do I place an order?",
+    answer: "Browse the catalog and add titles to your cart. Your cart groups titles by publisher and shows each publisher's shipping to your saved address, so you see the full cost before you pay. Change your address in the cart, then check out with Stripe.",
+    category: "Orders",
+  },
+};
+
 // Retailer-specific FAQ items
 const retailerFAQs: FAQItem[] = [
   {
@@ -160,7 +191,8 @@ const HelpCenterContent = ({ userRole }: { userRole: 'publisher' | 'retailer' })
 
   const quickLinks = userRole === 'publisher' ? publisherQuickLinks : retailerQuickLinks;
   const roleFAQs = userRole === 'publisher' ? publisherFAQs : retailerFAQs;
-  const allFAQs = [...sharedFAQs, ...roleFAQs];
+  const { enabled: shippingV2 } = useShippingV2();
+  const allFAQs = [...sharedFAQs, ...roleFAQs].map((f) => (shippingV2 ? shippingV2Answers[f.question] ?? f : f));
 
   // Get unique categories
   const categories = useMemo(() => {
