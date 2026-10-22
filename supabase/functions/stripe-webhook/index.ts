@@ -15,6 +15,7 @@ import {
   steps,
 } from '../_shared/email.ts'
 import { generateOrderConfirmationEmail } from '../_shared/retailer-emails.ts'
+import { goodsSplit, shippingSplit } from '../_shared/shipping.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -130,10 +131,18 @@ Deno.serve(async (req) => {
         // collected_information.shipping_details (no longer top-level).
         // Check both the re-retrieved session AND the original event data
         // since the API retrieve may not include collected_information without expansion.
+        // shipping_v2 sessions carry the quotes they were charged for; the
+        // address is the one the shipping was quoted to (no Stripe address form).
+        const isShippingV2 = session.metadata?.shipping_v2 === '1'
+        const shippingQuotes = isShippingV2
+          ? await loadShippingQuotes(supabaseAdmin, session.metadata?.quote_ids ?? '')
+          : []
+
         const shippingInfo = (session as any).collected_information?.shipping_details
           || (session as any).shipping_details
           || (eventSession as any).collected_information?.shipping_details
           || (eventSession as any).shipping_details
+          || quoteShippingDetails(shippingQuotes)
           || null
 
         console.log(`Processing checkout session: ${session.id}`)
@@ -193,6 +202,12 @@ Deno.serve(async (req) => {
                }
              } else {
                console.log('No shipping info found — cannot backfill')
+             }
+
+             // Replays create nothing twice, but heal a run that died before
+             // shipments were written (all writes below are idempotent).
+             if (isShippingV2) {
+               await recordShipments(supabaseAdmin, session.id, retailerId, shippingQuotes)
              }
 
              return new Response(JSON.stringify({ received: true }), { headers: corsHeaders, status: 200 });
@@ -351,8 +366,11 @@ Deno.serve(async (req) => {
             }
 
             const wholesalePrice = magazine.wholesale_price || 0
-            const grossAmount = Math.round(wholesalePrice * 1.10 * item.quantity * 100) / 100
-            const netAmount = Math.round(wholesalePrice * item.quantity * 100) / 100
+            // shipping_v2: space pays WSP x 1.10, publisher receives WSP x 0.90 (T2).
+            // Legacy sessions keep the old split (publisher receives WSP).
+            const split = goodsSplit(wholesalePrice, item.quantity)
+            const grossAmount = split.gross
+            const netAmount = isShippingV2 ? split.net : Math.round(wholesalePrice * item.quantity * 100) / 100
             const platformFee = Math.round((grossAmount - netAmount) * 100) / 100
 
             const { error: transferError } = await supabaseAdmin
@@ -360,6 +378,7 @@ Deno.serve(async (req) => {
               .upsert({
                 publisher_id: magazine.publisher_id,
                 order_id: matchedOrder.id,
+                kind: 'goods',
                 stripe_session_id: session.id,
                 gross_amount: grossAmount,
                 platform_fee: platformFee,
@@ -376,6 +395,15 @@ Deno.serve(async (req) => {
         } catch (transferInsertError) {
           // Non-blocking: log but don't fail the webhook
           console.error('Error inserting publisher transfer records:', transferInsertError)
+        }
+
+        // --- shipping_v2: one shipment per publisher + shipping transfers (T7) ---
+        if (isShippingV2) {
+          try {
+            await recordShipments(supabaseAdmin, session.id, retailerId, shippingQuotes)
+          } catch (shipErr) {
+            console.error('Error recording shipments:', shipErr)
+          }
         }
 
         // Update payment session status
@@ -842,4 +870,157 @@ async function sendSimpleAdminNotification(adminEmail: string, alert: AdminAlert
   })
 
   await sendViaResend(adminEmail, `[Neesh] ${alert.subject}`, body, `Admin alert "${alert.subject}"`)
+}
+
+// ---------------------------------------------------------------------------
+// shipping_v2 helpers (T7)
+// ---------------------------------------------------------------------------
+
+interface StoredQuote {
+  id: string
+  publisher_id: string
+  items: { magazine_id: string; quantity: number }[]
+  destination: {
+    name: string; company?: string | null; phone?: string | null
+    line1: string; line2?: string | null; city: string; state?: string | null
+    postal_code: string; country: string
+  }
+  origin_country: string
+  destination_country: string
+  zone: 'domestic' | 'international'
+  copies: number
+  weight_grams: number | null
+  parcel: Record<string, unknown> | null
+  shipping_usd: number
+  rate_source: 'shippo' | 'flat'
+  shippo_rate_id: string | null
+  expires_at: string
+  carrier: string | null
+  service: string | null
+  service_token: string | null
+  estimated_days: number | null
+  duties_paid: boolean
+}
+
+type SupabaseAdmin = ReturnType<typeof createClient>
+
+async function loadShippingQuotes(admin: SupabaseAdmin, idList: string): Promise<StoredQuote[]> {
+  const ids = idList.split(',').map((s) => s.trim()).filter(Boolean)
+  if (ids.length === 0) return []
+  const { data, error } = await admin.from('shipping_quotes').select('*').in('id', ids)
+  if (error) {
+    console.error('Failed to load shipping quotes:', error.message)
+    return []
+  }
+  return (data ?? []) as StoredQuote[]
+}
+
+/** Stripe-shaped shipping details from the quoted destination (all quotes share one address). */
+function quoteShippingDetails(quotes: StoredQuote[]) {
+  const d = quotes[0]?.destination
+  if (!d) return null
+  return {
+    name: d.name,
+    address: {
+      line1: d.line1,
+      line2: d.line2 ?? null,
+      city: d.city,
+      state: d.state ?? null,
+      postal_code: d.postal_code,
+      country: d.country,
+    },
+  }
+}
+
+/**
+ * One order_shipments row per publisher from the stored quote, orders linked
+ * by shipment_id, and a shipping transfer per shipment (no Neesh fee).
+ * Neesh-label publishers' shipping transfer is held until the label is bought,
+ * when buy-label deducts the label cost. Idempotent: replays upsert the same
+ * rows and insert nothing new.
+ */
+async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailerId: string, quotes: StoredQuote[]) {
+  if (quotes.length === 0) {
+    console.error(`shipping_v2 session ${sessionId} has no stored quotes`)
+    return
+  }
+  const publisherIds = quotes.map((q) => q.publisher_id)
+  const { data: pubs } = await admin.from('publishers').select('id, uses_neesh_labels').in('id', publisherIds)
+  const usesLabels = new Map((pubs ?? []).map((p: { id: string; uses_neesh_labels: boolean }) => [p.id, !!p.uses_neesh_labels]))
+
+  for (const q of quotes) {
+    const labels = !!usesLabels.get(q.publisher_id)
+    const { data: shipment, error: shipErr } = await admin
+      .from('order_shipments')
+      .upsert({
+        stripe_session_id: sessionId,
+        quote_id: q.id,
+        retailer_id: retailerId,
+        publisher_id: q.publisher_id,
+        zone: q.zone,
+        origin_country: q.origin_country,
+        destination_country: q.destination_country,
+        destination_address: q.destination,
+        copies: q.copies,
+        weight_grams: q.weight_grams,
+        parcel: q.parcel,
+        shipping_usd: q.shipping_usd,
+        rate_source: q.rate_source,
+        uses_neesh_labels: labels,
+        shippo_rate_id: q.shippo_rate_id,
+        quote_expires_at: q.expires_at,
+        carrier: q.carrier,
+        service: q.service,
+        service_token: q.service_token,
+        estimated_days: q.estimated_days,
+        duties_paid: q.duties_paid,
+        status: labels ? 'awaiting_label' : 'awaiting_shipment',
+      }, { onConflict: 'stripe_session_id,publisher_id', ignoreDuplicates: true })
+      .select('id')
+      .maybeSingle()
+
+    let shipmentId = shipment?.id as string | undefined
+    if (!shipmentId) {
+      // ignoreDuplicates returns no row on replay; look it up.
+      const { data: existing } = await admin
+        .from('order_shipments')
+        .select('id')
+        .eq('stripe_session_id', sessionId)
+        .eq('publisher_id', q.publisher_id)
+        .maybeSingle()
+      shipmentId = existing?.id as string | undefined
+    }
+    if (!shipmentId) {
+      console.error(`Failed to record shipment for publisher ${q.publisher_id}:`, shipErr?.message)
+      continue
+    }
+
+    const magazineIds = q.items.map((i) => i.magazine_id)
+    await admin
+      .from('orders')
+      .update({ shipment_id: shipmentId })
+      .eq('stripe_session_id', sessionId)
+      .in('magazine_id', magazineIds)
+      .is('shipment_id', null)
+
+    const split = shippingSplit(Number(q.shipping_usd))
+    const { error: transferErr } = await admin
+      .from('publisher_transfers')
+      .upsert({
+        publisher_id: q.publisher_id,
+        kind: 'shipping',
+        shipment_id: shipmentId,
+        stripe_session_id: sessionId,
+        gross_amount: split.gross,
+        platform_fee: split.platformFee,
+        net_amount: split.net,
+        status: 'pending',
+        hold_reason: labels ? 'awaiting_label' : null,
+      }, { onConflict: 'shipment_id', ignoreDuplicates: true })
+    if (transferErr) {
+      console.error(`Failed to record shipping transfer for shipment ${shipmentId}:`, transferErr.message)
+    } else {
+      console.log(`Shipment ${shipmentId}: publisher ${q.publisher_id}, shipping $${split.gross}, labels=${labels}`)
+    }
+  }
 }
