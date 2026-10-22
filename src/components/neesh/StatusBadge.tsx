@@ -11,7 +11,11 @@ export type StatusType =
   | 'shipped'
   | 'delivered'
   | 'paid'
-  | 'cancelled';
+  | 'cancelled'
+  // Space margin bands (shipping_v2): Loss / Thin / Healthy
+  | 'margin-loss'
+  | 'margin-thin'
+  | 'margin-healthy';
 
 export interface StatusBadgeProps {
   status: StatusType;
@@ -69,6 +73,18 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
   },
   'paid': {
     label: 'PAID',
+    className: 'bg-status-success text-status-success-text',
+  },
+  'margin-loss': {
+    label: 'LOSS',
+    className: 'bg-status-error text-status-error-text',
+  },
+  'margin-thin': {
+    label: 'THIN',
+    className: 'bg-status-pending text-status-pending-text',
+  },
+  'margin-healthy': {
+    label: 'HEALTHY',
     className: 'bg-status-success text-status-success-text',
   },
 };
