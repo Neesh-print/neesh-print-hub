@@ -619,16 +619,138 @@ export type Database = {
           },
         ]
       }
+      order_shipments: {
+        Row: {
+          carrier: string | null
+          commercial_invoice_url: string | null
+          copies: number
+          created_at: string
+          customs: Json | null
+          destination_address: Json | null
+          destination_country: string | null
+          duties_paid: boolean
+          estimated_days: number | null
+          id: string
+          label_cost_usd: number | null
+          label_url: string | null
+          origin_country: string | null
+          parcel: Json | null
+          publisher_id: string
+          quote_expires_at: string | null
+          quote_id: string | null
+          rate_source: string
+          retailer_id: string
+          review_reason: string | null
+          service: string | null
+          service_token: string | null
+          shipping_usd: number
+          shippo_rate_id: string | null
+          shippo_transaction_id: string | null
+          status: string
+          stripe_session_id: string
+          tracking_number: string | null
+          updated_at: string
+          uses_neesh_labels: boolean
+          weight_grams: number | null
+          zone: string
+        }
+        Insert: {
+          carrier?: string | null
+          commercial_invoice_url?: string | null
+          copies: number
+          created_at?: string
+          customs?: Json | null
+          destination_address?: Json | null
+          destination_country?: string | null
+          duties_paid?: boolean
+          estimated_days?: number | null
+          id?: string
+          label_cost_usd?: number | null
+          label_url?: string | null
+          origin_country?: string | null
+          parcel?: Json | null
+          publisher_id: string
+          quote_expires_at?: string | null
+          quote_id?: string | null
+          rate_source: string
+          retailer_id: string
+          review_reason?: string | null
+          service?: string | null
+          service_token?: string | null
+          shipping_usd: number
+          shippo_rate_id?: string | null
+          shippo_transaction_id?: string | null
+          status?: string
+          stripe_session_id: string
+          tracking_number?: string | null
+          updated_at?: string
+          uses_neesh_labels?: boolean
+          weight_grams?: number | null
+          zone: string
+        }
+        Update: {
+          carrier?: string | null
+          commercial_invoice_url?: string | null
+          copies?: number
+          created_at?: string
+          customs?: Json | null
+          destination_address?: Json | null
+          destination_country?: string | null
+          duties_paid?: boolean
+          estimated_days?: number | null
+          id?: string
+          label_cost_usd?: number | null
+          label_url?: string | null
+          origin_country?: string | null
+          parcel?: Json | null
+          publisher_id?: string
+          quote_expires_at?: string | null
+          quote_id?: string | null
+          rate_source?: string
+          retailer_id?: string
+          review_reason?: string | null
+          service?: string | null
+          service_token?: string | null
+          shipping_usd?: number
+          shippo_rate_id?: string | null
+          shippo_transaction_id?: string | null
+          status?: string
+          stripe_session_id?: string
+          tracking_number?: string | null
+          updated_at?: string
+          uses_neesh_labels?: boolean
+          weight_grams?: number | null
+          zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_shipments_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_shipments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           carrier: string | null
           created_at: string | null
           id: string
+          label_url: string | null
           magazine_id: string
           notes: string | null
           payment_intent_id: string | null
           quantity: number
           retailer_id: string
+          shipment_id: string | null
           shipping_address: string | null
           status: string
           stripe_payment_metadata: Json | null
@@ -642,11 +764,13 @@ export type Database = {
           carrier?: string | null
           created_at?: string | null
           id?: string
+          label_url?: string | null
           magazine_id: string
           notes?: string | null
           payment_intent_id?: string | null
           quantity: number
           retailer_id: string
+          shipment_id?: string | null
           shipping_address?: string | null
           status?: string
           stripe_payment_metadata?: Json | null
@@ -660,11 +784,13 @@ export type Database = {
           carrier?: string | null
           created_at?: string | null
           id?: string
+          label_url?: string | null
           magazine_id?: string
           notes?: string | null
           payment_intent_id?: string | null
           quantity?: number
           retailer_id?: string
+          shipment_id?: string | null
           shipping_address?: string | null
           status?: string
           stripe_payment_metadata?: Json | null
@@ -1056,6 +1182,123 @@ export type Database = {
         }
         Relationships: []
       }
+      publisher_shipping_settings: {
+        Row: {
+          created_at: string
+          publisher_id: string
+          ships_from_address: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          publisher_id: string
+          ships_from_address?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          publisher_id?: string
+          ships_from_address?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publisher_shipping_settings_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: true
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publisher_transfers: {
+        Row: {
+          created_at: string
+          failure_reason: string | null
+          gross_amount: number
+          hold_reason: string | null
+          id: string
+          invoice_id: string | null
+          kind: string
+          net_amount: number
+          order_id: string | null
+          platform_fee: number
+          publisher_id: string
+          released_at: string | null
+          released_by: string | null
+          shipment_id: string | null
+          status: string
+          stripe_session_id: string | null
+          stripe_transfer_id: string | null
+          transferred_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          failure_reason?: string | null
+          gross_amount: number
+          hold_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          kind?: string
+          net_amount: number
+          order_id?: string | null
+          platform_fee: number
+          publisher_id: string
+          released_at?: string | null
+          released_by?: string | null
+          shipment_id?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          stripe_transfer_id?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          failure_reason?: string | null
+          gross_amount?: number
+          hold_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          kind?: string
+          net_amount?: number
+          order_id?: string | null
+          platform_fee?: number
+          publisher_id?: string
+          released_at?: string | null
+          released_by?: string | null
+          shipment_id?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          stripe_transfer_id?: string | null
+          transferred_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publisher_transfers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publisher_transfers_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publisher_transfers_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: true
+            referencedRelation: "order_shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publishers: {
         Row: {
           application_data: Json | null
@@ -1067,13 +1310,23 @@ export type Database = {
           created_at: string | null
           current_onboarding_step: number | null
           description: string | null
+          domestic_additional_copy_usd: number | null
+          domestic_first_copy_usd: number | null
           id: string
           instagram_handle: string | null
+          intl_additional_copy_usd: number | null
+          intl_first_copy_usd: number | null
+          intl_min_copies: number
+          packaging_preset: string
           profile_reminder_sent_at: string | null
           profile_slug: string
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          shipping_rate_mode: string
+          shipping_rates_set_at: string | null
+          ships_from_country: string | null
+          ships_internationally: boolean
           stripe_account_created_at: string | null
           stripe_account_id: string | null
           stripe_charges_enabled: boolean | null
@@ -1086,6 +1339,7 @@ export type Database = {
           total_sales: number | null
           updated_at: string | null
           user_id: string
+          uses_neesh_labels: boolean
           verified: boolean | null
           verified_at: string | null
           website_url: string | null
@@ -1100,13 +1354,23 @@ export type Database = {
           created_at?: string | null
           current_onboarding_step?: number | null
           description?: string | null
+          domestic_additional_copy_usd?: number | null
+          domestic_first_copy_usd?: number | null
           id?: string
           instagram_handle?: string | null
+          intl_additional_copy_usd?: number | null
+          intl_first_copy_usd?: number | null
+          intl_min_copies?: number
+          packaging_preset?: string
           profile_reminder_sent_at?: string | null
           profile_slug?: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          shipping_rate_mode?: string
+          shipping_rates_set_at?: string | null
+          ships_from_country?: string | null
+          ships_internationally?: boolean
           stripe_account_created_at?: string | null
           stripe_account_id?: string | null
           stripe_charges_enabled?: boolean | null
@@ -1119,6 +1383,7 @@ export type Database = {
           total_sales?: number | null
           updated_at?: string | null
           user_id: string
+          uses_neesh_labels?: boolean
           verified?: boolean | null
           verified_at?: string | null
           website_url?: string | null
@@ -1133,13 +1398,23 @@ export type Database = {
           created_at?: string | null
           current_onboarding_step?: number | null
           description?: string | null
+          domestic_additional_copy_usd?: number | null
+          domestic_first_copy_usd?: number | null
           id?: string
           instagram_handle?: string | null
+          intl_additional_copy_usd?: number | null
+          intl_first_copy_usd?: number | null
+          intl_min_copies?: number
+          packaging_preset?: string
           profile_reminder_sent_at?: string | null
           profile_slug?: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          shipping_rate_mode?: string
+          shipping_rates_set_at?: string | null
+          ships_from_country?: string | null
+          ships_internationally?: boolean
           stripe_account_created_at?: string | null
           stripe_account_id?: string | null
           stripe_charges_enabled?: boolean | null
@@ -1152,6 +1427,7 @@ export type Database = {
           total_sales?: number | null
           updated_at?: string | null
           user_id?: string
+          uses_neesh_labels?: boolean
           verified?: boolean | null
           verified_at?: string | null
           website_url?: string | null
@@ -1455,6 +1731,143 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_config: {
+        Row: {
+          healthy_margin_pct: number
+          id: boolean
+          shipping_v2_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          healthy_margin_pct?: number
+          id?: boolean
+          shipping_v2_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          healthy_margin_pct?: number
+          id?: boolean
+          shipping_v2_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shipping_quotes: {
+        Row: {
+          carrier: string | null
+          copies: number
+          created_at: string
+          destination: Json
+          destination_country: string
+          destination_key: string
+          duties_paid: boolean
+          estimated_days: number | null
+          expires_at: string
+          id: string
+          items: Json
+          items_key: string
+          origin_country: string
+          parcel: Json | null
+          publisher_id: string
+          rate_amount_local: number | null
+          rate_currency_local: string | null
+          rate_source: string
+          retailer_user_id: string
+          service: string | null
+          service_token: string | null
+          shipping_usd: number
+          shippo_rate_id: string | null
+          shippo_shipment_id: string | null
+          weight_grams: number | null
+          zone: string
+        }
+        Insert: {
+          carrier?: string | null
+          copies: number
+          created_at?: string
+          destination: Json
+          destination_country: string
+          destination_key: string
+          duties_paid?: boolean
+          estimated_days?: number | null
+          expires_at: string
+          id?: string
+          items: Json
+          items_key: string
+          origin_country: string
+          parcel?: Json | null
+          publisher_id: string
+          rate_amount_local?: number | null
+          rate_currency_local?: string | null
+          rate_source: string
+          retailer_user_id: string
+          service?: string | null
+          service_token?: string | null
+          shipping_usd: number
+          shippo_rate_id?: string | null
+          shippo_shipment_id?: string | null
+          weight_grams?: number | null
+          zone: string
+        }
+        Update: {
+          carrier?: string | null
+          copies?: number
+          created_at?: string
+          destination?: Json
+          destination_country?: string
+          destination_key?: string
+          duties_paid?: boolean
+          estimated_days?: number | null
+          expires_at?: string
+          id?: string
+          items?: Json
+          items_key?: string
+          origin_country?: string
+          parcel?: Json | null
+          publisher_id?: string
+          rate_amount_local?: number | null
+          rate_currency_local?: string | null
+          rate_source?: string
+          retailer_user_id?: string
+          service?: string | null
+          service_token?: string | null
+          shipping_usd?: number
+          shippo_rate_id?: string | null
+          shippo_shipment_id?: string | null
+          weight_grams?: number | null
+          zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_quotes_publisher_id_fkey"
+            columns: ["publisher_id"]
+            isOneToOne: false
+            referencedRelation: "publishers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_rate_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          expires_at: string
+          result: Json
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          expires_at: string
+          result: Json
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          expires_at?: string
+          result?: Json
+        }
+        Relationships: []
       }
       site_content: {
         Row: {
