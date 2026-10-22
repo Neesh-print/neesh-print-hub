@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
   'https://www.neesh.art',
+  'https://app.neesh.art',
   'https://neesh-experimental.vercel.app',
   'http://localhost:8081',
 ];

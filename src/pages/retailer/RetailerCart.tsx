@@ -6,6 +6,7 @@ import { BackNavigation, ButtonPrimary, ButtonSecondary, EmptyState } from "@/co
 import { calculateRetailerPrice } from "@/utils/pricing";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { reportCheckoutFailure, CHECKOUT_FAILURE_FOLLOW_UP } from "@/lib/reportCheckoutFailure";
 
 export const RetailerCart = () => {
   const navigate = useNavigate();
@@ -40,7 +41,8 @@ export const RetailerCart = () => {
       console.error('Checkout error:', error);
       
       let errorMessage = "Please try again later.";
-      
+      let errorCode: string | undefined;
+
       // Try to extract message, checking for edge function error body
       if (error?.context?.json) {
         try {
@@ -48,6 +50,7 @@ export const RetailerCart = () => {
            if (errorBody?.error) {
              errorMessage = errorBody.error;
            }
+           errorCode = errorBody?.code;
         } catch (e) {
           // invalid json, ignore
         }
@@ -55,9 +58,17 @@ export const RetailerCart = () => {
         errorMessage = error.message;
       }
 
+      reportCheckoutFailure({
+        source: "cart",
+        cartItems,
+        cartTotal: retailerTotal,
+        errorMessage,
+        errorCode,
+      });
+
       toast({
-        title: "Checkout failed",
-        description: errorMessage,
+        title: errorCode === "email_unverified" ? "Confirm your email first" : "Checkout failed",
+        description: errorCode === "email_unverified" ? errorMessage : errorMessage + CHECKOUT_FAILURE_FOLLOW_UP,
         variant: "destructive",
       });
     } finally {

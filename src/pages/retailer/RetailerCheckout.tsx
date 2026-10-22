@@ -7,6 +7,7 @@ import { CreditCard, Lock, MailWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmailVerification } from "@/hooks/useEmailVerification";
+import { reportCheckoutFailure, CHECKOUT_FAILURE_FOLLOW_UP } from "@/lib/reportCheckoutFailure";
 
 const countries = [
   { value: "us", label: "United States" },
@@ -104,11 +105,13 @@ export const RetailerCheckout = () => {
         console.error('Checkout error:', error);
         let title = "Checkout failed";
         let description = error.message || "Unable to create checkout session. Please try again.";
+        let errorCode: string | undefined;
         // Surface the server-side email gate specifically (e.g. if this tab's
         // verification state was stale) and re-sync the banner.
         if ("context" in error && error.context instanceof Response) {
           try {
             const body = await error.context.json();
+            errorCode = body?.code;
             if (body?.code === 'email_unverified') {
               title = "Confirm your email first";
               refetch();
@@ -118,6 +121,8 @@ export const RetailerCheckout = () => {
             // keep the generic message
           }
         }
+        reportCheckoutFailure({ source: "checkout", cartItems, cartTotal, errorMessage: description, errorCode });
+        if (errorCode !== 'email_unverified') description += CHECKOUT_FAILURE_FOLLOW_UP;
         toast({ title, description, variant: "destructive" });
         setIsSubmitting(false);
         return;
@@ -126,9 +131,10 @@ export const RetailerCheckout = () => {
       // Check for business logic errors from the Edge Function
       if (!data?.success || !data?.checkout_url) {
         const errorMessage = data?.error || "Invalid response from checkout service";
+        reportCheckoutFailure({ source: "checkout", cartItems, cartTotal, errorMessage });
         toast({
           title: "Checkout failed",
-          description: errorMessage,
+          description: errorMessage + CHECKOUT_FAILURE_FOLLOW_UP,
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -141,9 +147,15 @@ export const RetailerCheckout = () => {
 
     } catch (err) {
       console.error('Unexpected checkout error:', err);
+      reportCheckoutFailure({
+        source: "checkout",
+        cartItems,
+        cartTotal,
+        errorMessage: err instanceof Error ? err.message : "Unexpected error",
+      });
       toast({
         title: "Checkout failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: "An unexpected error occurred." + CHECKOUT_FAILURE_FOLLOW_UP,
         variant: "destructive",
       });
       setIsSubmitting(false);
