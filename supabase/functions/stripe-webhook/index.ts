@@ -13,6 +13,7 @@ import {
   stats,
   steps,
 } from '../_shared/email.ts'
+import { generateOrderConfirmationEmail } from '../_shared/retailer-emails.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -455,6 +456,30 @@ Deno.serve(async (req) => {
               orders
             )
           }
+        }
+
+        // Confirm the order to the retailer
+        const retailerEmail = retailer?.email || session.customer_details?.email || session.customer_email
+        if (retailerEmail && adminLines.length > 0) {
+          const confirmation = generateOrderConfirmationEmail({
+            shopName: retailerProfile?.shop_name ?? null,
+            lines: adminLines,
+            subtotal: (session.amount_subtotal ?? session.amount_total ?? 0) / 100,
+            tax: (session.total_details?.amount_tax ?? 0) / 100,
+            total: (session.amount_total ?? 0) / 100,
+            shipTo: shippingInfo
+              ? {
+                  name: shippingInfo.name,
+                  line1: shippingInfo.address?.line1,
+                  line2: shippingInfo.address?.line2,
+                  city: shippingInfo.address?.city,
+                  state: shippingInfo.address?.state,
+                  postalCode: shippingInfo.address?.postal_code,
+                  country: shippingInfo.address?.country,
+                }
+              : null,
+          })
+          await sendViaResend(retailerEmail, 'Your Neesh order is confirmed', confirmation, 'Retailer order confirmation')
         }
 
         console.log(`Successfully processed ${createdOrders.length} orders`)

@@ -1,7 +1,21 @@
-// Retailer confirm-email messages: the welcome sent at signup
-// (signup-retailer) and the resend from checkout (verify-retailer-email).
+// Retailer emails: the confirm-email welcome sent at signup (signup-retailer)
+// and its resend (verify-retailer-email), and the order confirmation sent
+// after a paid checkout (stripe-webhook). Neesh is upfront payment only.
 
-import { button, html, linkFallback, renderEmail, smallText, steps, strong } from './email.ts'
+import {
+  BRAND_URL,
+  type LineItem,
+  button,
+  details,
+  html,
+  lineItems,
+  linkFallback,
+  money,
+  renderEmail,
+  smallText,
+  steps,
+  strong,
+} from './email.ts'
 
 export interface ConfirmEmailData {
   firstName: string
@@ -38,5 +52,65 @@ export const generateConfirmEmail = (data: ConfirmEmailData): string => {
       linkFallback(data.verifyEmailUrl),
     ],
     footerNote: 'Did not sign up? You can ignore this email.',
+  })
+}
+
+export interface ShippingAddress {
+  name?: string | null
+  line1?: string | null
+  line2?: string | null
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+  country?: string | null
+}
+
+export interface OrderConfirmationData {
+  shopName: string | null
+  // Retailer prices; subtitle is the publisher.
+  lines: LineItem[]
+  subtotal: number
+  tax: number
+  total: number
+  shipTo: ShippingAddress | null
+}
+
+const formatAddress = (a: ShippingAddress): string =>
+  [
+    a.name,
+    a.line1,
+    a.line2,
+    [[a.city, a.state].filter(Boolean).join(', '), a.postalCode].filter(Boolean).join(' '),
+    a.country,
+  ].filter(Boolean).join(', ')
+
+export const generateOrderConfirmationEmail = (data: OrderConfirmationData): string => {
+  const copies = data.lines.reduce((s, l) => s + l.quantity, 0)
+  const copiesText = `${copies} ${copies === 1 ? 'copy' : 'copies'}`
+  const publishers = new Set(data.lines.map((l) => l.subtitle).filter(Boolean)).size
+  const fromText = publishers === 1 ? 'the publisher' : `${publishers} publishers`
+
+  const summary: [string, string][] = []
+  if (data.tax > 0) summary.push(['Subtotal', money(data.subtotal)], ['Tax', money(data.tax)])
+  summary.push(['Total paid', money(data.total)])
+  if (data.shipTo) summary.push(['Ship to', formatAddress(data.shipTo)])
+
+  return renderEmail({
+    preheader: `${copiesText} for ${money(data.total)}. Publishers ship directly and add tracking.`,
+    label: 'Order',
+    badge: { text: 'Paid', tone: 'success' },
+    heading: 'Your order is in.',
+    intro: html`${data.shopName ? html`Thanks, ${strong(data.shopName)}. ` : 'Thanks. '}We sent your order to ${fromText}. Each one ships directly to you and adds tracking as it goes out.`,
+    blocks: [
+      lineItems(data.lines),
+      details(summary),
+      steps('What happens next', [
+        `${publishers === 1 ? 'The publisher packs' : 'Each publisher packs'} your copies and ships them.`,
+        'Tracking appears on the order as soon as it is added.',
+        'Something wrong with a delivery? Reply to this email.',
+      ]),
+      button('View your orders', `${BRAND_URL}/retailer/orders`),
+    ],
+    footerNote: 'You are getting this because you placed an order on Neesh.',
   })
 }

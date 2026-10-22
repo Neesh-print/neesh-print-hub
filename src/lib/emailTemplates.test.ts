@@ -6,7 +6,10 @@ import {
   stats,
   titleList,
 } from "../../supabase/functions/_shared/email";
-import { generateConfirmEmail } from "../../supabase/functions/_shared/retailer-emails";
+import {
+  generateConfirmEmail,
+  generateOrderConfirmationEmail,
+} from "../../supabase/functions/_shared/retailer-emails";
 import {
   EMAIL_SUBJECTS,
   generateApplicationReceivedEmail,
@@ -84,5 +87,38 @@ describe("application and retailer emails", () => {
     expect(emails[0]).toContain("token_hash=a&amp;type=recovery");
     expect(emails[4]).toContain("https://neesh.art/verify-email?token=t");
     expect(emails[4]).not.toContain("Hi ,");
+  });
+});
+
+describe("retailer order confirmation", () => {
+  const base = {
+    shopName: "Periodicals",
+    lines: [
+      { title: "Good Sport", subtitle: "Good Sport Magazine", quantity: 4, amount: 74.8 },
+      { title: "The Drift", subtitle: "The Drift Magazine Foundation", quantity: 4, amount: 52.8 },
+    ],
+    subtotal: 127.6,
+    tax: 0,
+    total: 127.6,
+    shipTo: { name: "Aleiya", line1: "1 Main St", city: "Brooklyn", state: "NY", postalCode: "11201", country: "US" },
+  };
+
+  it("shows a paid card order with totals, address and no tax row when tax is zero", () => {
+    const out = generateOrderConfirmationEmail(base);
+    expect(out).toContain("Paid");
+    expect(out).toContain("Total paid");
+    expect(out).toContain("$127.60");
+    expect(out).toContain("1 Main St, Brooklyn, NY 11201, US");
+    expect(out).toContain("2 publishers");
+    expect(out).not.toContain(">Tax<");
+    expect(out).not.toMatch(EMOJI);
+  });
+
+  it("lists subtotal and tax when tax was charged, and never mentions payment terms", () => {
+    const out = generateOrderConfirmationEmail({ ...base, tax: 11.32, total: 138.92 });
+    expect(out).toContain("$127.60");
+    expect(out).toContain("$11.32");
+    expect(out).toContain("$138.92");
+    expect(out).not.toMatch(/Net \d+|invoice/i);
   });
 });
