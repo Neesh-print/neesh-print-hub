@@ -85,6 +85,14 @@ export const link = (text: string, href: string): Html =>
 
 export const money = (amount: number): string => `$${amount.toFixed(2)}`
 
+// Publishers type issue numbers freely ("13", "Issue 07", "Volume 2", "No. 8").
+// Only a bare number gets the "Issue" label.
+export const formatIssue = (issue: string | null | undefined): string | null => {
+  const v = issue?.trim()
+  if (!v) return null
+  return /^\d+$/.test(v) ? `Issue ${v}` : v
+}
+
 export const formatDate = (d: Date): string =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
 

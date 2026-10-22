@@ -6,6 +6,7 @@ import {
   button,
   details,
   formatDate,
+  formatIssue,
   lineItems,
   money,
   reference,
@@ -712,7 +713,7 @@ interface OrderNotificationItem {
 }
 
 const titleWithIssue = (o: OrderNotificationItem): string =>
-  o.issue_number ? `${o.magazine_title}, issue ${o.issue_number}` : o.magazine_title
+  formatIssue(o.issue_number) ? `${o.magazine_title}, ${formatIssue(o.issue_number)}` : o.magazine_title
 
 async function sendViaResend(to: string, subject: string, html: string, label: string) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY')

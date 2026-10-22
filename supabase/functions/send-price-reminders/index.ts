@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { BRAND_URL, button, renderEmail, smallText, titleList } from '../_shared/email.ts'
+import { BRAND_URL, button, formatIssue, renderEmail, smallText, titleList } from '../_shared/email.ts'
 
 // Weekly job: email publishers whose titles have no wholesale price. A title
 // without one can be added to a cart but is rejected at checkout, so
@@ -49,7 +49,7 @@ const generateReminderEmail = (group: PublisherGroup): string => {
     blocks: [
       titleList(group.titles.map((t) => ({
         title: t.title,
-        subtitle: t.issue ? `Issue ${t.issue}` : undefined,
+        subtitle: formatIssue(t.issue) ?? undefined,
         coverUrl: t.coverUrl,
         badge: { text: 'No price', tone: 'pending' as const },
         href: `${BRAND_URL}/publisher/titles/${t.id}/edit`,
