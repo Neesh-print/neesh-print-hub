@@ -212,13 +212,25 @@ Deno.serve(async (req) => {
         // Check if user already exists (422 error)
         if (authUserError.message?.includes('already') || authUserError.status === 422) {
           console.log('User already exists, looking up by email...')
-          // Look up existing user by email
-          const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-          if (!listError && existingUsers) {
-            const existingUser = existingUsers.users.find(u => u.email === email)
-            if (existingUser) {
-              userId = existingUser.id
-              console.log(`Found existing user with ID: ${userId}`)
+          // public.users shares ids with auth.users, so check it first. listUsers()
+          // only returns the first page, which misses users once there are many.
+          const { data: existingRow } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .ilike('email', email)
+            .maybeSingle()
+          if (existingRow?.id) {
+            userId = existingRow.id
+            console.log(`Found existing user row with ID: ${userId}`)
+          } else {
+            // Look up existing user by email
+            const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+            if (!listError && existingUsers) {
+              const existingUser = existingUsers.users.find(u => u.email === email)
+              if (existingUser) {
+                userId = existingUser.id
+                console.log(`Found existing user with ID: ${userId}`)
+              }
             }
           }
 
@@ -258,12 +270,36 @@ Deno.serve(async (req) => {
       ? `${application.first_name} ${application.last_name}`
       : application.buyer_name || email.split('@')[0]
 
+    // Keep a username the row already has. The auth signup trigger may have
+    // created the row with a de-duplicated username (e.g. "hello-7b2c"), and
+    // overwriting it with the bare email prefix collides with other users who
+    // share that prefix (hello@, info@, ...). New rows get the email prefix,
+    // suffixed if it is already taken.
+    const { data: existingUserRow } = await supabaseAdmin
+      .from('users')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle()
+
+    let username: string | null = existingUserRow?.username ?? null
+    if (!username) {
+      const base = email.split('@')[0]
+      const { data: takenRows } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('username', base)
+        .limit(1)
+      username = takenRows && takenRows.length > 0
+        ? `${base}-${crypto.randomUUID().slice(0, 4)}`
+        : base
+    }
+
     const { error: userUpsertError } = await supabaseAdmin
       .from('users')
       .upsert({
         id: userId,
         email: email,
-        username: email.split('@')[0],
+        username: username,
         role: type,
         password_hash: 'managed_by_supabase_auth',
       }, { onConflict: 'id' })
@@ -464,10 +500,10 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         userId,
-        message: `${type} application approved successfully` 
+        message: `${type} application approved successfully`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
