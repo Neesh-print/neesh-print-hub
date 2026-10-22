@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatIssue,
   html,
   lineItems,
   renderEmail,
@@ -120,5 +121,17 @@ describe("retailer order confirmation", () => {
     expect(out).toContain("$11.32");
     expect(out).toContain("$138.92");
     expect(out).not.toMatch(/Net \d+|invoice/i);
+  });
+});
+
+describe("formatIssue", () => {
+  it("labels bare numbers and leaves publisher wording alone", () => {
+    expect(formatIssue("13")).toBe("Issue 13");
+    expect(formatIssue(" 07 ")).toBe("Issue 07");
+    expect(formatIssue("Issue 07")).toBe("Issue 07");
+    expect(formatIssue("Volume 2")).toBe("Volume 2");
+    expect(formatIssue("No. 8: The Baked Issue")).toBe("No. 8: The Baked Issue");
+    expect(formatIssue("")).toBeNull();
+    expect(formatIssue(null)).toBeNull();
   });
 });

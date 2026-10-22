@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { BRAND_URL, button, renderEmail, smallText, titleList } from '../_shared/email.ts'
+import { BRAND_URL, button, formatIssue, renderEmail, smallText, titleList } from '../_shared/email.ts'
 
 // Weekly job: email publishers whose active titles are missing a cover image.
 // Each title is reminded at most 4 times (image_reminder_count < 4) and stops
@@ -43,7 +43,7 @@ const generateReminderEmail = (group: PublisherGroup): string => {
     blocks: [
       titleList(group.titles.map((t) => ({
         title: t.title,
-        subtitle: t.issue ? `Issue ${t.issue}` : undefined,
+        subtitle: formatIssue(t.issue) ?? undefined,
         badge: { text: 'No cover', tone: 'pending' as const },
         href: `${BRAND_URL}/publisher/titles/${t.id}/edit`,
         linkText: 'Add a cover image',
