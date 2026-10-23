@@ -599,12 +599,23 @@ export const AdminApplications = () => {
         </div>
       </div>
 
+      {/* Spacer so the last rows can scroll clear of the bulk action bar */}
+      {selectedRows.length > 0 && <div className="h-32 md:h-20" aria-hidden="true" />}
+
       {/* Bulk Action Bar */}
       {selectedRows.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-60 p-4 bg-background border-t border-border shadow-neesh-lg z-40">
-          <div className="flex items-center justify-between max-w-5xl mx-auto">
-            <span className="text-body font-medium">{selectedRows.length} selected</span>
-            <div className="flex items-center gap-2">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-60 px-4 py-3 md:p-4 bg-background border-t border-border shadow-neesh-lg z-40">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between max-w-5xl mx-auto">
+            <div className="flex items-center justify-between">
+              <span className="text-body font-medium">{selectedRows.length} selected</span>
+              <button
+                onClick={() => setSelectedRows([])}
+                className="text-caption text-muted-foreground hover:text-foreground md:hidden"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 md:flex md:items-center">
               <ButtonPrimary
                 onClick={() => setShowBulkApprove(true)}
                 className="gap-1.5 bg-status-success hover:bg-status-success/90 !text-black"
@@ -628,7 +639,7 @@ export const AdminApplications = () => {
               </ButtonSecondary>
               <button
                 onClick={() => setSelectedRows([])}
-                className="text-caption text-muted-foreground hover:text-foreground ml-2"
+                className="hidden md:inline text-caption text-muted-foreground hover:text-foreground ml-2"
               >
                 Clear Selection
               </button>
