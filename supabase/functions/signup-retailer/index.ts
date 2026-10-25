@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { generateConfirmEmail } from '../_shared/retailer-emails.ts'
+import { resolveEmailSiteUrl } from '../_shared/site-url.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -243,6 +244,7 @@ Deno.serve(async (req) => {
         accepted_terms_at: acceptedTermsAt,
         email_verified_at: null,
         email_verification_token_hash: verificationTokenHash,
+        email_verification_sent_at: now,
       }, { onConflict: 'user_id' })
 
     if (retailerUpsertError) {
@@ -257,7 +259,7 @@ Deno.serve(async (req) => {
 
     // Step 6: Send welcome email with the confirm-email link (non-fatal on
     // failure — the retailer can resend it from checkout).
-    const siteUrl = body.redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
+    const siteUrl = resolveEmailSiteUrl(body.redirectUrl)
     try {
       const resendApiKey = Deno.env.get('RESEND_API_KEY')
       if (resendApiKey) {

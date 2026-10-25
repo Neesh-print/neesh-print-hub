@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { Check } from 'lucide-react';
 import { AuthLayout } from '@/components/auth';
@@ -7,6 +7,7 @@ import { FormInput } from '@/components/neesh/FormInput';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { getLinkError } from '@/lib/auth-link';
 
 const passwordSchema = z
   .string()
@@ -25,7 +26,14 @@ const ResetPasswordPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  // Starts true when there is a token to verify, so the expired-link state
+  // does not flash before verification begins.
+  const [isVerifying, setIsVerifying] = useState(
+    () => Boolean(searchParams.get('token_hash')) && searchParams.get('type') === 'recovery'
+  );
+  const [linkInvalid, setLinkInvalid] = useState(
+    () => getLinkError(window.location.search, window.location.hash) !== null
+  );
 
   const getDashboardPath = () => {
     switch (userRole) {
@@ -56,28 +64,17 @@ const ResetPasswordPage = () => {
       supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: 'recovery',
-      }).then(({ error: verifyError }) => {
-        if (verifyError) {
-          console.error('OTP verification failed:', verifyError);
-          setError('This link has expired or is invalid. Please request a new one.');
+      }).then(({ data, error: verifyError }) => {
+        if (verifyError || !data.session) {
+          if (verifyError) console.error('OTP verification failed:', verifyError);
+          setLinkInvalid(true);
+          setIsVerifying(false);
         }
-        setIsVerifying(false);
+        // On success, stay in the loading state until useAuth picks up the
+        // new session (see the loading check), so the expired-link state never flashes.
       });
     }
   }, [searchParams]);
-
-  // Redirect if no session and no token_hash (user navigated here directly)
-  useEffect(() => {
-    const hasTokenHash = searchParams.get('token_hash');
-    if (!authLoading && !session && !hasTokenHash && !isVerifying) {
-      const timer = setTimeout(() => {
-        if (!session) {
-          navigate('/login');
-        }
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [session, authLoading, navigate, searchParams, isVerifying]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +119,7 @@ const ResetPasswordPage = () => {
     }
   };
 
-  if (authLoading || isVerifying) {
+  if (authLoading || (isVerifying && !session && !linkInvalid)) {
     return (
       <AuthLayout>
         <div className="flex items-center justify-center py-12">
@@ -148,6 +145,31 @@ const ResetPasswordPage = () => {
           <ButtonPrimary fullWidth onClick={() => navigate(getDashboardPath())}>
             Go to Dashboard
           </ButtonPrimary>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  // A used or expired link, or no recovery session at all (opened directly,
+  // or the link was consumed by an email scanner): say so instead of showing
+  // a form that cannot be submitted.
+  if (linkInvalid || !session) {
+    return (
+      <AuthLayout>
+        <div className="text-center py-8">
+          <h1 className="font-display font-bold text-display text-foreground mb-2">
+            This link has expired
+          </h1>
+          <p className="text-body text-text-secondary mb-6">
+            Password reset links work once and expire after a short time. Request a new one and use the
+            latest email we send you.
+          </p>
+          <ButtonPrimary fullWidth onClick={() => navigate('/forgot-password')}>
+            Send a new link
+          </ButtonPrimary>
+          <p className="text-caption text-text-secondary mt-4">
+            <Link to="/login" className="underline">Back to sign in</Link>
+          </p>
         </div>
       </AuthLayout>
     );

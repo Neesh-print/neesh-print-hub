@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { generateConfirmEmail } from '../_shared/retailer-emails.ts'
+import { resolveEmailSiteUrl } from '../_shared/site-url.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,11 @@ interface VerifyEmailRequest {
   token?: string
   redirectUrl?: string
 }
+
+// Links stop working after a week; a retailer can resend from checkout.
+const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+// One resend per retailer per two minutes.
+const RESEND_COOLDOWN_MS = 2 * 60 * 1000
 
 const sha256Hex = async (input: string): Promise<string> => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
@@ -53,7 +59,7 @@ Deno.serve(async (req) => {
       const tokenHash = await sha256Hex(token)
       const { data: retailer, error: lookupError } = await supabaseAdmin
         .from('retailers')
-        .select('id, email_verified_at')
+        .select('id, email_verified_at, email_verification_sent_at')
         .eq('email_verification_token_hash', tokenHash)
         .maybeSingle()
 
@@ -70,6 +76,17 @@ Deno.serve(async (req) => {
         // success). The frontend shows a "log in and resend" hint for this.
         return new Response(
           JSON.stringify({ error: 'invalid_token' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Tokens issued before email_verification_sent_at existed have no send
+      // time; they are honoured rather than stranding those retailers.
+      const sentAt = retailer.email_verification_sent_at ? Date.parse(retailer.email_verification_sent_at) : null
+      if (!retailer.email_verified_at && sentAt !== null && Date.now() - sentAt > TOKEN_MAX_AGE_MS) {
+        // Same response as an unknown token: the page offers a resend.
+        return new Response(
+          JSON.stringify({ error: 'invalid_token', reason: 'expired' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -123,7 +140,7 @@ Deno.serve(async (req) => {
 
       const { data: retailer, error: retailerError } = await supabaseAdmin
         .from('retailers')
-        .select('id, email_verified_at, shop_name')
+        .select('id, email_verified_at, email_verification_sent_at, shop_name')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -141,11 +158,22 @@ Deno.serve(async (req) => {
         )
       }
 
+      const lastSent = retailer.email_verification_sent_at ? Date.parse(retailer.email_verification_sent_at) : 0
+      if (Date.now() - lastSent < RESEND_COOLDOWN_MS) {
+        return new Response(
+          JSON.stringify({ error: 'We just sent you an email. Please wait a couple of minutes before asking for another.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const verificationToken = crypto.randomUUID()
       const verificationTokenHash = await sha256Hex(verificationToken)
       const { error: tokenUpdateError } = await supabaseAdmin
         .from('retailers')
-        .update({ email_verification_token_hash: verificationTokenHash })
+        .update({
+          email_verification_token_hash: verificationTokenHash,
+          email_verification_sent_at: new Date().toISOString(),
+        })
         .eq('id', retailer.id)
 
       if (tokenUpdateError) {
@@ -165,7 +193,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      const siteUrl = body.redirectUrl || Deno.env.get('SITE_URL') || 'https://neesh.art'
+      const siteUrl = resolveEmailSiteUrl(body.redirectUrl)
       const firstName = (user.user_metadata?.first_name as string | undefined) ?? ''
       const html = generateConfirmEmail({
         firstName,
