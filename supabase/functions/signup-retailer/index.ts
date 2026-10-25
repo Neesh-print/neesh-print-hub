@@ -124,6 +124,9 @@ Deno.serve(async (req) => {
       email: email,
       password: password,
       email_confirm: true,
+      // handle_new_user reads the role from app_metadata, which only the
+      // service role can set; user_metadata is writable by the user.
+      app_metadata: { role: 'retailer' },
       user_metadata: {
         role: 'retailer',
         first_name: firstName,
