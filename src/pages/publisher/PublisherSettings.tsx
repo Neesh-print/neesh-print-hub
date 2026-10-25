@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SocialLinkInput } from "@/components/ui/social-link-input";
-import { ChangePasswordModal } from "@/components/shared";
+import { ChangePasswordModal, DeleteAccountSection } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { toast } from "sonner";
@@ -333,15 +333,7 @@ export const PublisherSettings = () => {
               <Separator className="my-4" />
 
               {/* Danger Zone */}
-              <div>
-                <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  This will deactivate your account. Your titles and order history will be preserved.
-                </p>
-                <ButtonSecondary destructive>
-                  Deactivate Account
-                </ButtonSecondary>
-              </div>
+              <DeleteAccountSection keeps="Your sales history" />
             </div>
           </div>
         </div>

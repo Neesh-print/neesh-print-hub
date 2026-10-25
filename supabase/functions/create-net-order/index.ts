@@ -152,12 +152,19 @@ Deno.serve(async (req) => {
     // ============================================================
     const { data: retailerRow, error: retailerError } = await supabaseAdmin
       .from('retailers')
-      .select('id, payment_terms_enabled, net_terms_days, terms_status, credit_limit')
+      .select('id, payment_terms_enabled, net_terms_days, terms_status, credit_limit, email_verified_at')
       .eq('user_id', user.id)
       .single()
 
     if (retailerError || !retailerRow) {
       return json(404, { error: 'Retailer profile not found' })
+    }
+    // Same gate as create-checkout: no orders until the shop email is verified.
+    if (!retailerRow.email_verified_at) {
+      return json(403, {
+        code: 'email_unverified',
+        error: 'Please confirm your email address before placing your first order. Check your inbox for the confirmation link.',
+      })
     }
     if (!retailerRow.payment_terms_enabled || retailerRow.terms_status !== 'approved') {
       return json(403, { error: 'Your account is not approved for payment terms.' })

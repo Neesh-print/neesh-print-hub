@@ -273,6 +273,7 @@ Deno.serve(async (req) => {
               unit_price: retailerUnitPrice,
               total_price: totalPrice,
               status: 'paid',
+              payment_status: 'paid',
               stripe_session_id: session.id,
               payment_intent_id: session.payment_intent as string,
               shipping_address: shippingAddress, // Now supported by schema!
