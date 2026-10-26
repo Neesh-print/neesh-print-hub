@@ -14,6 +14,10 @@
 // so user-supplied names and titles can never inject markup.
 
 export const BRAND_URL = 'https://neesh.art'
+// The Neesh wordmark as a PNG (3x, on white so it stays visible when a client
+// forces dark mode). Email clients strip inline SVG. Served from the app
+// (public/email/) because neesh.art's bot protection can block image proxies.
+export const WORDMARK_URL = 'https://app.neesh.art/email/neesh-wordmark.png'
 export const SUPPORT_EMAIL = 'hi@neesh.art'
 // Same operator address the newsletter footer carries.
 const POSTAL_ADDRESS = 'Neesh is operated by WAU LLC, c/o Registered Agents Inc, 2355 State St STE 101, Salem, OR 97301, USA'
@@ -299,7 +303,7 @@ export const renderEmail = (o: EmailOptions): string => {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${C.paper}; border: 1px solid ${C.border}; border-radius: 8px; border-collapse: separate;">
         <tr><td class="px" style="padding: 26px 40px; border-bottom: 1px solid ${C.border};">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td valign="middle"><a href="${BRAND_URL}" style="text-decoration: none; color: ${C.ink};"><span style="font-family: Archivo, 'Arial Black', 'Helvetica Neue', Arial, sans-serif; font-variation-settings: 'wdth' 125; font-weight: 900; font-size: 22px; line-height: 22px; letter-spacing: -0.02em; color: ${C.ink};">NEESH</span><span style="display: inline-block; width: 6px; height: 6px; margin-left: 3px; vertical-align: top; background-color: ${C.ink};"></span></a></td>
+            <td valign="middle"><a href="${BRAND_URL}" style="text-decoration: none;"><img src="${WORDMARK_URL}" width="98" height="26" alt="Neesh" style="display: block; width: 98px; height: 26px; border: 0; outline: none; text-decoration: none;"></a></td>
             <td valign="middle" align="right">${monoLabel(o.label)}</td>
           </tr></table>
         </td></tr>
