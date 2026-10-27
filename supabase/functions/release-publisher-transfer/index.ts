@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
+import { findSourceCharge } from '../_shared/source-charge.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
           .eq('status', 'pending')
           .or(releasableHoldFilter)
           .select(`
-            id, order_id, shipment_id, kind, net_amount,
+            id, order_id, shipment_id, kind, net_amount, stripe_session_id,
             publishers (
               id, stripe_account_id, company_name
             )
@@ -190,10 +191,18 @@ Deno.serve(async (req) => {
         // instead of paying again.
         const amountInCents = Math.round(transfer.net_amount * 100)
 
+        // Tie the transfer to the order's charge so it goes through right
+        // away, even while the order funds are still pending in our balance.
+        // The publisher's funds then settle on the charge's own schedule. If
+        // there's no usable charge (invoice-paid orders, lookups that fail),
+        // fall back to a plain transfer from the available balance.
+        const source = await findSourceCharge(stripe, transfer.stripe_session_id)
+
         const stripeTransfer = await stripe.transfers.create({
           amount: amountInCents,
           currency: 'usd',
           destination: publisher.stripe_account_id,
+          ...(source ? { source_transaction: source.chargeId } : {}),
           transfer_group: transfer.order_id ?? transfer.shipment_id,
           description: transfer.kind === 'shipping'
             ? `Neesh shipping payout for shipment ${transfer.shipment_id}`
