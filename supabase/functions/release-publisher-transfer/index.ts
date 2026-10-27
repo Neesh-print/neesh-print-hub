@@ -90,29 +90,56 @@ Deno.serve(async (req) => {
 
     const results: { id: string; success: boolean; stripe_transfer_id?: string; error?: string }[] = []
 
-    for (const transferId of transferIds) {
+    // Dedupe so one request can't pay the same row twice.
+    for (const transferId of new Set<string>(transferIds)) {
+      // Set once this request owns the row (status = 'processing').
+      let claimed = false
+
       try {
-        // Fetch the transfer record with publisher info
-        const { data: transfer, error: fetchError } = await supabaseAdmin
+        // Claim the row: one conditional UPDATE moves it pending -> processing.
+        // Postgres row locking means only one concurrent request can win; any
+        // other request (double click, second admin, retry) matches 0 rows.
+        // Rows held for refund review or a dispute are not claimable.
+        // 'awaiting_invoice_payment' holds keep their existing behavior.
+        const { data: transfer, error: claimError } = await supabaseAdmin
           .from('publisher_transfers')
+          .update({
+            status: 'processing',
+            released_by: user.id,
+            released_at: new Date().toISOString(),
+          })
+          .eq('id', transferId)
+          .eq('status', 'pending')
+          .or('hold_reason.is.null,hold_reason.eq.awaiting_invoice_payment')
           .select(`
-            id, order_id, net_amount, status,
-            publishers!inner (
+            id, order_id, net_amount,
+            publishers (
               id, stripe_account_id, company_name
             )
           `)
-          .eq('id', transferId)
-          .single()
+          .maybeSingle()
 
-        if (fetchError || !transfer) {
-          results.push({ id: transferId, success: false, error: 'Transfer not found' })
-          continue
+        if (claimError) {
+          throw claimError
         }
 
-        if (transfer.status !== 'pending') {
-          results.push({ id: transferId, success: false, error: `Transfer already ${transfer.status}` })
+        if (!transfer) {
+          // Explain why the claim matched nothing.
+          const { data: current } = await supabaseAdmin
+            .from('publisher_transfers')
+            .select('status, hold_reason')
+            .eq('id', transferId)
+            .maybeSingle()
+
+          const reason = !current
+            ? 'Transfer not found'
+            : current.status !== 'pending'
+              ? `Transfer already ${current.status}`
+              : `Transfer is on hold (${current.hold_reason})`
+          results.push({ id: transferId, success: false, error: reason })
           continue
         }
+        claimed = true
 
         const publisher = transfer.publishers as any
         if (!publisher?.stripe_account_id) {
@@ -122,8 +149,6 @@ Deno.serve(async (req) => {
             .update({
               status: 'failed',
               failure_reason: 'Publisher has no connected Stripe account',
-              released_by: user.id,
-              released_at: new Date().toISOString(),
             })
             .eq('id', transferId)
 
@@ -131,7 +156,10 @@ Deno.serve(async (req) => {
           continue
         }
 
-        // Execute the Stripe transfer
+        // Execute the Stripe transfer. The idempotency key is tied to this
+        // ledger row, so if this request is retried (or a stuck 'processing'
+        // row is retried by hand) Stripe returns the original transfer
+        // instead of paying again.
         const amountInCents = Math.round(transfer.net_amount * 100)
 
         const stripeTransfer = await stripe.transfers.create({
@@ -140,7 +168,8 @@ Deno.serve(async (req) => {
           destination: publisher.stripe_account_id,
           transfer_group: transfer.order_id,
           description: `Neesh payout for order ${transfer.order_id}`,
-        })
+          metadata: { publisher_transfer_id: transfer.id, order_id: transfer.order_id },
+        }, { idempotencyKey: `publisher-transfer-${transfer.id}` })
 
         // Mark as transferred
         await supabaseAdmin
@@ -148,8 +177,6 @@ Deno.serve(async (req) => {
           .update({
             status: 'transferred',
             stripe_transfer_id: stripeTransfer.id,
-            released_by: user.id,
-            released_at: new Date().toISOString(),
             transferred_at: new Date().toISOString(),
           })
           .eq('id', transferId)
@@ -161,16 +188,22 @@ Deno.serve(async (req) => {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         console.error(`Transfer ${transferId} failed:`, errorMessage)
 
-        // Mark as failed
-        await supabaseAdmin
-          .from('publisher_transfers')
-          .update({
-            status: 'failed',
-            failure_reason: errorMessage,
-            released_by: user.id,
-            released_at: new Date().toISOString(),
-          })
-          .eq('id', transferId)
+        if (claimed) {
+          // A Stripe API error (it answered with an error status) means no
+          // money moved, so 'failed' is accurate. A network error or timeout
+          // means we can't tell whether Stripe made the transfer, so leave
+          // the row in 'processing' for an admin to check in Stripe rather
+          // than marking it failed.
+          const stripeAnswered = typeof (err as { statusCode?: number })?.statusCode === 'number'
+          await supabaseAdmin
+            .from('publisher_transfers')
+            .update(
+              stripeAnswered
+                ? { status: 'failed', failure_reason: errorMessage }
+                : { failure_reason: `Outcome unknown, check Stripe for transfer metadata publisher_transfer_id=${transferId}: ${errorMessage}` }
+            )
+            .eq('id', transferId)
+        }
 
         results.push({ id: transferId, success: false, error: errorMessage })
       }
