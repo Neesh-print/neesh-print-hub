@@ -39,8 +39,14 @@ const tabs = [
 const holdLabels: Record<string, string> = {
   awaiting_invoice_payment: "AWAITING INVOICE",
   awaiting_label: "AWAITING LABEL",
+  awaiting_tracking: "AWAITING TRACKING",
   refund_review: "ON HOLD: REFUND",
   dispute: "ON HOLD: DISPUTE",
+};
+
+const holdHints: Record<string, string> = {
+  awaiting_label: "Releasable once the publisher buys the shipping label",
+  awaiting_tracking: "Releasable once the publisher adds tracking",
 };
 
 export const AdminPublisherTransfers = () => {
@@ -97,8 +103,9 @@ export const AdminPublisherTransfers = () => {
 
   // Pending transfers can be released unless held. (The server enforces this
   // too; this page doesn't send `force`, so invoice holds stay blocked here.)
-  // A Neesh-label shipping payout is held until the publisher buys the label;
-  // buy-label then deducts the label cost and clears the hold.
+  // A shipping payout is held until the publisher buys the Neesh label
+  // (buy-label deducts its cost) or, with their own labels, adds tracking.
+  // Either one clears the hold.
   const isReleasable = (t: (typeof filteredTransfers)[number]) =>
     t.status === "pending" && !t.holdReason;
 
@@ -159,11 +166,7 @@ export const AdminPublisherTransfers = () => {
         case "pending":
           return row.holdReason ? (
             <span
-              title={
-                row.holdReason === "awaiting_label"
-                  ? "Releasable once the publisher buys the shipping label"
-                  : undefined
-              }
+              title={holdHints[row.holdReason]}
             >
               <StatusBadge
                 status="payment-pending"

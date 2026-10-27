@@ -69,7 +69,12 @@ export const PublisherTransactionHistory = () => {
         groupMap.get(dateKey)!.items.push({
           type,
           name: t.order_number || "Parcel",
-          label: t.hold_reason === "awaiting_label" ? "Shipping (paid out after the label)" : "Shipping",
+          label:
+            t.hold_reason === "awaiting_label"
+              ? "Shipping (paid out after the label)"
+              : t.hold_reason === "awaiting_tracking"
+                ? "Shipping (paid out once you add tracking)"
+                : "Shipping",
           amount: t.gross_amount,
           status: t.status,
         });

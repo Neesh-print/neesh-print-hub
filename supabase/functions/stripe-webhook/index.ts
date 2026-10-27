@@ -1045,7 +1045,9 @@ async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailer
         platform_fee: split.platformFee,
         net_amount: split.net,
         status: 'pending',
-        hold_reason: labels ? 'awaiting_label' : null,
+        // Neesh labels: paid once buy-label deducts the label cost. Own labels:
+        // paid once the publisher adds tracking (orders trigger clears it).
+        hold_reason: labels ? 'awaiting_label' : 'awaiting_tracking',
       }, { onConflict: 'shipment_id', ignoreDuplicates: true })
     if (transferErr) {
       throw new Error(`Failed to record shipping transfer for shipment ${shipmentId}: ${transferErr.message}`)
@@ -1242,28 +1244,31 @@ async function resolveDisputedPayouts(
 
   if (holdError) throw holdError
 
-  // shipping_v2: the dispute hold replaced the label hold, so a Neesh-label
-  // shipping payout whose label isn't bought yet goes back to waiting for it
-  // (buy-label deducts the label cost from pending rows only).
+  // shipping_v2: the dispute hold replaced the shipping hold, so a parcel
+  // that still has no label (Neesh labels) or no tracking (own labels) goes
+  // back to waiting for it.
   if (won && payouts.shipmentIds.length > 0) {
-    const { data: unlabelled, error: shipError } = await supabaseAdmin
+    const { data: shipments, error: shipError } = await supabaseAdmin
       .from('order_shipments')
-      .select('id')
+      .select('id, uses_neesh_labels, label_cost_usd, tracking_number')
       .in('id', payouts.shipmentIds)
-      .eq('uses_neesh_labels', true)
-      .is('label_cost_usd', null)
 
     if (shipError) throw shipError
-    const unlabelledIds = (unlabelled ?? []).map((sh: { id: string }) => sh.id)
-    if (unlabelledIds.length > 0) {
-      const { error: labelHoldError } = await supabaseAdmin
+    for (const sh of (shipments ?? []) as {
+      id: string; uses_neesh_labels: boolean; label_cost_usd: number | null; tracking_number: string | null
+    }[]) {
+      const hold = sh.uses_neesh_labels
+        ? (sh.label_cost_usd == null ? 'awaiting_label' : null)
+        : (sh.tracking_number ? null : 'awaiting_tracking')
+      if (!hold) continue
+      const { error: shipHoldError } = await supabaseAdmin
         .from('publisher_transfers')
-        .update({ hold_reason: 'awaiting_label' })
-        .in('shipment_id', unlabelledIds)
+        .update({ hold_reason: hold })
+        .eq('shipment_id', sh.id)
         .eq('status', 'pending')
         .is('hold_reason', null)
 
-      if (labelHoldError) throw labelHoldError
+      if (shipHoldError) throw shipHoldError
     }
   }
 
