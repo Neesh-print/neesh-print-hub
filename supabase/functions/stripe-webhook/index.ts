@@ -378,6 +378,11 @@ Deno.serve(async (req) => {
           await recordShipments(supabaseAdmin, session.id, retailerId, shippingQuotes)
         }
 
+        // Stripe doesn't order events: a dispute or refund can arrive before
+        // this one, when there were no payouts yet to protect. Check the
+        // charge now and apply the same protection here.
+        await protectNewPayouts(stripe, supabaseAdmin, session.payment_intent as string | null)
+
         // Mark the payment session completed. Only the delivery that actually
         // flips it sends the emails below, so retries don't email twice.
         const { data: flippedSessions } = await supabaseAdmin
@@ -1210,6 +1215,8 @@ async function protectPayouts(
     .update({ reversal_needed: true, reversal_reason: protection.reversalReason })
     .or(payouts.filter)
     .in('status', ['processing', 'transferred'])
+    // A $0 payout (shipping fully used by the label) sent nothing to reverse.
+    .gt('net_amount', 0)
     .select('id')
 
   if (flagError) throw flagError
@@ -1217,6 +1224,35 @@ async function protectPayouts(
   const result = { affected: stopped?.length ?? 0, alreadyPaid: flagged?.length ?? 0 }
   console.log(`Payout protection for ${paymentIntentId}: ${result.affected} stopped, ${result.alreadyPaid} flagged`)
   return result
+}
+
+// Applies refund or dispute protection to payouts just created for a
+// purchase whose charge was already refunded or disputed (that event arrived
+// first and found nothing to protect). Throws on errors so Stripe retries.
+async function protectNewPayouts(
+  stripe: Stripe,
+  supabaseAdmin: SupabaseAdmin,
+  paymentIntentId: string | null,
+): Promise<void> {
+  if (!paymentIntentId) return
+  const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] })
+  const charge = pi.latest_charge
+  if (!charge || typeof charge === 'string') return
+
+  if (charge.disputed) {
+    await protectPayouts(supabaseAdmin, paymentIntentId, {
+      kind: 'hold', holdReason: 'dispute', reversalReason: DISPUTE_REVERSAL_REASON,
+    })
+  }
+  if (charge.amount_refunded > 0) {
+    await protectPayouts(
+      supabaseAdmin,
+      paymentIntentId,
+      charge.amount_refunded === charge.amount
+        ? { kind: 'cancel', reason: 'Order refunded', reversalReason: 'Order fully refunded after payout' }
+        : { kind: 'hold', holdReason: 'refund_review', reversalReason: 'Order partially refunded after payout' },
+    )
+  }
 }
 
 // When a dispute closes: if Neesh won, release the hold and clear the review

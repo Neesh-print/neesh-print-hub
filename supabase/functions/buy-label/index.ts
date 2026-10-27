@@ -159,6 +159,12 @@ Deno.serve(async (req) => {
     if (!origin || !isLabelReadyAddress(origin)) {
       return json({ error: 'Add your full ships-from address and phone number in Settings, then try again.' }, 400, cors)
     }
+    // Shippo won't buy a label without a sender email, and the ships-from form
+    // doesn't ask for one, so use the publisher's account email.
+    if (!origin.email) {
+      const { data: owner } = await admin.from('users').select('email').eq('id', publisher.user_id).maybeSingle()
+      origin.email = (owner?.email as string | undefined) ?? null
+    }
     const destination = shipment.destination_address
     if (!destination) return json({ error: 'This parcel has no destination address.' }, 400, cors)
 
