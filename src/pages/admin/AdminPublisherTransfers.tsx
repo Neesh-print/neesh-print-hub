@@ -27,9 +27,19 @@ import { format } from "date-fns";
 const tabs = [
   { id: "all", label: "All" },
   { id: "pending", label: "Pending" },
+  { id: "processing", label: "Processing" },
   { id: "transferred", label: "Transferred" },
   { id: "failed", label: "Failed" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "review", label: "Needs Review" },
 ];
+
+// Labels for payouts on hold. A held payout can't be released.
+const holdLabels: Record<string, string> = {
+  awaiting_invoice_payment: "AWAITING INVOICE",
+  refund_review: "ON HOLD: REFUND",
+  dispute: "ON HOLD: DISPUTE",
+};
 
 export const AdminPublisherTransfers = () => {
   const navigate = useNavigate();
@@ -62,6 +72,9 @@ export const AdminPublisherTransfers = () => {
         fee: t.platform_fee,
         net: t.net_amount,
         status: t.status,
+        holdReason: t.hold_reason,
+        reversalNeeded: t.reversal_needed,
+        reversalReason: t.reversal_reason,
         failureReason: t.failure_reason,
       }))
       .filter((t) => {
@@ -70,13 +83,19 @@ export const AdminPublisherTransfers = () => {
           t.orderNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
         if (activeTab === "all") return matchesSearch;
+        if (activeTab === "review") return matchesSearch && t.reversalNeeded;
         return matchesSearch && t.status === activeTab;
       });
   }, [transfers, searchTerm, activeTab]);
 
-  // Only pending transfers can be released
+  // Only pending transfers that aren't held for a refund or dispute can be
+  // released. (The server enforces this too.)
+  const isReleasable = (t: (typeof filteredTransfers)[number]) =>
+    t.status === "pending" &&
+    (!t.holdReason || t.holdReason === "awaiting_invoice_payment");
+
   const pendingSelectedRows = selectedRows.filter((id) =>
-    filteredTransfers.some((t) => t.id === id && t.status === "pending")
+    filteredTransfers.some((t) => t.id === id && isReleasable(t))
   );
 
   const handleReleaseSelected = async () => {
@@ -126,17 +145,40 @@ export const AdminPublisherTransfers = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <StatusBadge status="pending" />;
-      case "transferred":
-        return <StatusBadge status="payment-received" />;
-      case "failed":
-        return <StatusBadge status="unfulfilled" />;
-      default:
-        return <StatusBadge status="pending" />;
-    }
+  const getStatusBadge = (row: (typeof filteredTransfers)[number]) => {
+    const statusBadge = (() => {
+      switch (row.status) {
+        case "pending":
+          return row.holdReason ? (
+            <StatusBadge
+              status="payment-pending"
+              label={holdLabels[row.holdReason] ?? "ON HOLD"}
+            />
+          ) : (
+            <StatusBadge status="pending" />
+          );
+        case "processing":
+          return <StatusBadge status="payment-sent" label="PROCESSING" />;
+        case "transferred":
+          return <StatusBadge status="payment-received" />;
+        case "failed":
+          return <StatusBadge status="unfulfilled" />;
+        case "cancelled":
+          return <StatusBadge status="cancelled" />;
+        default:
+          return <StatusBadge status="pending" />;
+      }
+    })();
+
+    if (!row.reversalNeeded) return statusBadge;
+
+    // Already paid out, but the order was refunded or disputed afterwards.
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1" title={row.reversalReason ?? undefined}>
+        {statusBadge}
+        <StatusBadge status="unfulfilled" label="REVIEW REVERSAL" />
+      </span>
+    );
   };
 
   const columns = [
@@ -166,7 +208,8 @@ export const AdminPublisherTransfers = () => {
     {
       key: "status",
       header: "Status",
-      render: (value: unknown) => getStatusBadge(value as string),
+      render: (_value: unknown, row: Record<string, unknown>) =>
+        getStatusBadge(row as unknown as (typeof filteredTransfers)[number]),
     },
   ];
 
@@ -245,7 +288,7 @@ export const AdminPublisherTransfers = () => {
           <div className="flex items-center gap-4 p-3 bg-secondary rounded-lg">
             <span className="text-body font-medium">
               {selectedRows.length} selected{pendingSelectedRows.length < selectedRows.length
-                ? ` (${pendingSelectedRows.length} pending)`
+                ? ` (${pendingSelectedRows.length} releasable)`
                 : ""}
             </span>
             <ButtonPrimary
