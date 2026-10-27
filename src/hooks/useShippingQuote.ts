@@ -17,7 +17,7 @@ export interface QuoteGroup {
   intl_short: number;
   title_shortfalls: TitleShortfall[];
   can_ship: boolean;
-  blocked_reason: "no_international" | "no_origin" | "missing_weight" | "no_rate" | "minimum" | "unavailable" | null;
+  blocked_reason: "no_international" | "not_shipped" | "no_origin" | "missing_weight" | "no_rate" | "minimum" | "unavailable" | null;
   shipping_usd: number | null;
   rate_source: "shippo" | "flat" | null;
   carrier: string | null;

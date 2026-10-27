@@ -64,6 +64,13 @@ export const SpaceEarnsTable = ({ publisherId, wsp, srp, weightGrams, widthMm, h
         Add your ships-from address in <Link className="text-accent hover:underline" to="/publisher/settings">Settings</Link> to see live shipping.
       </p>
     );
+  } else if (ref.problem === "not_shipped") {
+    body = (
+      <p className="text-sm text-muted-foreground">
+        Spaces in the United States can't order from you with your current flat rates. Check your US rate and international shipping in{" "}
+        <Link className="text-accent hover:underline" to="/publisher/settings">Settings</Link>.
+      </p>
+    );
   } else if (ref.problem === "no_rate") {
     body = (
       <p className="text-sm text-muted-foreground">

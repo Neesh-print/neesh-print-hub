@@ -45,6 +45,7 @@ export interface CartLine {
 
 export type BlockedReason =
   | 'no_international'
+  | 'not_shipped'
   | 'no_origin'
   | 'missing_weight'
   | 'no_rate'
@@ -375,7 +376,8 @@ export async function quoteCart(opts: {
 
     if (pub.shipping_rate_mode === 'flat') {
       shippingUsd = flatShipping(flatRatesFor(pub.flat_rates, regionFor(originCountry, destCountry)), minimums.copies)
-      if (shippingUsd === null) { group.blocked_reason = 'no_rate'; continue }
+      // A blank region in the publisher's flat rates: they don't ship there.
+      if (shippingUsd === null) { group.blocked_reason = 'not_shipped'; continue }
     } else {
       if (!origin) { group.blocked_reason = 'no_origin'; continue }
       if (!parcel) { group.blocked_reason = 'missing_weight'; continue }
