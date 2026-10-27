@@ -1,13 +1,13 @@
 import { useShippingPreview, type PreviewLine } from "@/hooks/useShippingQuote";
 import { usePublisherShipping } from "@/hooks/usePublisherShipping";
-import { REFERENCE_US_ADDRESS, flatShipping, zoneFor, type ShipAddress } from "@/lib/shipping";
+import { REFERENCE_US_ADDRESS, flatRatesFor, flatShipping, regionFor, zoneFor, type ShipAddress } from "@/lib/shipping";
 
 export interface ReferenceShipping {
   /** Shipping in USD per line key; null when it can't be quoted. */
   byKey: Map<string, number | null>;
   isLoading: boolean;
-  /** Why nothing could be quoted, for the empty state. */
-  problem: "needs_origin" | "no_rate" | null;
+  /** Why nothing could be quoted, for the empty state. not_shipped = flat rates don't cover the reference space. */
+  problem: "needs_origin" | "no_rate" | "not_shipped" | null;
   originCountry: string | null;
   zone: "domestic" | "international";
   intlMinCopies: number;
@@ -40,9 +40,10 @@ export function useReferenceShipping(opts: {
 
   const byKey = new Map<string, number | null>();
   if (flat && s) {
-    const rates = zone === "domestic"
-      ? { firstCopyUsd: s.domestic_first_copy_usd, additionalCopyUsd: s.domestic_additional_copy_usd }
-      : { firstCopyUsd: s.intl_first_copy_usd, additionalCopyUsd: s.intl_additional_copy_usd };
+    const shipsThere = zone === "domestic" || s.ships_internationally;
+    const rates = shipsThere
+      ? flatRatesFor(s.flat_rates, regionFor(originCountry, REFERENCE_US_ADDRESS.country))
+      : flatRatesFor(null, "us");
     for (const l of opts.lines) byKey.set(l.key, flatShipping(rates, l.copies));
   } else {
     for (const r of preview.data?.results ?? []) byKey.set(r.key, r.shipping_usd);
@@ -50,7 +51,9 @@ export function useReferenceShipping(opts: {
 
   let problem: ReferenceShipping["problem"] = null;
   if (preview.data?.status === "needs_origin") problem = "needs_origin";
-  else if ((preview.data || flat) && opts.lines.length > 0 && [...byKey.values()].every((v) => v === null)) problem = "no_rate";
+  else if ((preview.data || flat) && opts.lines.length > 0 && [...byKey.values()].every((v) => v === null)) {
+    problem = flat ? "not_shipped" : "no_rate";
+  }
 
   return {
     byKey,

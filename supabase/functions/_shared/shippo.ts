@@ -4,7 +4,7 @@
  * Token: the SHIPPO_API_KEY secret (shippo_test_... everywhere except
  * production). Logs carry object ids and amounts, never addresses.
  */
-import type { CarrierRate, CustomsDeclaration, Parcel, ShipAddress } from './shipping.ts'
+import { usdAmount, type CarrierRate, type CustomsDeclaration, type Parcel, type ShipAddress } from './shipping.ts'
 
 export const SHIPPO_BASE_URL = 'https://api.goshippo.com'
 
@@ -45,6 +45,12 @@ export interface ShippoTrack {
 }
 
 type FetchLike = typeof fetch
+type Sleep = (ms: number) => Promise<void>
+
+const defaultSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** How long ratesInCurrency waits for a re-queued shipment, in total about 3 seconds. */
+const CONVERT_WAITS_MS = [300, 600, 900, 1200]
 
 export interface ShippoClient {
   createShipment(input: {
@@ -54,6 +60,11 @@ export interface ShippoClient {
     customs?: CustomsDeclaration | null
     metadata?: string
   }): Promise<ShippoShipment>
+  /**
+   * The shipment's rates re-priced into `currency` (in `amount_local`). Shippo
+   * re-queues the shipment to convert, so this waits for the rates to return.
+   */
+  ratesInCurrency(shipmentId: string, currency: string): Promise<CarrierRate[]>
   buyLabel(rateId: string, metadata?: string): Promise<ShippoTransaction>
   refundLabel(transactionId: string): Promise<ShippoRefund>
   getTracking(carrier: string, trackingNumber: string): Promise<ShippoTrack>
@@ -72,7 +83,7 @@ const toShippoAddress = (a: ShipAddress) => ({
   email: a.email ?? undefined,
 })
 
-export function createShippoClient(apiKey: string, fetchImpl: FetchLike = fetch): ShippoClient {
+export function createShippoClient(apiKey: string, fetchImpl: FetchLike = fetch, sleep: Sleep = defaultSleep): ShippoClient {
   const call = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
     const res = await fetchImpl(`${SHIPPO_BASE_URL}${path}`, {
       method,
@@ -112,6 +123,19 @@ export function createShippoClient(apiKey: string, fetchImpl: FetchLike = fetch)
       return shipment
     },
 
+    async ratesInCurrency(shipmentId, currency) {
+      const path = `/shipments/${encodeURIComponent(shipmentId)}/rates/${encodeURIComponent(currency)}?results=100`
+      for (let attempt = 0; ; attempt++) {
+        const page = await call<{ results?: CarrierRate[] }>('GET', path)
+        const rates = page?.results ?? []
+        if (rates.length > 0 || attempt >= CONVERT_WAITS_MS.length) {
+          console.log(`shippo shipment ${shipmentId} rates in ${currency}=${rates.length} after ${attempt + 1} call(s)`)
+          return rates
+        }
+        await sleep(CONVERT_WAITS_MS[attempt])
+      }
+    },
+
     async buyLabel(rateId, metadata) {
       const tx = await call<ShippoTransaction>('POST', '/transactions/', {
         rate: rateId,
@@ -133,4 +157,21 @@ export function createShippoClient(apiKey: string, fetchImpl: FetchLike = fetch)
       return await call<ShippoTrack>('GET', `/tracks/${encodeURIComponent(carrier)}/${encodeURIComponent(trackingNumber)}`)
     },
   }
+}
+
+/**
+ * The shipment's rates, each with a USD price. Shippo prices rates in the
+ * origin and destination currencies, so a Toronto to Toronto or Berlin to
+ * Berlin shipment has no USD price at all. When any rate lacks one, the rates
+ * are re-requested in USD (same rate ids, so a label can still be bought from
+ * them). A failed or unfinished conversion throws a ShippoError, so callers
+ * treat it as Shippo being unavailable rather than caching "no rate".
+ */
+export async function withUsdPrices(shippo: Pick<ShippoClient, 'ratesInCurrency'>, shipment: ShippoShipment): Promise<CarrierRate[]> {
+  const rates = shipment.rates ?? []
+  if (rates.every((r) => usdAmount(r) !== null)) return rates
+  const converted = new Map((await shippo.ratesInCurrency(shipment.object_id, 'USD')).map((r) => [r.object_id, r]))
+  // Shippo still converting after the wait is a slow Shippo, not a route with no rate.
+  if (converted.size === 0) throw new ShippoError(`Shippo had no USD rates ready for shipment ${shipment.object_id}`, 504, null)
+  return rates.map((r) => (usdAmount(r) !== null ? r : converted.get(r.object_id) ?? r))
 }

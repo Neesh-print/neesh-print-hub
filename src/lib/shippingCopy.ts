@@ -60,6 +60,7 @@ export function blockedText(g: QuoteGroup): string {
       }
       return "Below this publisher's minimum.";
     case "no_international":
+    case "not_shipped":
       return `This publisher doesn't ship to ${countryName(g.destination_country)} yet. Remove their titles to check out.`;
     case "no_origin":
       return "This publisher hasn't set where they ship from yet, so shipping can't be quoted. Remove their titles to check out.";

@@ -155,7 +155,11 @@ export function zoneFor(origin: string | null | undefined, destination: string |
   return 'international';
 }
 
-/** Customs incoterm: duties paid only for US-bound parcels from outside the US (decision 2). */
+/**
+ * Customs incoterm: the sender pays duties on US-bound parcels from outside
+ * the US (decision 2). A courier settles them and bills the label account; on
+ * a postal parcel the sender prepays them (see dutiesPaidFor).
+ */
 export function incotermFor(origin: string, destination: string): 'DDP' | null {
   const o = normalizeCountry(origin);
   const d = normalizeCountry(destination);
@@ -185,6 +189,53 @@ export function flatShipping(rates: FlatRates, copies: number): number | null {
   if (copies <= 0) return 0;
   const additional = rates.additionalCopyUsd ?? 0;
   return round2(rates.firstCopyUsd + (copies - 1) * additional);
+}
+
+/**
+ * Flat-rate regions. Domestic follows zoneFor; everything else is matched on
+ * the destination. intl_min_copies and checkMinimums still use zoneFor.
+ */
+export type Region = 'domestic' | 'us' | 'ca' | 'uk' | 'eu' | 'row';
+
+export const FLAT_REGIONS: { key: Region; label: string }[] = [
+  { key: 'domestic', label: 'Domestic' },
+  { key: 'us', label: 'United States' },
+  { key: 'ca', label: 'Canada' },
+  { key: 'uk', label: 'United Kingdom' },
+  { key: 'eu', label: 'European Union' },
+  { key: 'row', label: 'Rest of world' },
+];
+
+/** publishers.flat_rates: { "<region>": { "first": 8, "additional": 3 } }. A missing region is not shipped to. */
+export type FlatRatesByRegion = Partial<Record<Region, { first: number; additional?: number | null }>>;
+
+/** The named region a country belongs to, or null for Rest of world. */
+function namedRegion(country: string | null): Region | null {
+  if (country === 'US') return 'us';
+  if (country === 'CA') return 'ca';
+  if (country === 'GB') return 'uk';
+  if (isEU(country)) return 'eu';
+  return null;
+}
+
+export function regionFor(origin: string | null | undefined, destination: string | null | undefined): Region {
+  if (zoneFor(origin, destination) === 'domestic') return 'domestic';
+  return namedRegion(normalizeCountry(destination)) ?? 'row';
+}
+
+/**
+ * The region that is the publisher's own country (always quoted as Domestic),
+ * so the settings form hides it. Null for Rest-of-world origins: Rest of world
+ * still covers every other country there.
+ */
+export function originRegion(origin: string | null | undefined): Region | null {
+  return namedRegion(normalizeCountry(origin));
+}
+
+export function flatRatesFor(flatRates: FlatRatesByRegion | null | undefined, region: Region): FlatRates {
+  const r = flatRates?.[region];
+  if (!r || r.first === null || r.first === undefined) return { firstCopyUsd: null, additionalCopyUsd: null };
+  return { firstCopyUsd: Number(r.first), additionalCopyUsd: r.additional == null ? null : Number(r.additional) };
 }
 
 // ---------------------------------------------------------------------------
@@ -450,19 +501,65 @@ export function isTrackedRate(rate: CarrierRate): boolean {
 }
 
 /**
- * Cheapest tracked rate priced in USD (decision 2). Rates are charged in USD,
- * so a rate Shippo did not convert to USD is skipped rather than guessed.
+ * A rate's price in USD, or null when Shippo gave none. Shippo prices `amount`
+ * in the origin country's currency and `amount_local` in the destination's,
+ * or in whatever currency the rates were re-requested in (shippo.ts
+ * withUsdPrices). A Toronto rate is CAD in `amount`, USD in `amount_local`.
+ */
+export function usdAmount(rate: CarrierRate): number | null {
+  const pick = (amount: string | null | undefined, currency: string | null | undefined) => {
+    if ((currency || '').toUpperCase() !== 'USD') return null;
+    const n = parseFloat(amount ?? '');
+    return Number.isFinite(n) && n > 0 ? round2(n) : null;
+  };
+  return pick(rate.amount, rate.currency) ?? pick(rate.amount_local, rate.currency_local);
+}
+
+/**
+ * Cheapest tracked rate by its USD price (decision 2). Rates are charged in
+ * USD, so a rate with no USD price is skipped rather than guessed.
  */
 export function pickCheapestTrackedRate(rates: CarrierRate[] | null | undefined): CarrierRate | null {
   let best: CarrierRate | null = null;
+  let bestUsd = Infinity;
   for (const r of rates ?? []) {
-    if ((r.currency || '').toUpperCase() !== 'USD') continue;
-    const amount = parseFloat(r.amount);
-    if (!Number.isFinite(amount) || amount <= 0) continue;
-    if (!isTrackedRate(r)) continue;
-    if (!best || amount < parseFloat(best.amount)) best = r;
+    const usd = usdAmount(r);
+    if (usd === null || !isTrackedRate(r)) continue;
+    if (usd < bestUsd) {
+      best = r;
+      bestUsd = usd;
+    }
   }
   return best;
+}
+
+/**
+ * Couriers that clear US customs and bill the duties back to the label's
+ * account when the declaration says DDP. Postal services don't: since the
+ * US ended de minimis (Aug 29, 2025) the sender must prepay duties before a
+ * postal parcel is accepted (Canada Post through Zonos, for example).
+ */
+const DUTY_PREPAYING_CARRIERS = /^(ups|fedex|dhl_express)(_|$)/;
+
+export function carrierPrepaysDuties(rate: Pick<CarrierRate, 'provider' | 'servicelevel'>): boolean {
+  const token = (rate.servicelevel?.token ?? '').toLowerCase();
+  if (DUTY_PREPAYING_CARRIERS.test(token)) return true;
+  return /^(ups|fedex|dhl express)$/i.test((rate.provider ?? '').trim());
+}
+
+/** "Duties paid" is only true when the parcel needs it and the carrier actually does it. */
+export function dutiesPaidFor(origin: string | null | undefined, destination: string | null | undefined, rate: Pick<CarrierRate, 'provider' | 'servicelevel'>): boolean {
+  if (!origin || !destination || !incotermFor(origin, destination)) return false;
+  return carrierPrepaysDuties(rate);
+}
+
+/**
+ * The publisher prepays US duties themselves: a US-bound parcel from outside
+ * the US that no duty-paying courier is carrying (a postal label, or their
+ * own postage).
+ */
+export function senderPrepaysDuties(origin: string | null | undefined, destination: string | null | undefined, dutiesPaid: boolean): boolean {
+  return !!origin && !!destination && !!incotermFor(origin, destination) && !dutiesPaid;
 }
 
 /** Human label for a rate, e.g. "Colissimo, duties paid". */

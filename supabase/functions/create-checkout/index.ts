@@ -63,6 +63,7 @@ function blockedMessage(g: QuoteGroup): string {
       }
       return `${countryShortName(g.destination_country)} minimum ${g.intl_minimum} copies from ${g.publisher_name}. Add ${g.intl_short} more.`
     case 'no_international':
+    case 'not_shipped':
       return `${g.publisher_name} doesn't ship to ${countryName(g.destination_country)} yet. Remove their titles to check out.`
     case 'no_origin':
       return `${g.publisher_name} hasn't set where they ship from yet, so shipping can't be quoted. Remove their titles to check out.`

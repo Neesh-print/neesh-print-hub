@@ -17,18 +17,20 @@
  * Reprint is free: a shipment that already has a label returns the same URL.
  */
 import { adminClient, corsHeaders, getCaller, json } from '../_shared/http.ts'
-import { createShippoClient, ShippoError } from '../_shared/shippo.ts'
+import { createShippoClient, ShippoError, withUsdPrices } from '../_shared/shippo.ts'
 import { loadShipsFrom } from '../_shared/shipping-quote.ts'
 import { details, renderEmail } from '../_shared/email.ts'
 import {
   LABEL_RERATE_TOLERANCE,
   buildCustomsDeclaration,
   buildParcel,
+  dutiesPaidFor,
   isLabelReadyAddress,
   isTrackedRate,
   pickCheapestTrackedRate,
   round2,
   shippingSplit,
+  usdAmount,
   type CarrierRate,
   type Parcel,
   type ShipAddress,
@@ -201,10 +203,11 @@ Deno.serve(async (req) => {
     })
 
     const fresh = await shippo.createShipment({ from: origin, to: destination, parcel, customs, metadata: reference })
-    const usd = (fresh.rates ?? []).filter((r: CarrierRate) => (r.currency || '').toUpperCase() === 'USD' && isTrackedRate(r))
+    // Rates from outside the US come back in CAD, EUR or GBP; price them all in USD.
+    const usd = (await withUsdPrices(shippo, fresh)).filter((r: CarrierRate) => usdAmount(r) !== null && isTrackedRate(r))
     const sameService = shipment.service_token
       ? usd.filter((r) => r.servicelevel?.token === shipment.service_token)
-          .sort((a, b) => parseFloat(a.amount) - parseFloat(b.amount))[0] ?? null
+          .sort((a, b) => usdAmount(a)! - usdAmount(b)!)[0] ?? null
       : null
     const rate = sameService ?? pickCheapestTrackedRate(usd)
     if (!rate) {
@@ -215,7 +218,8 @@ Deno.serve(async (req) => {
       return json({ error: "We couldn't get a label rate right now. Neesh has been told and will sort it out." }, 409, cors)
     }
 
-    const labelCost = round2(parseFloat(rate.amount))
+    const labelCost = round2(usdAmount(rate)!)
+    const dutiesPaid = dutiesPaidFor(origin.country, destination.country, rate)
     const paid = Number(shipment.shipping_usd)
     if (labelCost > paid * (1 + LABEL_RERATE_TOLERANCE)) {
       const reason = `Label ${labelCost.toFixed(2)} USD vs ${paid.toFixed(2)} USD paid by the space`
@@ -247,6 +251,7 @@ Deno.serve(async (req) => {
       service: rate.servicelevel?.name ?? null,
       service_token: rate.servicelevel?.token ?? null,
       tracking_number: tx.tracking_number ?? null,
+      duties_paid: dutiesPaid,
       parcel,
       customs,
     }).eq('id', shipment.id)
@@ -268,7 +273,18 @@ Deno.serve(async (req) => {
       .eq('status', 'pending')
       .eq('hold_reason', 'awaiting_label')
 
-    console.log(`buy-label: shipment ${shipment.id} transaction ${tx.object_id} cost ${labelCost}`)
+    // A courier clearing US customs bills the duties and its own handling fee to
+    // the Shippo account weeks later. That cost isn't in the label price, so flag it.
+    // The label is bought by now, so a failed alert must not fail the request.
+    if (dutiesPaid) {
+      await alertNeesh('Courier will bill US duties', `${carrier} carries shipment ${shipment.id} into the US with duties paid. The carrier bills duties and its duty-handling fee to the Shippo account after delivery; they are not in the label cost.`, [
+        ['Shipment', shipment.id], ['Publisher', publisher.company_name ?? ''], ['Carrier', carrier],
+        ['Label cost', `$${labelCost.toFixed(2)}`], ['Shippo transaction', tx.object_id],
+      ]).catch((err) => console.error('buy-label: duties alert failed:', err instanceof Error ? err.message : err))
+    }
+
+    const priced = (rate.currency || '').toUpperCase() === 'USD' ? '' : ` (carrier price ${rate.amount} ${rate.currency})`
+    console.log(`buy-label: shipment ${shipment.id} transaction ${tx.object_id} cost ${labelCost} USD${priced}`)
     return json({
       success: true,
       label_url: tx.label_url,
@@ -276,6 +292,7 @@ Deno.serve(async (req) => {
       tracking_number: tx.tracking_number ?? null,
       carrier,
       label_cost_usd: labelCost,
+      duties_paid: dutiesPaid,
     }, 200, cors)
   } catch (err) {
     if (err instanceof ShippoError) {

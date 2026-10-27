@@ -14,24 +14,27 @@ import {
   buildParcel,
   checkMinimums,
   destinationKey,
+  dutiesPaidFor,
+  flatRatesFor,
   flatShipping,
-  incotermFor,
   isQuotableAddress,
   itemsKey,
   normalizeCountry,
   pickCheapestTrackedRate,
   rateCacheKey,
-  round2,
+  regionFor,
+  usdAmount,
   zoneFor,
   type CarrierRate,
   type CustomsDeclaration,
+  type FlatRatesByRegion,
   type PackagingPreset,
   type Parcel,
   type ShipAddress,
   type TitleShortfall,
   type Zone,
 } from './shipping.ts'
-import type { ShippoClient } from './shippo.ts'
+import { withUsdPrices, type ShippoClient } from './shippo.ts'
 
 type Admin = ReturnType<typeof createClient>
 
@@ -42,6 +45,7 @@ export interface CartLine {
 
 export type BlockedReason =
   | 'no_international'
+  | 'not_shipped'
   | 'no_origin'
   | 'missing_weight'
   | 'no_rate'
@@ -50,8 +54,11 @@ export type BlockedReason =
 
 export interface LiveRate {
   shippingUsd: number
+  /** The carrier's own price and currency before conversion (CAD 31.01 for a Toronto rate). */
   amountLocal: number | null
   currencyLocal: string | null
+  /** True only when a duty-paying courier carries a US-bound parcel from abroad. */
+  dutiesPaid: boolean
   carrier: string
   service: string | null
   serviceToken: string | null
@@ -109,10 +116,7 @@ interface PublisherRow {
   company_name: string | null
   ships_from_country: string | null
   shipping_rate_mode: 'live' | 'flat'
-  domestic_first_copy_usd: number | null
-  domestic_additional_copy_usd: number | null
-  intl_first_copy_usd: number | null
-  intl_additional_copy_usd: number | null
+  flat_rates: FlatRatesByRegion | null
   ships_internationally: boolean
   uses_neesh_labels: boolean
   packaging_preset: PackagingPreset
@@ -214,12 +218,14 @@ export async function liveRate(
       parcel: input.parcel,
       customs: input.customs,
     })
-    const best: CarrierRate | null = pickCheapestTrackedRate(shipment.rates)
-    if (best) {
+    const best: CarrierRate | null = pickCheapestTrackedRate(await withUsdPrices(shippo, shipment))
+    const bestUsd = best ? usdAmount(best) : null
+    if (best && bestUsd !== null) {
       rate = {
-        shippingUsd: round2(parseFloat(best.amount)),
-        amountLocal: num(best.amount_local),
-        currencyLocal: best.currency_local ?? null,
+        shippingUsd: bestUsd,
+        amountLocal: num(best.amount),
+        currencyLocal: best.currency ?? null,
+        dutiesPaid: dutiesPaidFor(input.origin.country, input.destination.country, best),
         carrier: best.provider,
         service: best.servicelevel?.name ?? null,
         serviceToken: best.servicelevel?.token ?? null,
@@ -282,7 +288,7 @@ export async function quoteCart(opts: {
   const publisherIds = [...byPublisher.keys()]
   const { data: publisherRows } = await admin
     .from('publishers')
-    .select('id, company_name, ships_from_country, shipping_rate_mode, domestic_first_copy_usd, domestic_additional_copy_usd, intl_first_copy_usd, intl_additional_copy_usd, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies')
+    .select('id, company_name, ships_from_country, shipping_rate_mode, flat_rates, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies')
     .in('id', publisherIds.length ? publisherIds : ['00000000-0000-0000-0000-000000000000'])
   const publishers = new Map((publisherRows as PublisherRow[] | null ?? []).map((p) => [p.id, p]))
 
@@ -374,11 +380,9 @@ export async function quoteCart(opts: {
     let customs: CustomsDeclaration | null = null
 
     if (pub.shipping_rate_mode === 'flat') {
-      shippingUsd = flatShipping(zone === 'domestic'
-        ? { firstCopyUsd: num(pub.domestic_first_copy_usd), additionalCopyUsd: num(pub.domestic_additional_copy_usd) }
-        : { firstCopyUsd: num(pub.intl_first_copy_usd), additionalCopyUsd: num(pub.intl_additional_copy_usd) },
-        minimums.copies)
-      if (shippingUsd === null) { group.blocked_reason = 'no_rate'; continue }
+      shippingUsd = flatShipping(flatRatesFor(pub.flat_rates, regionFor(originCountry, destCountry)), minimums.copies)
+      // A blank region in the publisher's flat rates: they don't ship there.
+      if (shippingUsd === null) { group.blocked_reason = 'not_shipped'; continue }
     } else {
       if (!origin) { group.blocked_reason = 'no_origin'; continue }
       if (!parcel) { group.blocked_reason = 'missing_weight'; continue }
@@ -397,7 +401,6 @@ export async function quoteCart(opts: {
       shippingUsd = live.shippingUsd
     }
 
-    const dutiesPaid = !!(originCountry && incotermFor(originCountry, destCountry))
     Object.assign(group, {
       can_ship: true,
       shipping_usd: shippingUsd,
@@ -405,7 +408,8 @@ export async function quoteCart(opts: {
       carrier: live?.carrier ?? null,
       service: live?.service ?? null,
       estimated_days: live?.estimatedDays ?? null,
-      duties_paid: live ? dutiesPaid : false,
+      // Rates cached before this field existed read as not duties paid.
+      duties_paid: !!live?.dutiesPaid,
     })
 
     if (opts.persist) {

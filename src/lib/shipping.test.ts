@@ -11,6 +11,10 @@ import {
   incotermFor,
   needsCustoms,
   flatShipping,
+  flatRatesFor,
+  regionFor,
+  originRegion,
+  type FlatRatesByRegion,
   landedMargin,
   marginBand,
   breakEvenCopies,
@@ -109,6 +113,83 @@ describe("flat rates", () => {
 
   it("returns null when the zone is unset", () => {
     expect(flatShipping({ firstCopyUsd: null, additionalCopyUsd: null }, 3)).toBeNull();
+  });
+});
+
+describe("regions", () => {
+  it("resolves the spec examples", () => {
+    expect(regionFor("CA", "US")).toBe("us");
+    expect(regionFor("CA", "DE")).toBe("eu");
+    expect(regionFor("DE", "FR")).toBe("domestic");
+    expect(regionFor("GB", "NL")).toBe("eu");
+    expect(regionFor("CA", "AU")).toBe("row");
+  });
+
+  it("follows zoneFor for domestic, including names", () => {
+    expect(regionFor("CA", "Canada")).toBe("domestic");
+    expect(regionFor("US", "United States")).toBe("domestic");
+    expect(regionFor("FR", "GB")).toBe("uk");
+    expect(regionFor("US", "CA")).toBe("ca");
+    expect(regionFor("CA", "CH")).toBe("row");
+  });
+
+  it("falls back to the destination when the origin is unknown", () => {
+    expect(regionFor(null, "US")).toBe("us");
+    expect(regionFor("Atlantis", "AU")).toBe("row");
+    expect(regionFor("CA", null)).toBe("row");
+    expect(regionFor("CA", "Atlantis")).toBe("row");
+  });
+
+  it("hides only a named region for the origin", () => {
+    expect(originRegion("CA")).toBe("ca");
+    expect(originRegion("DE")).toBe("eu");
+    expect(originRegion("GB")).toBe("uk");
+    expect(originRegion("AU")).toBeNull();
+    expect(originRegion(null)).toBeNull();
+  });
+});
+
+describe("per-region flat rates", () => {
+  const toronto: FlatRatesByRegion = {
+    domestic: { first: 9, additional: 3 },
+    us: { first: 6, additional: 2 },
+    eu: { first: 10, additional: 3 },
+    uk: { first: 8 },
+  };
+  const quote = (dest: string, copies: number) => flatShipping(flatRatesFor(toronto, regionFor("CA", dest)), copies);
+
+  it("prices each region as first plus each additional", () => {
+    expect(quote("US", 5)).toBe(14);
+    expect(quote("DE", 5)).toBe(22);
+    expect(quote("CA", 5)).toBe(21);
+  });
+
+  it("treats a missing extra-copy rate as 0", () => {
+    expect(quote("GB", 5)).toBe(8);
+  });
+
+  it("returns null for a blank region", () => {
+    expect(quote("AU", 5)).toBeNull();
+    expect(flatRatesFor({}, "us")).toEqual({ firstCopyUsd: null, additionalCopyUsd: null });
+    expect(flatRatesFor(null, "us")).toEqual({ firstCopyUsd: null, additionalCopyUsd: null });
+  });
+
+  it("matches the old domestic/international quotes after the backfill", () => {
+    // Orbital Studies: domestic 9 + 3, international 8 + 3, copied into every region.
+    const backfilled: FlatRatesByRegion = {
+      domestic: { first: 9, additional: 3 },
+      us: { first: 8, additional: 3 }, ca: { first: 8, additional: 3 }, uk: { first: 8, additional: 3 },
+      eu: { first: 8, additional: 3 }, row: { first: 8, additional: 3 },
+    };
+    const old = { domestic: { firstCopyUsd: 9, additionalCopyUsd: 3 }, international: { firstCopyUsd: 8, additionalCopyUsd: 3 } };
+    for (const origin of ["CA", "DE", "AU", null]) {
+      for (const dest of ["US", "DE", "AU", "CA", "GB", "FR"]) {
+        for (const copies of [1, 5, 10]) {
+          expect(flatShipping(flatRatesFor(backfilled, regionFor(origin, dest)), copies))
+            .toBe(flatShipping(old[zoneFor(origin, dest)], copies));
+        }
+      }
+    }
   });
 });
 
