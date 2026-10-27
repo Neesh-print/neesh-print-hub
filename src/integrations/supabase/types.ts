@@ -748,6 +748,7 @@ export type Database = {
           magazine_id: string
           notes: string | null
           payment_intent_id: string | null
+          payment_status: string
           quantity: number
           retailer_id: string
           shipment_id: string | null
@@ -768,6 +769,7 @@ export type Database = {
           magazine_id: string
           notes?: string | null
           payment_intent_id?: string | null
+          payment_status?: string
           quantity: number
           retailer_id: string
           shipment_id?: string | null
@@ -788,6 +790,7 @@ export type Database = {
           magazine_id?: string
           notes?: string | null
           payment_intent_id?: string | null
+          payment_status?: string
           quantity?: number
           retailer_id?: string
           shipment_id?: string | null

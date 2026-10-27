@@ -576,10 +576,7 @@ Deno.serve(async (req) => {
         let disputePayouts: PayoutProtectionResult = { affected: 0, alreadyPaid: 0 }
         if (dispute.payment_intent) {
           const paymentIntentId = idOf(dispute.payment_intent)
-          await supabaseAdmin
-            .from('orders')
-            .update({ status: 'disputed' })
-            .eq('payment_intent_id', paymentIntentId)
+          await markOrdersDisputed(supabaseAdmin, paymentIntentId)
 
           // Hold unpaid payouts until the dispute closes; flag ones already sent.
           disputePayouts = await protectPayouts(supabaseAdmin, paymentIntentId, {
@@ -635,12 +632,13 @@ Deno.serve(async (req) => {
           // Check if fully or partially refunded
           isFullRefund = charge.amount_refunded === charge.amount
 
-          await supabaseAdmin
-            .from('orders')
-            .update({ status: isFullRefund ? 'refunded' : 'partially_refunded' })
-            .eq('payment_intent_id', paymentIntentId)
-
-          console.log(`Marked orders as ${isFullRefund ? 'refunded' : 'partially_refunded'}`)
+          // A full refund marks the payment refunded and cancels orders that
+          // haven't shipped, so publishers don't send them. A partial refund
+          // can't be traced to specific orders, so orders are left as they are
+          // (their payouts are held for review below).
+          if (isFullRefund) {
+            await markOrdersRefunded(supabaseAdmin, paymentIntentId)
+          }
 
           // A full refund cancels every unpaid payout for the purchase. A
           // partial refund can't be traced to specific orders, so hold the
@@ -1226,6 +1224,34 @@ async function protectPayouts(
   return result
 }
 
+// Marks a purchase's orders disputed (payment side only; fulfilment status is
+// left as it is). Logged, not thrown: payout protection matters more.
+async function markOrdersDisputed(supabaseAdmin: SupabaseAdmin, paymentIntentId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('orders')
+    .update({ payment_status: 'disputed' })
+    .eq('payment_intent_id', paymentIntentId)
+    .eq('payment_status', 'paid')
+  if (error) console.error('Failed to mark orders disputed:', error)
+}
+
+// A full refund marks the payment refunded and cancels orders that haven't
+// shipped, so publishers don't send them. Logged, not thrown.
+async function markOrdersRefunded(supabaseAdmin: SupabaseAdmin, paymentIntentId: string): Promise<void> {
+  const { error: refundError } = await supabaseAdmin
+    .from('orders')
+    .update({ payment_status: 'refunded' })
+    .eq('payment_intent_id', paymentIntentId)
+  if (refundError) console.error('Failed to mark orders refunded:', refundError)
+
+  const { error: cancelError } = await supabaseAdmin
+    .from('orders')
+    .update({ status: 'cancelled' })
+    .eq('payment_intent_id', paymentIntentId)
+    .in('status', ['pending', 'paid', 'processing'])
+  if (cancelError) console.error('Failed to cancel refunded orders:', cancelError)
+}
+
 // Applies refund or dispute protection to payouts just created for a
 // purchase whose charge was already refunded or disputed (that event arrived
 // first and found nothing to protect). Throws on errors so Stripe retries.
@@ -1240,11 +1266,13 @@ async function protectNewPayouts(
   if (!charge || typeof charge === 'string') return
 
   if (charge.disputed) {
+    await markOrdersDisputed(supabaseAdmin, paymentIntentId)
     await protectPayouts(supabaseAdmin, paymentIntentId, {
       kind: 'hold', holdReason: 'dispute', reversalReason: DISPUTE_REVERSAL_REASON,
     })
   }
   if (charge.amount_refunded > 0) {
+    if (charge.amount_refunded === charge.amount) await markOrdersRefunded(supabaseAdmin, paymentIntentId)
     await protectPayouts(
       supabaseAdmin,
       paymentIntentId,
@@ -1319,9 +1347,9 @@ async function resolveDisputedPayouts(
 
     const { error: orderError } = await supabaseAdmin
       .from('orders')
-      .update({ status: 'paid' })
+      .update({ payment_status: 'paid' })
       .in('id', orderIds)
-      .eq('status', 'disputed')
+      .eq('payment_status', 'disputed')
 
     if (orderError) throw orderError
   }

@@ -12,6 +12,9 @@ export type StatusType =
   | 'delivered'
   | 'paid'
   | 'cancelled'
+  // Payment outcomes recorded by stripe-webhook (orders.payment_status)
+  | 'refunded'
+  | 'disputed'
   // Space margin bands (shipping_v2): Loss / Thin / Healthy
   | 'margin-loss'
   | 'margin-thin'
@@ -74,6 +77,14 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
   'paid': {
     label: 'PAID',
     className: 'bg-status-success text-status-success-text',
+  },
+  'refunded': {
+    label: 'REFUNDED',
+    className: 'bg-status-neutral text-status-neutral-text',
+  },
+  'disputed': {
+    label: 'DISPUTED',
+    className: 'bg-status-error text-status-error-text',
   },
   'margin-loss': {
     label: 'LOSS',

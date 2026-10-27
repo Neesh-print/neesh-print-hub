@@ -98,8 +98,10 @@ export const RetailerOrdersList = () => {
       header: "Payment",
       render: (_, row) => {
         const isPaid = row.payment_status === "paid";
-        const status: StatusType = isPaid ? "payment-sent" : "payment-pending";
-        const label = isPaid ? "PAYMENT SENT" : "PAYMENT PENDING";
+        const isRefunded = row.payment_status === "refunded";
+        const isDisputed = row.payment_status === "disputed";
+        const status: StatusType = isRefunded ? "refunded" : isDisputed ? "disputed" : isPaid ? "payment-sent" : "payment-pending";
+        const label = isRefunded ? "REFUNDED" : isDisputed ? "DISPUTED" : isPaid ? "PAYMENT SENT" : "PAYMENT PENDING";
         return (
           <div className="flex items-center gap-2">
             <StatusBadge status={status} label={label} />
