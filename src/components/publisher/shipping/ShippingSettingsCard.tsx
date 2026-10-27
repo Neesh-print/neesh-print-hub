@@ -222,6 +222,11 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
           </label>
         ))}
       </div>
+      {country && country !== "US" && (
+        <p className="text-caption text-muted-foreground mt-2">
+          Parcels to the US: by post, you prepay US duties before posting (Canada Post uses Zonos). When UPS, FedEx or DHL Express carries a parcel, duties are handled for you.
+        </p>
+      )}
       {noLiveRate && (
         <p className="text-caption text-status-pending-text mt-2">
           No live carrier rate from {countryName(country)} right now. Use your own flat rates so spaces can check out.

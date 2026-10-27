@@ -11,7 +11,7 @@ import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddr
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CUSTOMS_DESCRIPTION, PACKAGING_OPTIONS, needsCustoms } from "@/lib/shipping";
+import { CUSTOMS_DESCRIPTION, PACKAGING_OPTIONS, needsCustoms, senderPrepaysDuties } from "@/lib/shipping";
 import { money } from "@/lib/shippingCopy";
 
 interface OrderShipment {
@@ -421,6 +421,11 @@ export const PublisherOrderDetail = () => {
                   <span className="text-muted-foreground">Customs</span>
                   <span>{CUSTOMS_DESCRIPTION}, 4902.90</span>
                 </div>
+              )}
+              {senderPrepaysDuties(shipment.origin_country, shipment.destination_country, shipment.duties_paid) && (
+                <p className="text-caption text-status-pending-text py-1">
+                  Prepay US duties before you post this. Since August 2025, postal parcels into the US need duties paid by the sender (Canada Post asks for a Zonos Declaration ID). Couriers such as UPS, FedEx and DHL Express handle this for you.
+                </p>
               )}
               {shipment.uses_neesh_labels ? (
                 <>

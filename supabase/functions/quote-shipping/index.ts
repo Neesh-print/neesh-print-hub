@@ -22,7 +22,6 @@ import {
   REFERENCE_US_ADDRESS,
   buildCustomsDeclaration,
   buildParcel,
-  incotermFor,
   isQuotableAddress,
   normalizeCountry,
   type PackagingPreset,
@@ -106,7 +105,7 @@ Deno.serve(async (req) => {
           carrier: rate?.carrier ?? null,
           service: rate?.service ?? null,
           estimated_days: rate?.estimatedDays ?? null,
-          duties_paid: !!(rate && incotermFor(origin.country, destination.country)),
+          duties_paid: !!rate?.dutiesPaid,
         })
       }
       return json({

@@ -14,16 +14,16 @@ import {
   buildParcel,
   checkMinimums,
   destinationKey,
+  dutiesPaidFor,
   flatRatesFor,
   flatShipping,
-  incotermFor,
   isQuotableAddress,
   itemsKey,
   normalizeCountry,
   pickCheapestTrackedRate,
   rateCacheKey,
   regionFor,
-  round2,
+  usdAmount,
   zoneFor,
   type CarrierRate,
   type CustomsDeclaration,
@@ -34,7 +34,7 @@ import {
   type TitleShortfall,
   type Zone,
 } from './shipping.ts'
-import type { ShippoClient } from './shippo.ts'
+import { withUsdPrices, type ShippoClient } from './shippo.ts'
 
 type Admin = ReturnType<typeof createClient>
 
@@ -54,8 +54,11 @@ export type BlockedReason =
 
 export interface LiveRate {
   shippingUsd: number
+  /** The carrier's own price and currency before conversion (CAD 31.01 for a Toronto rate). */
   amountLocal: number | null
   currencyLocal: string | null
+  /** True only when a duty-paying courier carries a US-bound parcel from abroad. */
+  dutiesPaid: boolean
   carrier: string
   service: string | null
   serviceToken: string | null
@@ -215,12 +218,14 @@ export async function liveRate(
       parcel: input.parcel,
       customs: input.customs,
     })
-    const best: CarrierRate | null = pickCheapestTrackedRate(shipment.rates)
-    if (best) {
+    const best: CarrierRate | null = pickCheapestTrackedRate(await withUsdPrices(shippo, shipment))
+    const bestUsd = best ? usdAmount(best) : null
+    if (best && bestUsd !== null) {
       rate = {
-        shippingUsd: round2(parseFloat(best.amount)),
-        amountLocal: num(best.amount_local),
-        currencyLocal: best.currency_local ?? null,
+        shippingUsd: bestUsd,
+        amountLocal: num(best.amount),
+        currencyLocal: best.currency ?? null,
+        dutiesPaid: dutiesPaidFor(input.origin.country, input.destination.country, best),
         carrier: best.provider,
         service: best.servicelevel?.name ?? null,
         serviceToken: best.servicelevel?.token ?? null,
@@ -396,7 +401,6 @@ export async function quoteCart(opts: {
       shippingUsd = live.shippingUsd
     }
 
-    const dutiesPaid = !!(originCountry && incotermFor(originCountry, destCountry))
     Object.assign(group, {
       can_ship: true,
       shipping_usd: shippingUsd,
@@ -404,7 +408,8 @@ export async function quoteCart(opts: {
       carrier: live?.carrier ?? null,
       service: live?.service ?? null,
       estimated_days: live?.estimatedDays ?? null,
-      duties_paid: live ? dutiesPaid : false,
+      // Rates cached before this field existed read as not duties paid.
+      duties_paid: !!live?.dutiesPaid,
     })
 
     if (opts.persist) {
