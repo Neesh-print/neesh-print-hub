@@ -1,9 +1,16 @@
-// delete-user-data: full account + upload deletion.
-// Caller must be the user themselves or an admin. Deletes, in order:
-//   1. the user's folders in the three public storage buckets
-//   2. their rows in application/marketplace tables (service role)
-//   3. the auth user (last, so a partial failure can be retried)
+// delete-user-data: close an account.
+// Caller must be the user themselves or an admin. In order:
+//   1. public.close_user_account() de-identifies the account in one
+//      transaction. It keeps the rows that orders, invoices and payouts hang
+//      off (the privacy policy keeps those records for seven years), deletes
+//      data that is only personal, and refuses while orders are open,
+//      invoices unpaid or payouts pending.
+//   2. the user's folder in retailer-profiles (profile photos). Magazine
+//      covers and product images stay: past orders still show them.
+//   3. the auth user (last, so a partial failure can be retried; closing an
+//      already closed account is a no-op).
 // POST body: { "userId": "<uuid>" } (optional for self-deletion; defaults to caller)
+// Refusals come back as 409 { code, error }.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -13,7 +20,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const BUCKETS = ['magazine-assets', 'product-images', 'retailer-profiles']
+const PERSONAL_BUCKETS = ['retailer-profiles']
+
+const plural = (n: string, one: string, many: string) => (n === '1' ? `is 1 ${one}` : `are ${n} ${many}`)
+
+const REFUSALS: Record<string, (n: string) => string> = {
+  open_orders: (n) =>
+    `There ${plural(n, 'open order', 'open orders')} on this account. It can be closed once every order has shipped or been cancelled.`,
+  unpaid_invoices: (n) =>
+    `There ${plural(n, 'unpaid invoice', 'unpaid invoices')} on this account. It can be closed once they are paid.`,
+  pending_payouts: (n) =>
+    `There ${plural(n, 'pending payout', 'pending payouts')} on this account. It can be closed once they have been paid out.`,
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -47,7 +65,7 @@ Deno.serve(async (req) => {
 
     // ---- Authorize: self, or admin per public.users.role ----
     const body = await req.json().catch(() => ({}))
-    const targetUserId: string = (body.userId ?? caller.id).trim()
+    const targetUserId: string = String(body.userId ?? caller.id).trim()
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId)) {
       return json({ error: 'Invalid userId' }, 400)
     }
@@ -61,11 +79,26 @@ Deno.serve(async (req) => {
 
     const report: Record<string, unknown> = { userId: targetUserId }
 
-    // ---- 1. Storage: remove {userId}/** from each public bucket ----
+    // ---- 1. Database: de-identify in one transaction ----
+    const { data: closed, error: closeError } = await admin.rpc('close_user_account', { p_user_id: targetUserId })
+    if (closeError) {
+      const message = closeError.message ?? ''
+      const [code, count] = message.split(':')
+      if (REFUSALS[code]) {
+        return json({ code, error: REFUSALS[code](count ?? '') }, 409)
+      }
+      if (message.includes('admin accounts')) {
+        return json({ code: 'admin_account', error: 'Admin accounts are closed by hand. Remove the admin role first.' }, 409)
+      }
+      console.error('delete-user-data close_user_account failed:', closeError)
+      return json({ error: 'Could not close the account. Nothing was changed.' }, 500)
+    }
+    report.database = closed
+
+    // ---- 2. Storage: remove {userId}/** from the personal buckets ----
     const removedByBucket: Record<string, number> = {}
-    for (const bucket of BUCKETS) {
+    for (const bucket of PERSONAL_BUCKETS) {
       let removed = 0
-      // list is per-folder; walk the user's known subfolders plus the root of their prefix
       const stack = [targetUserId]
       while (stack.length) {
         const prefix = stack.pop()!
@@ -89,42 +122,16 @@ Deno.serve(async (req) => {
     }
     report.storageRemoved = removedByBucket
 
-    // ---- 2. Database rows (children before parents; FK-safe order) ----
-    // Collect the user's email for application-table cleanup
-    const { data: userRow } = await admin.from('users').select('email').eq('id', targetUserId).single()
-    const email = userRow?.email ?? caller.email ?? null
-
-    const deletions: Array<[string, string, string | null]> = [
-      ['user_wishlists', 'user_id', null],
-      ['stock_notifications', 'user_id', null],
-      ['notifications', 'user_id', null],
-      ['notification_preferences', 'user_id', null],
-      ['shipping_addresses', 'user_id', null],
-      ['conversation_participants', 'user_id', null],
-      ['profiles', 'user_id', null],
-      ['retailers', 'user_id', null],
-      ['publishers', 'user_id', null],
-      ['users', 'id', null],
-    ]
-    const dbReport: Record<string, string> = {}
-    for (const [table, column] of deletions) {
-      const { error } = await admin.from(table).delete().eq(column, targetUserId)
-      dbReport[table] = error ? `error: ${error.message}` : 'ok'
-    }
-    if (email) {
-      const { error: raError } = await admin.from('retailer_applications').delete().eq('buyer_email', email)
-      dbReport['retailer_applications'] = raError ? `error: ${raError.message}` : 'ok'
-      const { error: paError } = await admin.from('publisher_applications').delete().eq('email', email)
-      dbReport['publisher_applications'] = paError ? `error: ${paError.message}` : 'ok'
-    }
-    report.database = dbReport
-
     // ---- 3. Auth user (last) ----
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(targetUserId)
-    report.authUser = authDeleteError ? `error: ${authDeleteError.message}` : 'deleted'
+    const authGone = !authDeleteError || /not.?found/i.test(authDeleteError.message ?? '')
+    report.authUser = authGone ? 'deleted' : `error: ${authDeleteError!.message}`
 
     console.log('delete-user-data report:', JSON.stringify(report))
-    return json({ success: !authDeleteError, report })
+    if (!authGone) {
+      return json({ success: false, error: 'The account was closed but the login could not be removed. Try again.', report }, 500)
+    }
+    return json({ success: true, report })
   } catch (error) {
     console.error('delete-user-data fatal:', error)
     return json({ error: (error as Error).message ?? 'Internal error' }, 500)

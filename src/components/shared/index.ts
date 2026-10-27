@@ -8,3 +8,4 @@ export { OnboardingChecklist } from './OnboardingChecklist';
 export { ScrollToTop } from './ScrollToTop';
 export * from './SegmentedProgressBar';
 export { ChangePasswordModal } from './ChangePasswordModal';
+export { DeleteAccountSection } from './DeleteAccountSection';

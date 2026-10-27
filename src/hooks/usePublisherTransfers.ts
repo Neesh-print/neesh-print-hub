@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+export type PublisherTransferStatus = 'pending' | 'processing' | 'transferred' | 'failed' | 'cancelled';
+
 export interface PublisherTransfer {
   id: string;
   publisher_id: string;
@@ -9,12 +11,16 @@ export interface PublisherTransfer {
   /** goods = copies, shipping = the parcel's shipping (shipping_v2) */
   kind: 'goods' | 'shipping';
   shipment_id: string | null;
-  hold_reason: string | null;
   stripe_session_id: string | null;
   gross_amount: number;
   platform_fee: number;
   net_amount: number;
-  status: 'pending' | 'transferred' | 'failed';
+  status: PublisherTransferStatus;
+  // Set while a payout is held: net-terms invoice, refund review, or dispute.
+  hold_reason: string | null;
+  // Payout already sent, but the order was later refunded or disputed.
+  reversal_needed: boolean;
+  reversal_reason: string | null;
   stripe_transfer_id: string | null;
   released_by: string | null;
   released_at: string | null;
@@ -33,7 +39,7 @@ export interface PublisherTransfer {
 
 interface UsePublisherTransfersOptions {
   publisherId?: string;
-  status?: 'pending' | 'transferred' | 'failed';
+  status?: PublisherTransferStatus;
   /** Include shipping transfers and parcel details (needs the shipping_v2 migration). */
   withShipping?: boolean;
 }
@@ -92,7 +98,10 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
           gross_amount: Number(row.gross_amount),
           platform_fee: Number(row.platform_fee),
           net_amount: Number(row.net_amount),
-          status: row.status as 'pending' | 'transferred' | 'failed',
+          status: row.status as PublisherTransferStatus,
+          hold_reason: (row.hold_reason as string | null) ?? null,
+          reversal_needed: Boolean(row.reversal_needed),
+          reversal_reason: (row.reversal_reason as string | null) ?? null,
           stripe_transfer_id: row.stripe_transfer_id as string | null,
           released_by: row.released_by as string | null,
           released_at: row.released_at as string | null,

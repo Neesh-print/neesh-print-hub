@@ -44,7 +44,13 @@ export const PublisherTransactionHistory = () => {
         ? "Completed"
         : t.status === "failed"
           ? "Failed"
-          : "Pending";
+          : t.status === "cancelled"
+            ? "Cancelled"
+            : t.status === "processing"
+              ? "Processing"
+              : t.hold_reason && t.hold_reason !== "awaiting_invoice_payment"
+                ? "On hold"
+                : "Pending";
 
       const type = t.status === "transferred" ? "bank" : "store";
       if (!shippingV2) {

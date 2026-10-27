@@ -33,16 +33,11 @@ function getCorsHeaders(origin: string | null) {
   };
 }
 
-interface CartItem {
-  magazine_id: string
-  quantity: number
-}
+// Retailers pay wholesale + 10%. Must match the markup in create-checkout.
+const RETAILER_MARKUP = 1.10
 
-// Also accept minimized format from create-checkout metadata
-interface MinimizedCartItem {
-  id: string
-  qty: number
-}
+// Publisher receives 90% of wholesale (Neesh takes 10% from the publisher side)
+const PUBLISHER_SHARE = 0.90
 
 Deno.serve(async (req) => {
   console.log('Stripe webhook request received');
@@ -154,9 +149,8 @@ Deno.serve(async (req) => {
 
         // Get metadata from the session
         const retailerId = session.metadata?.retailer_id
-        const cartItemsJson = session.metadata?.cart_items
 
-        if (!retailerId || !cartItemsJson) {
+        if (!retailerId) {
           console.error('Missing required metadata in session:', session.metadata)
           return new Response(
             JSON.stringify({ error: 'Invalid session metadata' }),
@@ -213,24 +207,22 @@ Deno.serve(async (req) => {
              return new Response(JSON.stringify({ received: true }), { headers: corsHeaders, status: 200 });
         }
 
-        let cartItems: CartItem[];
-        try {
-             const parsed = JSON.parse(cartItemsJson);
-             // Support both minimized format ({id, qty}) and full format ({magazine_id, quantity})
-             cartItems = parsed.map((item: CartItem | MinimizedCartItem) => ({
-               magazine_id: (item as CartItem).magazine_id || (item as MinimizedCartItem).id,
-               quantity: (item as CartItem).quantity ?? (item as MinimizedCartItem).qty,
-             }));
-        } catch (e) {
-             console.error('Failed to parse cart items JSON:', cartItemsJson);
-             return new Response(JSON.stringify({ error: 'Invalid cart format' }), { status: 400, headers: corsHeaders });
+        // Read what was actually charged from Stripe, not today's magazine
+        // prices: a publisher may have changed a price between checkout and
+        // this webhook. create-checkout put magazine_id and publisher_id in
+        // each line item's product metadata.
+        const chargedItems = await getChargedItems(stripe, session.id)
+        if (chargedItems.size === 0) {
+          // Throwing returns a 500, so Stripe retries.
+          throw new Error(`No magazine line items found for session ${session.id}`)
         }
 
-        // Fetch magazine details
-        const magazineIds = cartItems.map(item => item.magazine_id)
+        // Fetch magazine details (titles, issue numbers and inventory handling
+        // for emails, plus a publisher fallback)
+        const magazineIds = [...chargedItems.keys()]
         const { data: magazines, error: magazinesError } = await supabaseAdmin
           .from('magazines')
-          .select('id, title, issue_number, wholesale_price, publisher_id, cover_image_url, fulfillment_method')
+          .select('id, title, issue_number, publisher_id')
           .in('id', magazineIds)
 
         if (magazinesError || !magazines) {
@@ -239,181 +231,180 @@ Deno.serve(async (req) => {
         }
 
         const magazineMap = new Map(magazines.map(m => [m.id, m]))
-        
-        // Check for missing magazines
-        for (const item of cartItems) {
-            if (!magazineMap.has(item.magazine_id)) {
-                console.error(`Magazine not found for ID: ${item.magazine_id}`);
-                // We continue processing other items, but this is a serious data integrity issue
-            }
+
+        for (const magazineId of magazineIds) {
+          if (!magazineMap.has(magazineId)) {
+            // Still create the order: the retailer paid for it.
+            console.error(`Magazine not found for ID: ${magazineId}`)
+          }
         }
 
+        // Extract shipping address from Stripe session
+        // (uses shippingInfo resolved above — supports both old and clover API versions)
+        const shippingAddress = shippingInfo ? {
+          name: shippingInfo.name,
+          address: {
+            line1: shippingInfo.address?.line1,
+            line2: shippingInfo.address?.line2,
+            city: shippingInfo.address?.city,
+            state: shippingInfo.address?.state,
+            postal_code: shippingInfo.address?.postal_code,
+            country: shippingInfo.address?.country,
+          }
+        } : null
 
-        // Create orders for each cart item
-        const createdOrders: string[] = []
+        // Create one order per magazine. The orders_session_magazine_unique
+        // constraint plus ignoreDuplicates makes this safe to retry, and safe
+        // when two deliveries of this event run at once: rows that already
+        // exist are skipped, and only rows inserted by THIS request come back.
+        const orderRows = [...chargedItems.values()].map((item) => ({
+          retailer_id: retailerId,
+          magazine_id: item.magazineId,
+          quantity: item.quantity,
+          unit_price: item.unitAmountCents / 100,
+          total_price: item.subtotalCents / 100,
+          status: 'paid',
+          payment_status: 'paid',
+          stripe_session_id: session.id,
+          payment_intent_id: session.payment_intent as string,
+          shipping_address: shippingAddress,
+          stripe_payment_metadata: {
+            customer_email: session.customer_email,
+            payment_status: session.payment_status,
+            amount_total: session.amount_total,
+          },
+        }))
+
+        const { data: insertedOrders, error: orderError } = await supabaseAdmin
+          .from('orders')
+          .upsert(orderRows, { onConflict: 'stripe_session_id,magazine_id', ignoreDuplicates: true })
+          .select('id, magazine_id')
+
+        if (orderError) {
+          console.error('Error creating orders:', orderError)
+          throw new Error('Failed to create orders')
+        }
+
+        const createdOrders = (insertedOrders ?? []).map(o => o.id as string)
+        console.log(`Created ${createdOrders.length} new order(s) for session ${session.id}`)
+
+        // Decrease inventory only for orders this request inserted, so a retry
+        // never decrements twice.
+        for (const order of insertedOrders ?? []) {
+          const item = chargedItems.get(order.magazine_id as string)!
+          try {
+              // We use the new RPC function which is safe
+              const { error: invError } = await supabaseAdmin.rpc('decrease_inventory', {
+                p_magazine_id: item.magazineId,
+                p_quantity: item.quantity
+              });
+
+              if (invError) {
+                  console.error(`RPC decrease_inventory failed for ${item.magazineId}:`, invError);
+              } else {
+                  console.log(`Decreased inventory for ${item.magazineId} by ${item.quantity}`);
+              }
+
+          } catch (invError) {
+              console.error(`Failed to call decrease_inventory for ${item.magazineId}:`, invError)
+          }
+        }
+
+        // Every order for this session, including any an earlier (failed)
+        // delivery inserted, so payouts and emails cover the whole purchase.
+        const { data: sessionOrders, error: sessionOrdersError } = await supabaseAdmin
+          .from('orders')
+          .select('id, magazine_id')
+          .eq('stripe_session_id', session.id)
+
+        if (sessionOrdersError || !sessionOrders) {
+          console.error('Error loading orders for session:', sessionOrdersError)
+          throw new Error('Failed to load orders for session')
+        }
+
+        // --- Insert pending publisher transfer records ---
+        // Amounts come from the charged line item. The unique order_id
+        // constraint plus ignoreDuplicates makes this safe to retry.
         const publisherEmails: Map<string, OrderNotificationItem[]> = new Map() // Group orders by publisher
 
-        for (const item of cartItems) {
-          const magazine = magazineMap.get(item.magazine_id)
-          if (!magazine) {
+        for (const order of sessionOrders) {
+          const item = chargedItems.get(order.magazine_id as string)
+          if (!item) continue
+          const magazine = magazineMap.get(item.magazineId)
+          const publisherId = item.publisherId ?? magazine?.publisher_id
+          if (!publisherId) {
+            console.error(`No publisher for magazine ${item.magazineId} in session ${session.id}`)
             continue
           }
 
-          // Calculate prices
-          const wholesalePrice = magazine.wholesale_price || 0
-          const retailerUnitPrice = Math.round(wholesalePrice * 1.10 * 100) / 100 // Add 10%
-          const totalPrice = retailerUnitPrice * item.quantity
+          const { grossCents, netCents } = payoutAmounts(item)
 
-          // Extract shipping address from Stripe session
-          // (uses shippingInfo resolved above — supports both old and clover API versions)
-          const shippingAddress = shippingInfo ? {
-            name: shippingInfo.name,
-            address: {
-              line1: shippingInfo.address?.line1,
-              line2: shippingInfo.address?.line2,
-              city: shippingInfo.address?.city,
-              state: shippingInfo.address?.state,
-              postal_code: shippingInfo.address?.postal_code,
-              country: shippingInfo.address?.country,
-            }
-          } : null
-
-          // Create order
-          const { data: order, error: orderError } = await supabaseAdmin
-            .from('orders')
-            .insert({
-              retailer_id: retailerId,
-              magazine_id: item.magazine_id,
-              quantity: item.quantity,
-              unit_price: retailerUnitPrice,
-              total_price: totalPrice,
-              status: 'paid',
+          const { error: transferError } = await supabaseAdmin
+            .from('publisher_transfers')
+            .upsert({
+              publisher_id: publisherId,
+              order_id: order.id,
+              kind: 'goods',
               stripe_session_id: session.id,
-              payment_intent_id: session.payment_intent as string,
-              shipping_address: shippingAddress, // Now supported by schema!
-              stripe_payment_metadata: {
-                customer_email: session.customer_email,
-                payment_status: session.payment_status,
-                amount_total: session.amount_total,
-              },
-            })
-            .select('id')
-            .single()
+              gross_amount: grossCents / 100,
+              platform_fee: (grossCents - netCents) / 100,
+              net_amount: netCents / 100,
+              status: 'pending',
+            }, { onConflict: 'order_id', ignoreDuplicates: true })
 
-          if (orderError) {
-            console.error('Error creating order:', orderError)
-            // Log full error details for debugging
-            console.error('Failed insert payload:', {
-                retailer_id: retailerId,
-                magazine_id: item.magazine_id,
-                stripe_session_id: session.id
-            });
-            continue
+          if (transferError) {
+            console.error(`Failed to insert publisher transfer for order ${order.id}:`, transferError)
+            throw new Error('Failed to create publisher transfer records')
           }
-
-          console.log(`Created order: ${order.id}`)
-          createdOrders.push(order.id)
+          console.log(`Pending transfer for publisher ${publisherId}, order ${order.id}, net $${netCents / 100}`)
 
           // Group orders by publisher for email notifications
-          const publisherId = magazine.publisher_id
           if (!publisherEmails.has(publisherId)) {
             publisherEmails.set(publisherId, [])
           }
           publisherEmails.get(publisherId)!.push({
-            order_id: order.id,
-            magazine_title: magazine.title,
-            issue_number: magazine.issue_number ?? null,
+            order_id: order.id as string,
+            magazine_title: magazine?.title ?? 'Magazine',
+            issue_number: magazine?.issue_number ?? null,
             quantity: item.quantity,
-            total_price: totalPrice,
+            total_price: item.subtotalCents / 100,
           })
-
-          // Decrease inventory atomically
-          try {
-              // We use the new RPC function which is safe
-              const { error: invError } = await supabaseAdmin.rpc('decrease_inventory', {
-                p_magazine_id: item.magazine_id,
-                p_quantity: item.quantity
-              });
-              
-              if (invError) {
-                  console.error(`RPC decrease_inventory failed for ${magazine.title}:`, invError);
-              } else {
-                  console.log(`Decreased inventory for ${magazine.title} by ${item.quantity}`);
-              }
-
-          } catch (invError) {
-              console.error(`Failed to call decrease_inventory for ${magazine.title}:`, invError)
-          }
-        }
-
-        // --- Insert pending publisher transfer records ---
-        try {
-          for (const item of cartItems) {
-            const magazine = magazineMap.get(item.magazine_id)
-            if (!magazine) continue
-
-            // Find the order we just created for this magazine
-            const { data: matchedOrder } = await supabaseAdmin
-              .from('orders')
-              .select('id')
-              .eq('stripe_session_id', session.id)
-              .eq('magazine_id', item.magazine_id)
-              .single()
-
-            if (!matchedOrder) {
-              console.error(`No order found for magazine ${item.magazine_id} in session ${session.id}`)
-              continue
-            }
-
-            const wholesalePrice = magazine.wholesale_price || 0
-            // shipping_v2: space pays WSP x 1.10, publisher receives WSP x 0.90 (T2).
-            // Legacy sessions keep the old split (publisher receives WSP).
-            const split = goodsSplit(wholesalePrice, item.quantity)
-            const grossAmount = split.gross
-            const netAmount = isShippingV2 ? split.net : Math.round(wholesalePrice * item.quantity * 100) / 100
-            const platformFee = Math.round((grossAmount - netAmount) * 100) / 100
-
-            const { error: transferError } = await supabaseAdmin
-              .from('publisher_transfers')
-              .upsert({
-                publisher_id: magazine.publisher_id,
-                order_id: matchedOrder.id,
-                kind: 'goods',
-                stripe_session_id: session.id,
-                gross_amount: grossAmount,
-                platform_fee: platformFee,
-                net_amount: netAmount,
-                status: 'pending',
-              }, { onConflict: 'order_id', ignoreDuplicates: true })
-
-            if (transferError) {
-              console.error(`Failed to insert publisher transfer for order ${matchedOrder.id}:`, transferError)
-            } else {
-              console.log(`Created pending transfer for publisher ${magazine.publisher_id}, order ${matchedOrder.id}, net $${netAmount}`)
-            }
-          }
-        } catch (transferInsertError) {
-          // Non-blocking: log but don't fail the webhook
-          console.error('Error inserting publisher transfer records:', transferInsertError)
         }
 
         // --- shipping_v2: one shipment per publisher + shipping transfers (T7) ---
+        // Before the session is marked completed, so a failure here throws,
+        // returns a 500 and Stripe retries (recordShipments is idempotent).
         if (isShippingV2) {
-          try {
-            await recordShipments(supabaseAdmin, session.id, retailerId, shippingQuotes)
-          } catch (shipErr) {
-            console.error('Error recording shipments:', shipErr)
-          }
+          await recordShipments(supabaseAdmin, session.id, retailerId, shippingQuotes)
         }
 
-        // Update payment session status
-        await supabaseAdmin
+        // Mark the payment session completed. Only the delivery that actually
+        // flips it sends the emails below, so retries don't email twice.
+        const { data: flippedSessions } = await supabaseAdmin
           .from('payment_sessions')
           .update({
             status: 'completed',
             payment_intent_id: session.payment_intent as string,
           })
           .eq('session_id', session.id)
+          .neq('status', 'completed')
+          .select('id')
+
+        let shouldNotify = (flippedSessions?.length ?? 0) > 0
+        if (!shouldNotify) {
+          // create-checkout's payment_sessions insert is best-effort. With
+          // no row to flip, fall back to "this delivery inserted new orders".
+          const { count } = await supabaseAdmin
+            .from('payment_sessions')
+            .select('id', { count: 'exact', head: true })
+            .eq('session_id', session.id)
+          shouldNotify = (count ?? 0) === 0 && createdOrders.length > 0
+        }
+
+        if (!shouldNotify) {
+          console.log(`Session ${session.id} already notified; skipping emails.`)
+          break
+        }
 
         // Get retailer details for emails
         const { data: retailer } = await supabaseAdmin
@@ -577,11 +568,20 @@ Deno.serve(async (req) => {
         console.log(`Dispute created: ${dispute.id}, amount: ${dispute.amount}, reason: ${dispute.reason}`)
 
         // Find associated orders
+        let disputePayouts: PayoutProtectionResult = { affected: 0, alreadyPaid: 0 }
         if (dispute.payment_intent) {
+          const paymentIntentId = idOf(dispute.payment_intent)
           await supabaseAdmin
             .from('orders')
             .update({ status: 'disputed' })
-            .eq('payment_intent_id', dispute.payment_intent as string)
+            .eq('payment_intent_id', paymentIntentId)
+
+          // Hold unpaid payouts until the dispute closes; flag ones already sent.
+          disputePayouts = await protectPayouts(supabaseAdmin, paymentIntentId, {
+            kind: 'hold',
+            holdReason: 'dispute',
+            reversalReason: DISPUTE_REVERSAL_REASON,
+          })
         }
 
         // Notify admin immediately — disputes are time-sensitive
@@ -600,9 +600,22 @@ Deno.serve(async (req) => {
             ['Respond by', respondBy || 'See Stripe'],
             ['Charge', disputeCharge || 'Unknown'],
             ['Dispute', dispute.id],
+            ['Payouts put on hold', String(disputePayouts.affected)],
+            ['Already paid out (review for reversal)', String(disputePayouts.alreadyPaid)],
           ],
           action: { text: 'Respond in Stripe', href: `https://dashboard.stripe.com/disputes/${dispute.id}` },
         })
+        break
+      }
+
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object as Stripe.Dispute
+        console.log(`Dispute closed: ${dispute.id}, status: ${dispute.status}`)
+
+        if (dispute.payment_intent) {
+          const paymentIntentId = idOf(dispute.payment_intent)
+          await resolveDisputedPayouts(supabaseAdmin, paymentIntentId, dispute.status === 'won')
+        }
         break
       }
 
@@ -610,16 +623,31 @@ Deno.serve(async (req) => {
         const charge = event.data.object as Stripe.Charge
         console.log(`Charge refunded: ${charge.id}, amount refunded: ${charge.amount_refunded}`)
 
+        let refundPayouts: PayoutProtectionResult = { affected: 0, alreadyPaid: 0 }
+        let isFullRefund = false
         if (charge.payment_intent) {
+          const paymentIntentId = idOf(charge.payment_intent)
           // Check if fully or partially refunded
-          const isFullRefund = charge.amount_refunded === charge.amount
+          isFullRefund = charge.amount_refunded === charge.amount
 
           await supabaseAdmin
             .from('orders')
             .update({ status: isFullRefund ? 'refunded' : 'partially_refunded' })
-            .eq('payment_intent_id', charge.payment_intent as string)
+            .eq('payment_intent_id', paymentIntentId)
 
           console.log(`Marked orders as ${isFullRefund ? 'refunded' : 'partially_refunded'}`)
+
+          // A full refund cancels every unpaid payout for the purchase. A
+          // partial refund can't be traced to specific orders, so hold the
+          // unpaid payouts for an admin to review. Payouts that already went
+          // out are flagged, not reversed automatically.
+          refundPayouts = await protectPayouts(
+            supabaseAdmin,
+            paymentIntentId,
+            isFullRefund
+              ? { kind: 'cancel', reason: 'Order refunded', reversalReason: 'Order fully refunded after payout' }
+              : { kind: 'hold', holdReason: 'refund_review', reversalReason: 'Order partially refunded after payout' },
+          )
         }
 
         const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'hi@neesh.art'
@@ -631,6 +659,8 @@ Deno.serve(async (req) => {
             ['Refunded', money((charge.amount_refunded || 0) / 100)],
             ['Charge total', money((charge.amount || 0) / 100)],
             ['Charge', charge.id],
+            [isFullRefund ? 'Payouts cancelled' : 'Payouts held for review', String(refundPayouts.affected)],
+            ['Already paid out (review for reversal)', String(refundPayouts.alreadyPaid)],
           ],
           action: { text: 'Open in Stripe', href: `https://dashboard.stripe.com/payments/${charge.payment_intent || charge.id}` },
         })
@@ -872,6 +902,9 @@ async function sendSimpleAdminNotification(adminEmail: string, alert: AdminAlert
   await sendViaResend(adminEmail, `[Neesh] ${alert.subject}`, body, `Admin alert "${alert.subject}"`)
 }
 
+// deno-lint-ignore no-explicit-any
+type SupabaseAdmin = ReturnType<typeof createClient<any>>
+
 // ---------------------------------------------------------------------------
 // shipping_v2 helpers (T7)
 // ---------------------------------------------------------------------------
@@ -901,8 +934,6 @@ interface StoredQuote {
   estimated_days: number | null
   duties_paid: boolean
 }
-
-type SupabaseAdmin = ReturnType<typeof createClient>
 
 async function loadShippingQuotes(admin: SupabaseAdmin, idList: string): Promise<StoredQuote[]> {
   const ids = idList.split(',').map((s) => s.trim()).filter(Boolean)
@@ -941,8 +972,7 @@ function quoteShippingDetails(quotes: StoredQuote[]) {
  */
 async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailerId: string, quotes: StoredQuote[]) {
   if (quotes.length === 0) {
-    console.error(`shipping_v2 session ${sessionId} has no stored quotes`)
-    return
+    throw new Error(`shipping_v2 session ${sessionId} has no stored quotes`)
   }
   const publisherIds = quotes.map((q) => q.publisher_id)
   const { data: pubs } = await admin.from('publishers').select('id, uses_neesh_labels').in('id', publisherIds)
@@ -991,17 +1021,17 @@ async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailer
       shipmentId = existing?.id as string | undefined
     }
     if (!shipmentId) {
-      console.error(`Failed to record shipment for publisher ${q.publisher_id}:`, shipErr?.message)
-      continue
+      throw new Error(`Failed to record shipment for publisher ${q.publisher_id}: ${shipErr?.message}`)
     }
 
     const magazineIds = q.items.map((i) => i.magazine_id)
-    await admin
+    const { error: linkErr } = await admin
       .from('orders')
       .update({ shipment_id: shipmentId })
       .eq('stripe_session_id', sessionId)
       .in('magazine_id', magazineIds)
       .is('shipment_id', null)
+    if (linkErr) throw new Error(`Failed to link orders to shipment ${shipmentId}: ${linkErr.message}`)
 
     const split = shippingSplit(Number(q.shipping_usd))
     const { error: transferErr } = await admin
@@ -1018,9 +1048,242 @@ async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailer
         hold_reason: labels ? 'awaiting_label' : null,
       }, { onConflict: 'shipment_id', ignoreDuplicates: true })
     if (transferErr) {
-      console.error(`Failed to record shipping transfer for shipment ${shipmentId}:`, transferErr.message)
+      throw new Error(`Failed to record shipping transfer for shipment ${shipmentId}: ${transferErr.message}`)
+    }
+    console.log(`Shipment ${shipmentId}: publisher ${q.publisher_id}, shipping $${split.gross}, labels=${labels}`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Charged amounts
+// ---------------------------------------------------------------------------
+
+interface ChargedItem {
+  magazineId: string
+  publisherId: string | null
+  quantity: number
+  unitAmountCents: number
+  subtotalCents: number
+}
+
+// Reads the session's line items from Stripe: the prices the retailer was
+// actually charged. Keyed by magazine_id, with repeated magazines merged.
+async function getChargedItems(stripe: Stripe, sessionId: string): Promise<Map<string, ChargedItem>> {
+  // create-checkout caps carts at 50 lines, so one page of 100 is enough.
+  const lineItems = await stripe.checkout.sessions.listLineItems(sessionId, {
+    limit: 100,
+    expand: ['data.price.product'],
+  })
+
+  const items = new Map<string, ChargedItem>()
+  for (const line of lineItems.data) {
+    const product = line.price?.product
+    const metadata = product && typeof product === 'object' && !('deleted' in product && product.deleted)
+      ? (product as Stripe.Product).metadata
+      : {}
+    // shipping_v2 shipping lines are paid out by recordShipments, not here.
+    if (metadata && 'quote_id' in metadata) continue
+
+    const magazineId = metadata?.magazine_id
+    const unitAmountCents = line.price?.unit_amount
+
+    if (!magazineId || unitAmountCents == null) {
+      console.error(`Line item ${line.id} in session ${sessionId} has no magazine_id or unit_amount`)
+      continue
+    }
+
+    const quantity = line.quantity ?? 0
+    const existing = items.get(magazineId)
+    if (existing) {
+      existing.quantity += quantity
+      existing.subtotalCents += line.amount_subtotal
     } else {
-      console.log(`Shipment ${shipmentId}: publisher ${q.publisher_id}, shipping $${split.gross}, labels=${labels}`)
+      items.set(magazineId, {
+        magazineId,
+        publisherId: metadata.publisher_id || null,
+        quantity,
+        unitAmountCents,
+        subtotalCents: line.amount_subtotal,
+      })
     }
   }
+  return items
+}
+
+// Splits a charged line into what the retailer paid (gross) and what the
+// publisher is owed (net). create-checkout charges round(wholesale * 1.10)
+// cents per unit, so dividing by the markup and rounding recovers the exact
+// wholesale cents at the time of purchase (the rounding error is under half
+// a cent). Neesh keeps 10% of the publisher's wholesale subtotal; the space
+// pays wholesale + 10%. The net uses the same expression production used
+// before this change, so payouts are identical to the cent.
+function payoutAmounts(item: ChargedItem): { grossCents: number; netCents: number } {
+  const wholesaleCents = Math.round(item.unitAmountCents / RETAILER_MARKUP)
+  const wholesalePrice = wholesaleCents / 100
+  const netCents = Math.min(
+    Math.round(wholesalePrice * PUBLISHER_SHARE * item.quantity * 100),
+    item.subtotalCents,
+  )
+  return { grossCents: item.subtotalCents, netCents }
+}
+
+// ---------------------------------------------------------------------------
+// Payout protection on refunds and disputes
+// ---------------------------------------------------------------------------
+
+const DISPUTE_REVERSAL_REASON = 'Dispute opened after payout'
+
+type PayoutProtection =
+  | { kind: 'cancel'; reason: string; reversalReason: string }
+  | { kind: 'hold'; holdReason: 'refund_review' | 'dispute'; reversalReason: string }
+
+interface PayoutProtectionResult {
+  affected: number     // unpaid payouts cancelled or held
+  alreadyPaid: number  // payouts already sent (or in flight), flagged for review
+}
+
+function idOf(value: string | { id: string }): string {
+  return typeof value === 'string' ? value : value.id
+}
+
+interface PaymentPayouts {
+  orderIds: string[]
+  shipmentIds: string[]
+  // PostgREST .or() filter matching the goods transfers (by order) and the
+  // shipping_v2 shipping transfers (by shipment) for one payment.
+  filter: string
+}
+
+async function paymentPayouts(
+  supabaseAdmin: SupabaseAdmin,
+  paymentIntentId: string,
+): Promise<PaymentPayouts | null> {
+  const { data: orders, error: ordersError } = await supabaseAdmin
+    .from('orders')
+    .select('id, shipment_id')
+    .eq('payment_intent_id', paymentIntentId)
+
+  if (ordersError) throw ordersError
+  const rows = (orders ?? []) as { id: string; shipment_id: string | null }[]
+  if (rows.length === 0) return null
+
+  const orderIds = rows.map((o) => o.id)
+  const shipmentIds = [...new Set(rows.map((o) => o.shipment_id).filter((id): id is string => !!id))]
+  const filter = [
+    `order_id.in.(${orderIds.join(',')})`,
+    ...(shipmentIds.length > 0 ? [`shipment_id.in.(${shipmentIds.join(',')})`] : []),
+  ].join(',')
+  return { orderIds, shipmentIds, filter }
+}
+
+// Stops unpaid publisher payouts for a refunded or disputed purchase, and
+// flags payouts that already went out. Throws on database errors so the
+// webhook returns 500 and Stripe retries.
+async function protectPayouts(
+  supabaseAdmin: SupabaseAdmin,
+  paymentIntentId: string,
+  protection: PayoutProtection,
+): Promise<PayoutProtectionResult> {
+  const payouts = await paymentPayouts(supabaseAdmin, paymentIntentId)
+  if (!payouts) return { affected: 0, alreadyPaid: 0 }
+
+  // Only 'pending' rows: release-publisher-transfer can't claim them once
+  // they're cancelled or held.
+  const { data: stopped, error: stopError } = await supabaseAdmin
+    .from('publisher_transfers')
+    .update(
+      protection.kind === 'cancel'
+        ? { status: 'cancelled', hold_reason: null, failure_reason: protection.reason }
+        : { hold_reason: protection.holdReason }
+    )
+    .or(payouts.filter)
+    .eq('status', 'pending')
+    .select('id')
+
+  if (stopError) throw stopError
+
+  // 'processing' is included: that money may already be on its way.
+  const { data: flagged, error: flagError } = await supabaseAdmin
+    .from('publisher_transfers')
+    .update({ reversal_needed: true, reversal_reason: protection.reversalReason })
+    .or(payouts.filter)
+    .in('status', ['processing', 'transferred'])
+    .select('id')
+
+  if (flagError) throw flagError
+
+  const result = { affected: stopped?.length ?? 0, alreadyPaid: flagged?.length ?? 0 }
+  console.log(`Payout protection for ${paymentIntentId}: ${result.affected} stopped, ${result.alreadyPaid} flagged`)
+  return result
+}
+
+// When a dispute closes: if Neesh won, release the hold and clear the review
+// flag (and the order is no longer disputed); if it lost, cancel the held
+// payouts. Payouts that already went out stay flagged after a loss.
+async function resolveDisputedPayouts(
+  supabaseAdmin: SupabaseAdmin,
+  paymentIntentId: string,
+  won: boolean,
+): Promise<void> {
+  const payouts = await paymentPayouts(supabaseAdmin, paymentIntentId)
+  if (!payouts) return
+  const { orderIds } = payouts
+
+  const { error: holdError } = await supabaseAdmin
+    .from('publisher_transfers')
+    .update(
+      won
+        ? { hold_reason: null }
+        : { status: 'cancelled', hold_reason: null, failure_reason: 'Dispute lost' }
+    )
+    .or(payouts.filter)
+    .eq('status', 'pending')
+    .eq('hold_reason', 'dispute')
+
+  if (holdError) throw holdError
+
+  // shipping_v2: the dispute hold replaced the label hold, so a Neesh-label
+  // shipping payout whose label isn't bought yet goes back to waiting for it
+  // (buy-label deducts the label cost from pending rows only).
+  if (won && payouts.shipmentIds.length > 0) {
+    const { data: unlabelled, error: shipError } = await supabaseAdmin
+      .from('order_shipments')
+      .select('id')
+      .in('id', payouts.shipmentIds)
+      .eq('uses_neesh_labels', true)
+      .is('label_cost_usd', null)
+
+    if (shipError) throw shipError
+    const unlabelledIds = (unlabelled ?? []).map((sh: { id: string }) => sh.id)
+    if (unlabelledIds.length > 0) {
+      const { error: labelHoldError } = await supabaseAdmin
+        .from('publisher_transfers')
+        .update({ hold_reason: 'awaiting_label' })
+        .in('shipment_id', unlabelledIds)
+        .eq('status', 'pending')
+        .is('hold_reason', null)
+
+      if (labelHoldError) throw labelHoldError
+    }
+  }
+
+  if (won) {
+    const { error: flagError } = await supabaseAdmin
+      .from('publisher_transfers')
+      .update({ reversal_needed: false, reversal_reason: null })
+      .or(payouts.filter)
+      .eq('reversal_reason', DISPUTE_REVERSAL_REASON)
+
+    if (flagError) throw flagError
+
+    const { error: orderError } = await supabaseAdmin
+      .from('orders')
+      .update({ status: 'paid' })
+      .in('id', orderIds)
+      .eq('status', 'disputed')
+
+    if (orderError) throw orderError
+  }
+
+  console.log(`Dispute for ${paymentIntentId} closed (${won ? 'won' : 'lost'}); payouts updated`)
 }

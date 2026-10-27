@@ -130,9 +130,13 @@ Deno.serve(async (req) => {
       }).eq('id', shipment.id)
       await admin.from('orders').update({ label_url: null, tracking_number: null, carrier: null }).eq('shipment_id', shipment.id)
       const split = shippingSplit(Number(shipment.shipping_usd))
+      // Only re-hold a payout that has no other hold (refund review, dispute).
       await admin.from('publisher_transfers')
-        .update({ net_amount: split.net, hold_reason: 'awaiting_label' })
+        .update({ net_amount: split.net })
         .eq('shipment_id', shipment.id).eq('status', 'pending')
+      await admin.from('publisher_transfers')
+        .update({ hold_reason: 'awaiting_label' })
+        .eq('shipment_id', shipment.id).eq('status', 'pending').is('hold_reason', null)
       return json({ success: true, refund_status: refund.status }, 200, cors)
     }
 
@@ -247,10 +251,16 @@ Deno.serve(async (req) => {
 
     // Label cost comes out of the shipping the space paid (decision 5).
     const split = shippingSplit(paid, labelCost)
+    // Clears only the label hold; a refund-review or dispute hold stays.
     await admin.from('publisher_transfers')
-      .update({ net_amount: split.net, platform_fee: 0, hold_reason: null })
+      .update({ net_amount: split.net, platform_fee: 0 })
       .eq('shipment_id', shipment.id)
       .eq('status', 'pending')
+    await admin.from('publisher_transfers')
+      .update({ hold_reason: null })
+      .eq('shipment_id', shipment.id)
+      .eq('status', 'pending')
+      .eq('hold_reason', 'awaiting_label')
 
     console.log(`buy-label: shipment ${shipment.id} transaction ${tx.object_id} cost ${labelCost}`)
     return json({

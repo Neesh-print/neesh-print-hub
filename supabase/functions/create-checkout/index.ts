@@ -317,6 +317,9 @@ Deno.serve(async (req) => {
       const magazine = magazineMap.get(item.magazine_id)!
 
       // Retailer price: wholesale x 1.10, in cents (shared rule, T2)
+      // stripe-webhook derives the publisher payout from this charged amount
+      // (RETAILER_MARKUP) and from the magazine_id/publisher_id product
+      // metadata below. Change them together.
       const wholesalePrice = magazine.wholesale_price!
       const retailerPrice = Math.round(spaceUnitPrice(wholesalePrice) * 100)
 

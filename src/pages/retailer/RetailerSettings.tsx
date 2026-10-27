@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ChangePasswordModal } from "@/components/shared";
+import { ChangePasswordModal, DeleteAccountSection } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { useRetailerProfile } from "@/hooks/useRetailerProfile";
 import { useToast } from "@/hooks/use-toast";
@@ -266,15 +266,7 @@ export const RetailerSettings = () => {
               <Separator className="my-4" />
 
               {/* Danger Zone */}
-              <div>
-                <h4 className="font-medium text-destructive mb-1">Deactivate Account</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  This will deactivate your account. Your order history will be preserved.
-                </p>
-                <Button variant="destructive">
-                  Deactivate Account
-                </Button>
-              </div>
+              <DeleteAccountSection keeps="Your order history" />
             </div>
           </div>
         </div>
