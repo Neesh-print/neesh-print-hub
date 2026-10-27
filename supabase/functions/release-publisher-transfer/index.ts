@@ -4,6 +4,7 @@ import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
   'https://www.neesh.art',
+  'https://app.neesh.art',
   'https://neesh-experimental.vercel.app',
   'http://localhost:8081',
 ];
@@ -79,7 +80,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { transferIds } = await req.json()
+    // `force` lets an admin release a payout still held for an unpaid
+    // net-terms invoice. It never overrides a refund or dispute hold.
+    const { transferIds, force = false } = await req.json()
+
+    // Holds that block release. NOT IN is false for NULL, so "no hold" is
+    // listed separately.
+    const blockingHolds = force
+      ? 'refund_review,dispute'
+      : 'refund_review,dispute,awaiting_invoice_payment'
+    const releasableHoldFilter = `hold_reason.is.null,hold_reason.not.in.(${blockingHolds})`
 
     if (!Array.isArray(transferIds) || transferIds.length === 0) {
       return new Response(
@@ -99,8 +109,8 @@ Deno.serve(async (req) => {
         // Claim the row: one conditional UPDATE moves it pending -> processing.
         // Postgres row locking means only one concurrent request can win; any
         // other request (double click, second admin, retry) matches 0 rows.
-        // Rows held for refund review or a dispute are not claimable.
-        // 'awaiting_invoice_payment' holds keep their existing behavior.
+        // Rows held for refund review or a dispute are never claimable;
+        // rows held for an unpaid invoice only with `force`.
         const { data: transfer, error: claimError } = await supabaseAdmin
           .from('publisher_transfers')
           .update({
@@ -110,7 +120,7 @@ Deno.serve(async (req) => {
           })
           .eq('id', transferId)
           .eq('status', 'pending')
-          .or('hold_reason.is.null,hold_reason.eq.awaiting_invoice_payment')
+          .or(releasableHoldFilter)
           .select(`
             id, order_id, net_amount,
             publishers (
@@ -135,7 +145,9 @@ Deno.serve(async (req) => {
             ? 'Transfer not found'
             : current.status !== 'pending'
               ? `Transfer already ${current.status}`
-              : `Transfer is on hold (${current.hold_reason})`
+              : current.hold_reason === 'awaiting_invoice_payment'
+                ? 'Held until the retailer pays the linked invoice. Use force to override.'
+                : `Transfer is on hold (${current.hold_reason})`
           results.push({ id: transferId, success: false, error: reason })
           continue
         }
@@ -177,6 +189,7 @@ Deno.serve(async (req) => {
           .update({
             status: 'transferred',
             stripe_transfer_id: stripeTransfer.id,
+            hold_reason: null,
             transferred_at: new Date().toISOString(),
           })
           .eq('id', transferId)

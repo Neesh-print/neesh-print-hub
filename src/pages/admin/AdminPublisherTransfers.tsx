@@ -37,6 +37,7 @@ const tabs = [
 // Labels for payouts on hold. A held payout can't be released.
 const holdLabels: Record<string, string> = {
   awaiting_invoice_payment: "AWAITING INVOICE",
+  awaiting_label: "AWAITING LABEL",
   refund_review: "ON HOLD: REFUND",
   dispute: "ON HOLD: DISPUTE",
 };
@@ -88,11 +89,12 @@ export const AdminPublisherTransfers = () => {
       });
   }, [transfers, searchTerm, activeTab]);
 
-  // Only pending transfers that aren't held for a refund or dispute can be
-  // released. (The server enforces this too.)
+  // Pending transfers can be released unless held for a refund, a dispute or
+  // an unpaid invoice. (The server enforces this too; this page doesn't send
+  // `force`, so invoice holds stay blocked here.)
   const isReleasable = (t: (typeof filteredTransfers)[number]) =>
     t.status === "pending" &&
-    (!t.holdReason || t.holdReason === "awaiting_invoice_payment");
+    (!t.holdReason || t.holdReason === "awaiting_label");
 
   const pendingSelectedRows = selectedRows.filter((id) =>
     filteredTransfers.some((t) => t.id === id && isReleasable(t))

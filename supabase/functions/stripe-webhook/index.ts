@@ -32,9 +32,11 @@ function getCorsHeaders(origin: string | null) {
   };
 }
 
-// Retailers pay wholesale + 10%; the 10% is Neesh's fee. Must match the
-// markup in create-checkout.
+// Retailers pay wholesale + 10%. Must match the markup in create-checkout.
 const RETAILER_MARKUP = 1.10
+
+// Publisher receives 90% of wholesale (Neesh takes 10% from the publisher side)
+const PUBLISHER_SHARE = 0.90
 
 Deno.serve(async (req) => {
   console.log('Stripe webhook request received');
@@ -931,13 +933,19 @@ async function getChargedItems(stripe: Stripe, sessionId: string): Promise<Map<s
 }
 
 // Splits a charged line into what the retailer paid (gross) and what the
-// publisher is owed (net, the wholesale price). create-checkout charges
-// round(wholesale * 1.10) cents per unit, so dividing by the markup and
-// rounding recovers the exact wholesale cents (the rounding error is under
-// half a cent).
+// publisher is owed (net). create-checkout charges round(wholesale * 1.10)
+// cents per unit, so dividing by the markup and rounding recovers the exact
+// wholesale cents at the time of purchase (the rounding error is under half
+// a cent). Neesh keeps 10% of the publisher's wholesale subtotal; the space
+// pays wholesale + 10%. The net uses the same expression production used
+// before this change, so payouts are identical to the cent.
 function payoutAmounts(item: ChargedItem): { grossCents: number; netCents: number } {
-  const netPerUnitCents = Math.round(item.unitAmountCents / RETAILER_MARKUP)
-  const netCents = Math.min(netPerUnitCents * item.quantity, item.subtotalCents)
+  const wholesaleCents = Math.round(item.unitAmountCents / RETAILER_MARKUP)
+  const wholesalePrice = wholesaleCents / 100
+  const netCents = Math.min(
+    Math.round(wholesalePrice * PUBLISHER_SHARE * item.quantity * 100),
+    item.subtotalCents,
+  )
   return { grossCents: item.subtotalCents, netCents }
 }
 
