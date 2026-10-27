@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   isLabelReadyAddress,
   normalizeCountry,
+  type FlatRatesByRegion,
   type PackagingPreset,
   type ShipAddress,
 } from "@/lib/shipping";
@@ -11,18 +12,13 @@ export interface PublisherShippingSettings {
   ships_from_address: Partial<ShipAddress>;
   ships_from_country: string | null;
   shipping_rate_mode: "live" | "flat";
-  domestic_first_copy_usd: number | null;
-  domestic_additional_copy_usd: number | null;
-  intl_first_copy_usd: number | null;
-  intl_additional_copy_usd: number | null;
+  flat_rates: FlatRatesByRegion;
   ships_internationally: boolean;
   uses_neesh_labels: boolean;
   packaging_preset: PackagingPreset;
   intl_min_copies: number;
   shipping_rates_set_at: string | null;
 }
-
-const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
 
 /** A publisher's shipping settings: public fields on publishers plus the private ships-from address. */
 export function usePublisherShipping(publisherId: string | null | undefined, enabled = true) {
@@ -32,7 +28,7 @@ export function usePublisherShipping(publisherId: string | null | undefined, ena
       const [{ data: pub, error }, { data: priv }] = await Promise.all([
         supabase
           .from("publishers")
-          .select("company_name, ships_from_country, shipping_rate_mode, domestic_first_copy_usd, domestic_additional_copy_usd, intl_first_copy_usd, intl_additional_copy_usd, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies, shipping_rates_set_at")
+          .select("company_name, ships_from_country, shipping_rate_mode, flat_rates, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies, shipping_rates_set_at")
           .eq("id", publisherId!)
           .single(),
         supabase
@@ -51,10 +47,7 @@ export function usePublisherShipping(publisherId: string | null | undefined, ena
         },
         ships_from_country: pub.ships_from_country,
         shipping_rate_mode: (pub.shipping_rate_mode as "live" | "flat") ?? "live",
-        domestic_first_copy_usd: num(pub.domestic_first_copy_usd),
-        domestic_additional_copy_usd: num(pub.domestic_additional_copy_usd),
-        intl_first_copy_usd: num(pub.intl_first_copy_usd),
-        intl_additional_copy_usd: num(pub.intl_additional_copy_usd),
+        flat_rates: (pub.flat_rates ?? {}) as FlatRatesByRegion,
         ships_internationally: pub.ships_internationally ?? true,
         uses_neesh_labels: !!pub.uses_neesh_labels,
         packaging_preset: (pub.packaging_preset as PackagingPreset) ?? "auto",
@@ -92,8 +85,7 @@ export function useSavePublisherShipping(publisherId: string | null | undefined)
       const country = s.ships_from_address ? normalizeCountry(s.ships_from_address.country ?? null) : undefined;
       const update: Record<string, unknown> = {};
       for (const k of [
-        "shipping_rate_mode", "domestic_first_copy_usd", "domestic_additional_copy_usd", "intl_first_copy_usd",
-        "intl_additional_copy_usd", "ships_internationally", "uses_neesh_labels", "packaging_preset", "intl_min_copies",
+        "shipping_rate_mode", "flat_rates", "ships_internationally", "uses_neesh_labels", "packaging_preset", "intl_min_copies",
       ] as const) {
         if (s[k] !== undefined) update[k] = s[k];
       }

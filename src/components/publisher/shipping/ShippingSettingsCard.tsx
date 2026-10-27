@@ -13,22 +13,36 @@ import {
 import { useShippingPreview } from "@/hooks/useShippingQuote";
 import { useMagazines } from "@/hooks/useMagazines";
 import {
+  FLAT_REGIONS,
   LABEL_VERIFIED_COUNTRIES,
   PACKAGING_OPTIONS,
   REFERENCE_DOMESTIC_ADDRESSES,
   REFERENCE_US_ADDRESS,
   countryName,
+  flatRatesFor,
   flatShipping,
   isEU,
   isQuotableAddress,
-  zoneFor,
+  originRegion,
+  regionFor,
+  type FlatRatesByRegion,
   type PackagingPreset,
+  type Region,
 } from "@/lib/shipping";
 import { money } from "@/lib/shippingCopy";
 
 const DEFAULT_WEIGHT = 350;
 
 const toNum = (v: string): number | null => (v.trim() === "" ? null : Number(v));
+
+type FlatInputs = Record<Region, { first: string; extra: string }>;
+
+const toInputs = (rates: FlatRatesByRegion): FlatInputs => {
+  const s = (n: number | null | undefined) => (n == null ? "" : String(n));
+  return Object.fromEntries(
+    FLAT_REGIONS.map(({ key }) => [key, { first: s(rates[key]?.first), extra: s(rates[key]?.additional) }]),
+  ) as FlatInputs;
+};
 
 interface ShippingSettingsCardProps {
   publisherId: string;
@@ -42,19 +56,13 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
   const save = useSavePublisherShipping(publisherId);
   const { magazines } = useMagazines({ publisherId, status: "active", enabled: !!publisherId });
   const [form, setForm] = useState<PublisherShippingSettings | null>(null);
-  const [flat, setFlat] = useState({ df: "", da: "", inf: "", ia: "" });
+  const [flat, setFlat] = useState<FlatInputs>(() => toInputs({}));
   const [intlMin, setIntlMin] = useState("5");
 
   useEffect(() => {
     if (!data) return;
     setForm(data);
-    const s = (n: number | null) => (n === null ? "" : String(n));
-    setFlat({
-      df: s(data.domestic_first_copy_usd),
-      da: s(data.domestic_additional_copy_usd),
-      inf: s(data.intl_first_copy_usd),
-      ia: s(data.intl_additional_copy_usd),
-    });
+    setFlat(toInputs(data.flat_rates));
     setIntlMin(String(data.intl_min_copies));
   }, [data]);
 
@@ -98,18 +106,33 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
 
   const set = (patch: Partial<PublisherShippingSettings>) => setForm({ ...form, ...patch });
 
-  const flatFor = (destCountry: string, copies: number) => {
-    const zone = zoneFor(country, destCountry);
-    return flatShipping(
-      zone === "domestic"
-        ? { firstCopyUsd: toNum(flat.df), additionalCopyUsd: toNum(flat.da) }
-        : { firstCopyUsd: toNum(flat.inf), additionalCopyUsd: toNum(flat.ia) },
-      copies,
-    );
+  // The publisher's own country is always Domestic, so its region is hidden.
+  const hiddenRegion = originRegion(country);
+  const regions = FLAT_REGIONS.filter((r) => r.key !== hiddenRegion);
+  const regionLabel = (key: Region, label: string) => {
+    if (key !== "domestic" || !country) return label;
+    return `Domestic (${isEU(country) ? "EU" : countryName(country)})`;
   };
+  const setRate = (key: Region, patch: Partial<FlatInputs[Region]>) =>
+    setFlat({ ...flat, [key]: { ...flat[key], ...patch } });
+
+  const flatRates = (): FlatRatesByRegion => {
+    const out: FlatRatesByRegion = {};
+    for (const { key } of regions) {
+      const first = toNum(flat[key].first);
+      if (first === null) continue;
+      out[key] = { first, additional: toNum(flat[key].extra) };
+    }
+    return out;
+  };
+
+  const flatFor = (destCountry: string, copies: number) =>
+    flatShipping(flatRatesFor(flatRates(), regionFor(country, destCountry)), copies);
   const previewAmount = (which: "us" | "domestic", copies: number): string => {
     if (isFlat) {
-      const v = flatFor(which === "us" ? REFERENCE_US_ADDRESS.country : country, copies);
+      const dest = which === "us" ? REFERENCE_US_ADDRESS.country : country;
+      if (!form.ships_internationally && regionFor(country, dest) !== "domestic") return "Not shipped";
+      const v = flatFor(dest, copies);
       return v === null ? "Not set" : money(v);
     }
     if (!quotable) return "Add address";
@@ -125,14 +148,19 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
       toast.error("The international minimum must be at least 1 copy.");
       return;
     }
-    const rates = [flat.df, flat.da, flat.inf, flat.ia].map(toNum);
     if (isFlat) {
-      if (rates.some((r) => r !== null && (isNaN(r) || r < 0 || r > 100))) {
+      const values = regions.flatMap(({ key }) => [flat[key].first, flat[key].extra]).map(toNum);
+      if (values.some((r) => r !== null && (isNaN(r) || r < 0 || r > 100))) {
         toast.error("Flat rates must be between 0 and 100 USD.");
         return;
       }
-      if (rates[0] === null || (form.ships_internationally && rates[2] === null)) {
-        toast.error("Add a first-copy rate for each zone you ship to.");
+      const extraOnly = regions.find(({ key }) => toNum(flat[key].first) === null && toNum(flat[key].extra) !== null);
+      if (extraOnly) {
+        toast.error(`Add a first-copy rate for ${regionLabel(extraOnly.key, extraOnly.label)}, or clear it.`);
+        return;
+      }
+      if (toNum(flat.domestic.first) === null) {
+        toast.error("Add a first-copy rate for Domestic.");
         return;
       }
     }
@@ -140,10 +168,8 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
       await save.mutateAsync({
         ...form,
         intl_min_copies: min,
-        domestic_first_copy_usd: rates[0],
-        domestic_additional_copy_usd: rates[1],
-        intl_first_copy_usd: rates[2],
-        intl_additional_copy_usd: rates[3],
+        // Live-mode publishers keep whatever flat rates they had saved.
+        ...(isFlat ? { flat_rates: flatRates() } : {}),
       });
       toast.success("Shipping settings saved");
     } catch (err) {
@@ -178,7 +204,7 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
       <div className="space-y-2">
         {([
           ["live", "Live carrier rates", "Quoted to each space's address."],
-          ["flat", "My own flat rates", "First copy plus each extra, by zone."],
+          ["flat", "My own flat rates", "First copy plus each extra, by region."],
         ] as const).map(([value, title, help]) => (
           <label key={value} className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-secondary transition-colors">
             <input
@@ -203,11 +229,23 @@ export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: Shippin
       )}
 
       {isFlat && (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <FormInput label="Domestic, first copy (USD)" type="number" min={0} max={100} step="0.5" value={flat.df} onChange={(v) => setFlat({ ...flat, df: v })} />
-          <FormInput label="Domestic, each extra" type="number" min={0} max={100} step="0.5" value={flat.da} onChange={(v) => setFlat({ ...flat, da: v })} />
-          <FormInput label="International, first copy" type="number" min={0} max={100} step="0.5" value={flat.inf} onChange={(v) => setFlat({ ...flat, inf: v })} />
-          <FormInput label="International, each extra" type="number" min={0} max={100} step="0.5" value={flat.ia} onChange={(v) => setFlat({ ...flat, ia: v })} />
+        <div className="mt-4">
+          <div className="grid grid-cols-[1fr_7rem_7rem] gap-3 text-caption text-muted-foreground pb-2">
+            <span>Region</span>
+            <span>First copy (USD)</span>
+            <span>Each extra (USD)</span>
+          </div>
+          {regions.map(({ key, label }) => {
+            const off = key !== "domestic" && !form.ships_internationally;
+            return (
+              <div key={key} className={`grid grid-cols-[1fr_7rem_7rem] gap-3 items-center py-1 ${off ? "opacity-50" : ""}`}>
+                <span className="text-sm text-foreground">{regionLabel(key, label)}</span>
+                <FormInput aria-label={`${regionLabel(key, label)}, first copy`} type="number" min={0} max={100} step="0.5" disabled={off} value={flat[key].first} onChange={(v) => setRate(key, { first: v })} />
+                <FormInput aria-label={`${regionLabel(key, label)}, each extra`} type="number" min={0} max={100} step="0.5" disabled={off} value={flat[key].extra} onChange={(v) => setRate(key, { extra: v })} />
+              </div>
+            );
+          })}
+          <p className="text-caption text-muted-foreground mt-2">Leave a region blank and spaces there can't order from you.</p>
         </div>
       )}
 

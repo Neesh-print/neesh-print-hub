@@ -1315,6 +1315,7 @@ export type Database = {
           description: string | null
           domestic_additional_copy_usd: number | null
           domestic_first_copy_usd: number | null
+          flat_rates: Json
           id: string
           instagram_handle: string | null
           intl_additional_copy_usd: number | null
@@ -1359,6 +1360,7 @@ export type Database = {
           description?: string | null
           domestic_additional_copy_usd?: number | null
           domestic_first_copy_usd?: number | null
+          flat_rates?: Json
           id?: string
           instagram_handle?: string | null
           intl_additional_copy_usd?: number | null
@@ -1403,6 +1405,7 @@ export type Database = {
           description?: string | null
           domestic_additional_copy_usd?: number | null
           domestic_first_copy_usd?: number | null
+          flat_rates?: Json
           id?: string
           instagram_handle?: string | null
           intl_additional_copy_usd?: number | null
@@ -2288,6 +2291,7 @@ export type Database = {
               error: true
             } & "Could not choose the best candidate function between: public.urlencode(string => bytea), public.urlencode(string => varchar). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
           }
+      valid_flat_rates: { Args: { rates: Json }; Returns: boolean }
     }
     Enums: {
       order_status:

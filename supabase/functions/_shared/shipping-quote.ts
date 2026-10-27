@@ -14,6 +14,7 @@ import {
   buildParcel,
   checkMinimums,
   destinationKey,
+  flatRatesFor,
   flatShipping,
   incotermFor,
   isQuotableAddress,
@@ -21,10 +22,12 @@ import {
   normalizeCountry,
   pickCheapestTrackedRate,
   rateCacheKey,
+  regionFor,
   round2,
   zoneFor,
   type CarrierRate,
   type CustomsDeclaration,
+  type FlatRatesByRegion,
   type PackagingPreset,
   type Parcel,
   type ShipAddress,
@@ -109,10 +112,7 @@ interface PublisherRow {
   company_name: string | null
   ships_from_country: string | null
   shipping_rate_mode: 'live' | 'flat'
-  domestic_first_copy_usd: number | null
-  domestic_additional_copy_usd: number | null
-  intl_first_copy_usd: number | null
-  intl_additional_copy_usd: number | null
+  flat_rates: FlatRatesByRegion | null
   ships_internationally: boolean
   uses_neesh_labels: boolean
   packaging_preset: PackagingPreset
@@ -282,7 +282,7 @@ export async function quoteCart(opts: {
   const publisherIds = [...byPublisher.keys()]
   const { data: publisherRows } = await admin
     .from('publishers')
-    .select('id, company_name, ships_from_country, shipping_rate_mode, domestic_first_copy_usd, domestic_additional_copy_usd, intl_first_copy_usd, intl_additional_copy_usd, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies')
+    .select('id, company_name, ships_from_country, shipping_rate_mode, flat_rates, ships_internationally, uses_neesh_labels, packaging_preset, intl_min_copies')
     .in('id', publisherIds.length ? publisherIds : ['00000000-0000-0000-0000-000000000000'])
   const publishers = new Map((publisherRows as PublisherRow[] | null ?? []).map((p) => [p.id, p]))
 
@@ -374,10 +374,7 @@ export async function quoteCart(opts: {
     let customs: CustomsDeclaration | null = null
 
     if (pub.shipping_rate_mode === 'flat') {
-      shippingUsd = flatShipping(zone === 'domestic'
-        ? { firstCopyUsd: num(pub.domestic_first_copy_usd), additionalCopyUsd: num(pub.domestic_additional_copy_usd) }
-        : { firstCopyUsd: num(pub.intl_first_copy_usd), additionalCopyUsd: num(pub.intl_additional_copy_usd) },
-        minimums.copies)
+      shippingUsd = flatShipping(flatRatesFor(pub.flat_rates, regionFor(originCountry, destCountry)), minimums.copies)
       if (shippingUsd === null) { group.blocked_reason = 'no_rate'; continue }
     } else {
       if (!origin) { group.blocked_reason = 'no_origin'; continue }

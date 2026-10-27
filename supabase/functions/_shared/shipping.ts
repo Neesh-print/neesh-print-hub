@@ -187,6 +187,53 @@ export function flatShipping(rates: FlatRates, copies: number): number | null {
   return round2(rates.firstCopyUsd + (copies - 1) * additional);
 }
 
+/**
+ * Flat-rate regions. Domestic follows zoneFor; everything else is matched on
+ * the destination. intl_min_copies and checkMinimums still use zoneFor.
+ */
+export type Region = 'domestic' | 'us' | 'ca' | 'uk' | 'eu' | 'row';
+
+export const FLAT_REGIONS: { key: Region; label: string }[] = [
+  { key: 'domestic', label: 'Domestic' },
+  { key: 'us', label: 'United States' },
+  { key: 'ca', label: 'Canada' },
+  { key: 'uk', label: 'United Kingdom' },
+  { key: 'eu', label: 'European Union' },
+  { key: 'row', label: 'Rest of world' },
+];
+
+/** publishers.flat_rates: { "<region>": { "first": 8, "additional": 3 } }. A missing region is not shipped to. */
+export type FlatRatesByRegion = Partial<Record<Region, { first: number; additional?: number | null }>>;
+
+/** The named region a country belongs to, or null for Rest of world. */
+function namedRegion(country: string | null): Region | null {
+  if (country === 'US') return 'us';
+  if (country === 'CA') return 'ca';
+  if (country === 'GB') return 'uk';
+  if (isEU(country)) return 'eu';
+  return null;
+}
+
+export function regionFor(origin: string | null | undefined, destination: string | null | undefined): Region {
+  if (zoneFor(origin, destination) === 'domestic') return 'domestic';
+  return namedRegion(normalizeCountry(destination)) ?? 'row';
+}
+
+/**
+ * The region that is the publisher's own country (always quoted as Domestic),
+ * so the settings form hides it. Null for Rest-of-world origins: Rest of world
+ * still covers every other country there.
+ */
+export function originRegion(origin: string | null | undefined): Region | null {
+  return namedRegion(normalizeCountry(origin));
+}
+
+export function flatRatesFor(flatRates: FlatRatesByRegion | null | undefined, region: Region): FlatRates {
+  const r = flatRates?.[region];
+  if (!r || r.first === null || r.first === undefined) return { firstCopyUsd: null, additionalCopyUsd: null };
+  return { firstCopyUsd: Number(r.first), additionalCopyUsd: r.additional == null ? null : Number(r.additional) };
+}
+
 // ---------------------------------------------------------------------------
 // Margins (decision 6)
 // ---------------------------------------------------------------------------
