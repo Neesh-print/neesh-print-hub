@@ -247,7 +247,9 @@ ALTER TABLE public.publisher_transfers
   DROP CONSTRAINT IF EXISTS publisher_transfers_hold_reason_check;
 ALTER TABLE public.publisher_transfers
   ADD CONSTRAINT publisher_transfers_hold_reason_check
-    CHECK (hold_reason IS NULL OR hold_reason IN ('awaiting_invoice_payment', 'awaiting_label'));
+    CHECK (hold_reason IS NULL OR hold_reason IN (
+      'awaiting_invoice_payment', 'awaiting_label', 'refund_review', 'dispute'
+    ));
 
 -- 9) Backfill ships_from_country ----------------------------------------------
 -- First the most common origin_country_code across the publisher's titles,
