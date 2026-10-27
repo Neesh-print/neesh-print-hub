@@ -11,7 +11,7 @@
 --
 -- 2) publisher_transfers.hold_reason gains 'refund_review' and 'dispute'.
 --    A held row stays 'pending' but release-publisher-transfer skips it.
---    ('awaiting_invoice_payment' is unchanged.)
+--    ('awaiting_invoice_payment' and 'awaiting_label' are kept unchanged.)
 --
 -- 3) publisher_transfers.reversal_needed flags payouts that already went out
 --    for an order that was later refunded or disputed. An admin decides
@@ -65,7 +65,9 @@ END $$;
 
 ALTER TABLE public.publisher_transfers
   ADD CONSTRAINT publisher_transfers_hold_reason_check
-  CHECK (hold_reason IS NULL OR hold_reason IN ('awaiting_invoice_payment', 'refund_review', 'dispute'));
+  CHECK (hold_reason IS NULL OR hold_reason IN (
+    'awaiting_invoice_payment', 'awaiting_label', 'refund_review', 'dispute'
+  ));
 
 -- 3) Reversal flag ------------------------------------------------------------
 ALTER TABLE public.publisher_transfers
