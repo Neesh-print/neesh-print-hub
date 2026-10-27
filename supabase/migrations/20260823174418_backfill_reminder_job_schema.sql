@@ -27,7 +27,7 @@ AS $function$
    where id = any(mag_ids);
 $function$;
 
--- Service role only. See 20260819090000_price_reminders.sql: left open, any
+-- Service role only. See 20260819075233_price_reminders.sql: left open, any
 -- anon caller could inflate a counter and silently suppress reminders.
 REVOKE ALL ON FUNCTION public.bump_image_reminders(uuid[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.bump_image_reminders(uuid[]) TO service_role;
