@@ -5,6 +5,7 @@ import { PublisherLayout } from "@/components/publisher/PublisherLayout";
 import { BackNavigation, TabNavigation, EmptyState } from "@/components/neesh";
 import { usePublisherTransfers } from "@/hooks/usePublisherTransfers";
 import { format } from "date-fns";
+import { useShippingV2 } from "@/hooks/useShippingV2";
 
 const tabs = [
   { id: "history", label: "Transaction History" },
@@ -26,7 +27,8 @@ interface TransactionGroup {
 export const PublisherTransactionHistory = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("history");
-  const { transfers, isLoading } = usePublisherTransfers();
+  const { enabled: shippingV2 } = useShippingV2();
+  const { transfers, isLoading } = usePublisherTransfers({ withShipping: shippingV2 });
 
   // Group transfers by date
   const transactions: TransactionGroup[] = useMemo(() => {
@@ -50,17 +52,54 @@ export const PublisherTransactionHistory = () => {
                 ? "On hold"
                 : "Pending";
 
-      groupMap.get(dateKey)!.items.push({
-        type: t.status === "transferred" ? "bank" : "store",
-        name: t.order_number || "Order",
-        label: statusLabel,
-        amount: t.status === "transferred" ? t.net_amount : t.net_amount,
-        status: t.status,
-      });
+      const type = t.status === "transferred" ? "bank" : "store";
+      if (!shippingV2) {
+        groupMap.get(dateKey)!.items.push({
+          type,
+          name: t.order_number || "Order",
+          label: statusLabel,
+          amount: t.net_amount,
+          status: t.status,
+        });
+        continue;
+      }
+
+      // shipping_v2: copies, shipping and the Neesh label as separate rows (P6).
+      if (t.kind === "shipping") {
+        groupMap.get(dateKey)!.items.push({
+          type,
+          name: t.order_number || "Parcel",
+          label:
+            t.hold_reason === "awaiting_label"
+              ? "Shipping (paid out after the label)"
+              : t.hold_reason === "awaiting_tracking"
+                ? "Shipping (paid out once you add tracking)"
+                : "Shipping",
+          amount: t.gross_amount,
+          status: t.status,
+        });
+        if (t.label_cost !== null && t.label_cost !== undefined) {
+          groupMap.get(dateKey)!.items.push({
+            type: "bank",
+            name: "Neesh",
+            label: "Shipping label",
+            amount: -Math.min(t.label_cost, t.gross_amount),
+            status: t.status,
+          });
+        }
+      } else {
+        groupMap.get(dateKey)!.items.push({
+          type,
+          name: t.order_number || "Order",
+          label: t.item_label ? `${t.item_label} · ${statusLabel}` : statusLabel,
+          amount: t.net_amount,
+          status: t.status,
+        });
+      }
     }
 
     return Array.from(groupMap.values());
-  }, [transfers]);
+  }, [transfers, shippingV2]);
 
   const [expandedDates, setExpandedDates] = useState<string[]>([]);
 
@@ -88,7 +127,7 @@ export const PublisherTransactionHistory = () => {
 
   const formatAmount = (amount: number) => {
     const formatted = Math.abs(amount).toFixed(2);
-    return `+$${formatted}`;
+    return amount < 0 ? `\u2212$${formatted}` : `+$${formatted}`;
   };
 
   const getStatusColor = (status: string) => {

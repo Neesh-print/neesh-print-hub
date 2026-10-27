@@ -81,14 +81,16 @@ Deno.serve(async (req) => {
     }
 
     // `force` lets an admin release a payout still held for an unpaid
-    // net-terms invoice. It never overrides a refund or dispute hold.
+    // net-terms invoice. It never overrides a refund, dispute or shipping hold.
     const { transferIds, force = false } = await req.json()
 
     // Holds that block release. NOT IN is false for NULL, so "no hold" is
-    // listed separately.
+    // listed separately. shipping_v2: a shipping transfer waits for its label
+    // (buy-label deducts the cost from pending rows only) or, for publishers
+    // using their own labels, for tracking.
     const blockingHolds = force
-      ? 'refund_review,dispute'
-      : 'refund_review,dispute,awaiting_invoice_payment'
+      ? 'refund_review,dispute,awaiting_label,awaiting_tracking'
+      : 'refund_review,dispute,awaiting_label,awaiting_tracking,awaiting_invoice_payment'
     const releasableHoldFilter = `hold_reason.is.null,hold_reason.not.in.(${blockingHolds})`
 
     if (!Array.isArray(transferIds) || transferIds.length === 0) {
@@ -122,7 +124,7 @@ Deno.serve(async (req) => {
           .eq('status', 'pending')
           .or(releasableHoldFilter)
           .select(`
-            id, order_id, net_amount,
+            id, order_id, shipment_id, kind, net_amount,
             publishers (
               id, stripe_account_id, company_name
             )
@@ -147,11 +149,25 @@ Deno.serve(async (req) => {
               ? `Transfer already ${current.status}`
               : current.hold_reason === 'awaiting_invoice_payment'
                 ? 'Held until the retailer pays the linked invoice. Use force to override.'
-                : `Transfer is on hold (${current.hold_reason})`
+                : current.hold_reason === 'awaiting_label'
+                  ? 'Held until the publisher prints the shipping label'
+                  : current.hold_reason === 'awaiting_tracking'
+                    ? 'Held until the publisher adds tracking'
+                    : `Transfer is on hold (${current.hold_reason})`
           results.push({ id: transferId, success: false, error: reason })
           continue
         }
         claimed = true
+
+        // A shipping transfer whose label cost used up the shipping has nothing to send.
+        if (Number(transfer.net_amount) <= 0) {
+          await supabaseAdmin
+            .from('publisher_transfers')
+            .update({ status: 'transferred', hold_reason: null, transferred_at: new Date().toISOString() })
+            .eq('id', transferId)
+          results.push({ id: transferId, success: true })
+          continue
+        }
 
         const publisher = transfer.publishers as any
         if (!publisher?.stripe_account_id) {
@@ -178,9 +194,15 @@ Deno.serve(async (req) => {
           amount: amountInCents,
           currency: 'usd',
           destination: publisher.stripe_account_id,
-          transfer_group: transfer.order_id,
-          description: `Neesh payout for order ${transfer.order_id}`,
-          metadata: { publisher_transfer_id: transfer.id, order_id: transfer.order_id },
+          transfer_group: transfer.order_id ?? transfer.shipment_id,
+          description: transfer.kind === 'shipping'
+            ? `Neesh shipping payout for shipment ${transfer.shipment_id}`
+            : `Neesh payout for order ${transfer.order_id}`,
+          metadata: {
+            publisher_transfer_id: transfer.id,
+            order_id: transfer.order_id ?? '',
+            shipment_id: transfer.shipment_id ?? '',
+          },
         }, { idempotencyKey: `publisher-transfer-${transfer.id}` })
 
         // Mark as transferred

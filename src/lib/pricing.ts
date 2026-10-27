@@ -1,14 +1,14 @@
 /**
  * Neesh Pricing Utilities
  * 
- * All calculations account for Neesh's 20% markup (10% platform fee + 10% shipping buffer).
+ * A space pays wholesale plus Neesh's 10% (WSP x 1.10). Shipping is separate
+ * and comes from the live quote (see src/lib/shipping.ts).
  * Prices are expected in dollars (not cents).
  */
 
-/**
- * Neesh markup multiplier: 10% platform fee + 10% shipping buffer
- */
-export const NEESH_MARKUP_MULTIPLIER = 1.20;
+import { NEESH_SPACE_MULTIPLIER } from "./shipping";
+
+export { NEESH_SPACE_MULTIPLIER };
 
 /**
  * Currency formatter - created once for performance
@@ -29,26 +29,26 @@ export function formatPrice(dollars: number): string {
 
 /**
  * Calculate the retailer's effective cost (what they actually pay)
- * WSP × 1.20 accounts for Neesh markup and shipping
+ * WSP × 1.10 (Neesh's 10% on top of wholesale)
  */
 export function calculateEffectiveCost(
   wholesalePrice: number,
   quantity: number = 1
 ): number {
   if (!wholesalePrice || wholesalePrice <= 0) return 0;
-  return wholesalePrice * NEESH_MARKUP_MULTIPLIER * quantity;
+  return wholesalePrice * NEESH_SPACE_MULTIPLIER * quantity;
 }
 
 /**
  * Calculate the retailer's true margin per unit
- * MSRP - (WSP × 1.20)
+ * MSRP - (WSP × 1.10), before shipping
  */
 export function calculateMarginPerUnit(
   wholesalePrice: number,
   retailPrice: number
 ): number {
   if (!wholesalePrice || !retailPrice) return 0;
-  const effectiveCost = wholesalePrice * NEESH_MARKUP_MULTIPLIER;
+  const effectiveCost = wholesalePrice * NEESH_SPACE_MULTIPLIER;
   return retailPrice - effectiveCost;
 }
 

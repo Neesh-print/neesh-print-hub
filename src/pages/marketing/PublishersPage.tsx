@@ -3,8 +3,10 @@ import { Search, Send, LayoutDashboard } from 'lucide-react';
 import publishersHeroImage from '@/assets/publishers-hero.png';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { ButtonPrimary } from '@/components/neesh/ButtonPrimary';
+import { useShippingV2 } from '@/hooks/useShippingV2';
 
 export const PublishersPage = () => {
+  const { enabled: shippingV2 } = useShippingV2();
   return (
     <MarketingLayout>
       {/* Hero Section */}
@@ -70,10 +72,12 @@ export const PublishersPage = () => {
                 <Send className="w-7 h-7 text-foreground" />
               </div>
               <h3 className="text-heading font-display font-semibold mb-3">
-                Better Shipping Rates
+                {shippingV2 ? "Discounted labels, printed from your order page" : "Better Shipping Rates"}
               </h3>
               <p className="text-body text-muted-foreground">
-                We negotiate shipping rates on behalf of all publishers on the platform. You get pricing you couldn't access alone, without handing over inventory or control to a distributor.
+                {shippingV2
+                  ? "Spaces pay shipping at checkout and it passes to you in full. Print a prepaid label with customs forms from the order, or use your own postage. No distributor, no handing over inventory."
+                  : "We negotiate shipping rates on behalf of all publishers on the platform. You get pricing you couldn't access alone, without handing over inventory or control to a distributor."}
               </p>
             </div>
 

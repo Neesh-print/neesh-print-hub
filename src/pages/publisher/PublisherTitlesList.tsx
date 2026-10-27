@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
-import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary, ButtonSecondary } from "@/components/neesh";
+import { BackNavigation, MagazineCard, EmptyState, ButtonPrimary, ButtonSecondary, StatusBadge } from "@/components/neesh";
 import { Plus, BookOpen, Loader2, Upload, Archive, RotateCcw } from "lucide-react";
 import { useMagazines } from "@/hooks/useMagazines";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useShippingV2 } from "@/hooks/useShippingV2";
+import { useReferenceShipping } from "@/hooks/useReferenceShipping";
+import { REFERENCE_ORDER_COPIES, landedMargin, suggestHealthyRetail, type LandedMargin } from "@/lib/shipping";
+import { MARGIN_BADGE_STATUS, marginBandLabel, money, percent, signedMoney } from "@/lib/shippingCopy";
 
 export const PublisherTitlesList = () => {
   const navigate = useNavigate();
@@ -21,6 +25,36 @@ export const PublisherTitlesList = () => {
   });
 
   const isLoading = publisherLoading || (publisher && magazinesLoading);
+
+  // --- shipping_v2: what a New York space earns on 10 copies (T13, decision 6) ---
+  const { enabled: shippingV2 } = useShippingV2();
+  const priced = viewStatus === "active"
+    ? titles.filter((t) => t.wholesale_price > 0 && t.suggested_retail_price > 0 && (t.weight_grams ?? 0) > 0)
+    : [];
+  const reference = useReferenceShipping({
+    publisherId: publisher?.id,
+    enabled: shippingV2 && priced.length > 0,
+    lines: priced.map((t) => ({
+      key: t.id,
+      copies: REFERENCE_ORDER_COPIES,
+      weight_grams: t.weight_grams!,
+      wsp: t.wholesale_price,
+      width_mm: t.width_mm,
+      height_mm: t.height_mm,
+    })),
+  });
+  const marginFor = (titleId: string): { m: LandedMargin; suggestion: number | null } | null => {
+    const t = priced.find((x) => x.id === titleId);
+    const ship = reference.byKey.get(titleId);
+    if (!t || ship === null || ship === undefined) return null;
+    const input = { wsp: t.wholesale_price, srp: t.suggested_retail_price, quantity: REFERENCE_ORDER_COPIES, shippingUsd: ship };
+    return { m: landedMargin(input), suggestion: suggestHealthyRetail(input) };
+  };
+  const notHealthy = priced
+    .map((t) => ({ t, r: marginFor(t.id) }))
+    .filter((x): x is { t: typeof priced[number]; r: NonNullable<ReturnType<typeof marginFor>> } => !!x.r && x.r.m.band !== "healthy");
+  const anyLoss = notHealthy.some((x) => x.r.m.band === "loss");
+  const label = (t: typeof priced[number]) => t.issue_number || t.title;
 
   const handleBack = () => {
     navigate("/publisher");
@@ -128,6 +162,32 @@ export const PublisherTitlesList = () => {
           }
         />
 
+        {shippingV2 && notHealthy.length > 0 && (
+          <div className="mb-6 p-4 rounded-lg bg-accent/5 border border-accent/30 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-foreground">
+                {anyLoss ? "US spaces lose money on " : "Margins are thin for US spaces on "}
+                {notHealthy.length === 1 ? notHealthy[0].t.title : `${notHealthy.length} of your titles`}.
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-sm">
+                {"Retail of "}
+                {notHealthy
+                  .filter((x) => x.r.suggestion !== null)
+                  .map((x) => `${money(x.r.suggestion!)} (${label(x.t)})`)
+                  .join(" or ")}
+                {` makes ${REFERENCE_ORDER_COPIES} copies Healthy.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleEditTitle(notHealthy[0].t.id)}
+              className="font-semibold text-accent whitespace-nowrap hover:underline"
+            >
+              Edit prices
+            </button>
+          </div>
+        )}
+
         <div className="mb-6">
           <Tabs value={viewStatus} onValueChange={(v) => setViewStatus(v as 'active' | 'archived')}>
             <TabsList>
@@ -192,6 +252,23 @@ export const PublisherTitlesList = () => {
                 <div className="mt-2 text-sm text-muted-foreground">
                   {title.inventory_count || 0} in stock • WSP ${title.wholesale_price.toFixed(2)}
                 </div>
+
+                {/* Space margin on a 10-copy New York order (shipping_v2) */}
+                {shippingV2 && viewStatus === "active" && (() => {
+                  if (!((title.weight_grams ?? 0) > 0)) {
+                    return <div className="mt-2 text-caption text-status-pending-text">Add a weight to see shipping</div>;
+                  }
+                  const r = marginFor(title.id);
+                  if (!r) return null;
+                  return (
+                    <div className="flex gap-1.5 items-center mt-2 flex-wrap">
+                      <StatusBadge status={MARGIN_BADGE_STATUS[r.m.band]} label={marginBandLabel(r.m.band)} />
+                      <span className="text-caption text-muted-foreground">
+                        {signedMoney(r.m.margin)} ({percent(r.m.marginPct)}) · {REFERENCE_ORDER_COPIES} to NYC
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
