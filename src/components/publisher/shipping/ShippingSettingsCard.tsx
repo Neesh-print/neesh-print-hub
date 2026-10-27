@@ -32,10 +32,12 @@ const toNum = (v: string): number | null => (v.trim() === "" ? null : Number(v))
 
 interface ShippingSettingsCardProps {
   publisherId: string;
+  /** shipping_v2 flag is off: spaces don't pay shipping yet. */
+  prelaunch?: boolean;
 }
 
 /** Settings > Shipping (T4, T18). */
-export const ShippingSettingsCard = ({ publisherId }: ShippingSettingsCardProps) => {
+export const ShippingSettingsCard = ({ publisherId, prelaunch = false }: ShippingSettingsCardProps) => {
   const { data, isLoading } = usePublisherShipping(publisherId);
   const save = useSavePublisherShipping(publisherId);
   const { magazines } = useMagazines({ publisherId, status: "active", enabled: !!publisherId });
@@ -162,6 +164,12 @@ export const ShippingSettingsCard = ({ publisherId }: ShippingSettingsCardProps)
           Save Changes
         </ButtonPrimary>
       </div>
+
+      {prelaunch && (
+        <p className="text-sm text-muted-foreground mb-4">
+          Spaces will soon pay shipping at checkout, quoted from this address. Add it now so spaces can keep ordering your titles.
+        </p>
+      )}
 
       <p className="text-caption uppercase tracking-wide text-muted-foreground mb-3">Ships From</p>
       <ShipsFromFields value={address} onChange={(a) => set({ ships_from_address: a })} />

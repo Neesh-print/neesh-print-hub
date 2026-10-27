@@ -135,8 +135,9 @@ export const PublisherSettings = () => {
             </div>
           </div>
 
-          {/* Shipping (shipping_v2) */}
-          {shippingV2 && publisher?.id && <ShippingSettingsCard publisherId={publisher.id} />}
+          {/* Shipping (shipping_v2). Shown before launch too, so publishers can
+              add their ships-from address before spaces pay shipping. */}
+          {publisher?.id && <ShippingSettingsCard publisherId={publisher.id} prelaunch={!shippingV2} />}
 
           {/* Notification Preferences */}
           <div className="card-neesh">

@@ -8,13 +8,14 @@ import { isQuotableAddress } from "@/lib/shipping";
 /**
  * Dashboard banner (T4). With live rates as the default there are no Neesh
  * flat defaults, so a publisher without a ships-from address (and without
- * their own flat rates) cannot be checked out at all.
+ * their own flat rates) cannot be checked out at all. Shown before launch too
+ * (flag off), so publishers can set up shipping ahead of time.
  */
 export const PublisherShippingBanner = ({ publisherId }: { publisherId: string | null | undefined }) => {
   const navigate = useNavigate();
-  const { enabled } = useShippingV2();
-  const { data } = usePublisherShipping(publisherId, enabled);
-  if (!enabled || !data) return null;
+  const { enabled, isLoading } = useShippingV2();
+  const { data } = usePublisherShipping(publisherId, !!publisherId);
+  if (isLoading || !data) return null;
   const hasAddress = isQuotableAddress({ ...data.ships_from_address, name: data.ships_from_address.name || "Publisher" });
   if (hasAddress || data.shipping_rate_mode === "flat") return null;
 
@@ -26,7 +27,9 @@ export const PublisherShippingBanner = ({ publisherId }: { publisherId: string |
           <div>
             <h3 className="font-medium text-foreground">Add where you ship from</h3>
             <p className="text-sm text-muted-foreground">
-              Spaces pay shipping at checkout, quoted live from your address. Until you add it, spaces can't check out your titles.
+              {enabled
+                ? "Spaces pay shipping at checkout, quoted live from your address. Until you add it, spaces can't check out your titles."
+                : "Spaces will soon pay shipping at checkout, quoted live from your address. Add it now so spaces can keep ordering your titles."}
             </p>
           </div>
         </div>
