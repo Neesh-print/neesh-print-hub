@@ -20,6 +20,7 @@ import {
   FormInput,
 } from "@/components/neesh";
 import { usePublisherTransfers } from "@/hooks/usePublisherTransfers";
+import { useShippingV2 } from "@/hooks/useShippingV2";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -50,6 +51,7 @@ export const AdminPublisherTransfers = () => {
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isReleasing, setIsReleasing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const { enabled: shippingV2 } = useShippingV2();
 
   const {
     transfers,
@@ -60,7 +62,7 @@ export const AdminPublisherTransfers = () => {
     pendingCount,
     transferredCount,
     refetch,
-  } = usePublisherTransfers();
+  } = usePublisherTransfers({ withShipping: shippingV2 });
 
   const filteredTransfers = useMemo(() => {
     return transfers
@@ -69,6 +71,9 @@ export const AdminPublisherTransfers = () => {
         date: t.created_at ? format(new Date(t.created_at), "MMM d, yyyy") : "",
         publisher: t.publisher_name || "Unknown",
         orderNumber: t.order_number || "N/A",
+        kind: t.kind,
+        itemLabel: t.item_label,
+        labelCost: t.label_cost,
         gross: t.gross_amount,
         fee: t.platform_fee,
         net: t.net_amount,
@@ -81,7 +86,8 @@ export const AdminPublisherTransfers = () => {
       .filter((t) => {
         const matchesSearch =
           t.publisher.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.orderNumber.toLowerCase().includes(searchTerm.toLowerCase());
+          t.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (t.itemLabel ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
         if (activeTab === "all") return matchesSearch;
         if (activeTab === "review") return matchesSearch && t.reversalNeeded;
@@ -90,8 +96,9 @@ export const AdminPublisherTransfers = () => {
   }, [transfers, searchTerm, activeTab]);
 
   // Pending transfers can be released unless held. (The server enforces this
-  // too; this page doesn't send `force`, so invoice holds stay blocked here,
-  // and label holds clear when the publisher buys the label.)
+  // too; this page doesn't send `force`, so invoice holds stay blocked here.)
+  // A Neesh-label shipping payout is held until the publisher buys the label;
+  // buy-label then deducts the label cost and clears the hold.
   const isReleasable = (t: (typeof filteredTransfers)[number]) =>
     t.status === "pending" && !t.holdReason;
 
@@ -151,10 +158,18 @@ export const AdminPublisherTransfers = () => {
       switch (row.status) {
         case "pending":
           return row.holdReason ? (
-            <StatusBadge
-              status="payment-pending"
-              label={holdLabels[row.holdReason] ?? "ON HOLD"}
-            />
+            <span
+              title={
+                row.holdReason === "awaiting_label"
+                  ? "Releasable once the publisher buys the shipping label"
+                  : undefined
+              }
+            >
+              <StatusBadge
+                status="payment-pending"
+                label={holdLabels[row.holdReason] ?? "ON HOLD"}
+              />
+            </span>
           ) : (
             <StatusBadge status="pending" />
           );
@@ -185,7 +200,23 @@ export const AdminPublisherTransfers = () => {
   const columns = [
     { key: "date", header: "Date", sortable: true },
     { key: "publisher", header: "Publisher" },
-    { key: "orderNumber", header: "Order #", sortable: true },
+    {
+      key: "orderNumber",
+      header: "Order #",
+      sortable: true,
+      render: (value: unknown, row: Record<string, unknown>) => {
+        const t = row as unknown as (typeof filteredTransfers)[number];
+        if (!shippingV2) return value as string;
+        return (
+          <div>
+            <div>{value as string}</div>
+            <div className="text-caption text-muted-foreground">
+              {t.kind === "shipping" ? "Shipping" : t.itemLabel ?? "Copies"}
+            </div>
+          </div>
+        );
+      },
+    },
     {
       key: "gross",
       header: "Gross",
@@ -202,9 +233,19 @@ export const AdminPublisherTransfers = () => {
       key: "net",
       header: "Net",
       align: "right" as const,
-      render: (value: unknown) => (
-        <span className="font-semibold">${(value as number).toFixed(2)}</span>
-      ),
+      render: (value: unknown, row: Record<string, unknown>) => {
+        const t = row as unknown as (typeof filteredTransfers)[number];
+        return (
+          <div>
+            <span className="font-semibold">${(value as number).toFixed(2)}</span>
+            {t.kind === "shipping" && t.labelCost != null && (
+              <div className="text-caption text-muted-foreground">
+                after ${t.labelCost.toFixed(2)} label
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "status",
@@ -274,7 +315,7 @@ export const AdminPublisherTransfers = () => {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <FormInput
-              placeholder="Search by publisher or order #..."
+              placeholder={shippingV2 ? "Search by publisher, order # or title..." : "Search by publisher or order #..."}
               value={searchTerm}
               onChange={setSearchTerm}
               className="pl-10"

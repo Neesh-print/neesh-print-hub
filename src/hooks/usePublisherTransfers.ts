@@ -91,7 +91,6 @@ export function usePublisherTransfers(options: UsePublisherTransfersOptions = {}
           order_id: (row.order_id as string | null) ?? null,
           kind: ((row.kind as string) === 'shipping' ? 'shipping' : 'goods') as 'goods' | 'shipping',
           shipment_id: (row.shipment_id as string | null) ?? null,
-          hold_reason: (row.hold_reason as string | null) ?? null,
           item_label: magazine?.title ? `${magazine.title as string} \u00d7 ${orders?.quantity as number}` : undefined,
           label_cost: shipment?.label_cost_usd != null ? Number(shipment.label_cost_usd) : null,
           stripe_session_id: row.stripe_session_id as string | null,
