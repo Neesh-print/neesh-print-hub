@@ -1,6 +1,6 @@
 // One-off backfill: read current Connect account state from Stripe for every
 // publisher that already has a stripe_account_id, and write the persisted
-// status columns added in 20260721000000_add_publisher_stripe_status.sql.
+// status columns added in 20260721054703_add_publisher_stripe_status.sql.
 //
 // Run once after deploying that migration. Safe to re-run — it only updates
 // existing rows and does not create anything in Stripe.
