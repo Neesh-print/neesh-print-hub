@@ -34,7 +34,11 @@ export const AdminOrders = () => {
         publisher: order.magazine?.title || "Unknown",
         total: order.total_amount,
         orderDate: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : "",
-        paymentStatus: order.payment_status === "paid" ? "payment-received" as const : "payment-pending" as const,
+        paymentStatus: order.payment_status === "paid"
+          ? "payment-received" as const
+          : order.payment_status === "refunded" || order.payment_status === "disputed"
+            ? order.payment_status
+            : "payment-pending" as const,
         fulfillmentStatus: order.fulfillment_status === "delivered" || order.fulfillment_status === "shipped"
           ? "received" as const
           : order.fulfillment_status === "pending"
@@ -79,7 +83,7 @@ export const AdminOrders = () => {
     {
       key: "paymentStatus",
       header: "Payment",
-      render: (value: unknown) => <StatusBadge status={value as 'payment-received' | 'payment-pending' | 'payment-sent'} />
+      render: (value: unknown) => <StatusBadge status={value as 'payment-received' | 'payment-pending' | 'payment-sent' | 'refunded' | 'disputed'} />
     },
     {
       key: "fulfillmentStatus",

@@ -107,7 +107,8 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
         order_number: `#${String(index + 1).padStart(4, '0')}`,
         status: item.status || 'pending',
         fulfillment_status: item.status || 'pending',
-        payment_status: item.status === 'pending' ? 'pending' : 'paid',
+        // Older rows (and views without the column) fall back to the status.
+        payment_status: item.payment_status ?? (item.status === 'pending' ? 'pending' : 'paid'),
         total_amount: Number(item.total_price) || 0,
         shipping_amount: 0,
         created_at: item.created_at || new Date().toISOString(),

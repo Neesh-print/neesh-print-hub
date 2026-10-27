@@ -80,6 +80,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           shipping_address,
           notes,
           payment_intent_id,
+          payment_status,
           retailer_id,
           magazine_id,
           magazines (
@@ -122,6 +123,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           tracking_number: string | null;
           shipping_address: string | null;
           notes: string | null;
+          payment_status: string | null;
           payment_intent_id: string | null;
           retailer_id: string | null;
           magazine_id: string | null;
@@ -143,7 +145,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
           order_number: `#${rawData.id.slice(0, 4).toUpperCase()}`,
           status: rawData.status,
           fulfillment_status: rawData.status,
-          payment_status: rawData.status === 'pending' ? 'pending' : 'paid',
+          payment_status: rawData.payment_status ?? (rawData.status === 'pending' ? 'pending' : 'paid'),
           total_amount: Number(rawData.total_price) || 0,
           shipping_amount: 0,
           created_at: rawData.created_at || '',
