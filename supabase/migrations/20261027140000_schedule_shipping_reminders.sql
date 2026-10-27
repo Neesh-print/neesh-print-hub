@@ -3,7 +3,8 @@
 -- in. The job stops emailing a publisher once their address is complete.
 --
 -- Tuesday and Friday, so it doesn't land the same morning as the Monday
--- cover-image or Thursday price reminders.
+-- cover-image or Thursday price reminders. Scheduled on Tuesday Oct 27, 2026
+-- with the first send on Friday Oct 30, so the job skips runs before then.
 SELECT cron.unschedule('send-shipping-reminders-twice-weekly')
 WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'send-shipping-reminders-twice-weekly');
 
@@ -19,6 +20,7 @@ SELECT cron.schedule(
       'x-reminder-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'reminder_secret')
     ),
     body := '{}'::jsonb
-  );
+  )
+  where now() >= timestamptz '2026-10-30 00:00:00+00';
   $cron$
 );
