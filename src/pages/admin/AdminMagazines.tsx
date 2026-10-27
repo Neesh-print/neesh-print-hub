@@ -28,6 +28,8 @@ interface Magazine {
   fulfillment_method: 'publisher_handled' | 'neesh_handled';
   price: number | null;
   wholesale_price: number | null;
+  suggested_retail_price: number | null;
+  issue_number: string | null;
   description: string | null;
   publisher_id: string;
   is_active: boolean | null;
@@ -71,6 +73,8 @@ export function AdminMagazines() {
           fulfillment_method,
           price,
           wholesale_price,
+          suggested_retail_price,
+          issue_number,
           description,
           publisher_id,
           is_active,
@@ -288,8 +292,16 @@ export function AdminMagazines() {
                             <Package className="h-4 w-4 text-gray-400" />
                           </div>
                         )}
-                        <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
-                          {magazine.title}
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                            {magazine.title}
+                          </div>
+                          {/* Same-titled rows are separate issues; show which one */}
+                          {magazine.issue_number && (
+                            <div className="text-xs text-gray-500 truncate max-w-[200px]">
+                              {magazine.issue_number}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -312,9 +324,9 @@ export function AdminMagazines() {
                         <span className="text-gray-700">
                           ${magazine.wholesale_price?.toFixed(2) || '—'}
                         </span>
-                        {magazine.price && (
+                        {magazine.suggested_retail_price != null && (
                           <span className="text-gray-400 ml-1 text-xs">
-                            / ${magazine.price.toFixed(2)} retail
+                            / ${Number(magazine.suggested_retail_price).toFixed(2)} retail
                           </span>
                         )}
                       </div>
@@ -546,7 +558,7 @@ export function AdminMagazines() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-500">Retail Price</span>
-                      <p className="font-medium">${selectedMagazine.price?.toFixed(2) || 'N/A'}</p>
+                      <p className="font-medium">{selectedMagazine.suggested_retail_price != null ? `$${Number(selectedMagazine.suggested_retail_price).toFixed(2)}` : 'N/A'}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">Wholesale Price</span>

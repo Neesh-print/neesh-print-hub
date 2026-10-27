@@ -7,6 +7,7 @@ import { LoadingScreen } from "@/components/shared";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Tables } from "@/integrations/supabase/types";
+import { isSale } from "@/lib/orderStatus";
 
 interface Publisher {
   id: string;
@@ -30,23 +31,58 @@ export const AdminPublishers = () => {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('publishers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [publishersRes, magazinesRes, ordersRes, applicationsRes] = await Promise.all([
+        supabase.from('publishers').select('*').order('created_at', { ascending: false }),
+        supabase.from('magazines').select('id, publisher_id'),
+        supabase.from('orders').select('magazine_id, total_price, status'),
+        supabase.from('publisher_applications').select('user_id, business_name, email'),
+      ]);
 
-      if (fetchError) throw fetchError;
+      if (publishersRes.error) throw publishersRes.error;
+      if (magazinesRes.error) throw magazinesRes.error;
+      if (ordersRes.error) throw ordersRes.error;
+
+      // Test accounts are hidden from lists and counts (is_test, see the
+      // 20261027170000 migration); nothing is deleted.
+      const data = (publishersRes.data || []).filter((pub) => !(pub as { is_test?: boolean }).is_test);
+
+      const userIds = data.map((pub) => pub.user_id).filter(Boolean) as string[];
+      const { data: users } = userIds.length
+        ? await supabase.from('users').select('id, email').in('id', userIds)
+        : { data: [] as { id: string; email: string }[] };
+      const emailByUser = new Map((users || []).map((u) => [u.id, u.email]));
+      const applicationByUser = new Map(
+        (applicationsRes.data || []).filter((a) => a.user_id).map((a) => [a.user_id as string, a]),
+      );
+
+      // Magazines and sales are computed from the source tables; the
+      // publishers.total_sales / total_magazines columns aren't maintained.
+      const publisherByMagazine = new Map((magazinesRes.data || []).map((m) => [m.id, m.publisher_id]));
+      const magazineCount = new Map<string, number>();
+      (magazinesRes.data || []).forEach((m) => {
+        if (m.publisher_id) magazineCount.set(m.publisher_id, (magazineCount.get(m.publisher_id) || 0) + 1);
+      });
+      const salesByPublisher = new Map<string, number>();
+      (ordersRes.data || []).forEach((o) => {
+        const publisherId = o.magazine_id ? publisherByMagazine.get(o.magazine_id) : undefined;
+        if (!publisherId || !isSale(o.status)) return;
+        salesByPublisher.set(publisherId, (salesByPublisher.get(publisherId) || 0) + (Number(o.total_price) || 0));
+      });
 
       // Transform data to match the table format
-      const transformed: Publisher[] = (data || []).map((pub: Tables<"publishers">) => ({
+      const transformed: Publisher[] = data.map((pub: Tables<"publishers">) => {
+        const application = pub.user_id ? applicationByUser.get(pub.user_id) : undefined;
+        return {
         id: pub.id,
-        name: pub.company_name || 'Unknown Publisher',
-        email: pub.description ? `contact@${pub.company_name?.toLowerCase().replace(/\s+/g, '') || "neesh.art"}.com` : 'N/A',
-        magazinesListed: pub.total_magazines || 0,
-        totalSales: Number(pub.total_sales) || 0,
+        // Fall back to the application's business name when the profile has none
+        name: pub.company_name || application?.business_name || 'Unknown Publisher',
+        email: (pub.user_id && emailByUser.get(pub.user_id)) || application?.email || '',
+        magazinesListed: magazineCount.get(pub.id) || 0,
+        totalSales: Math.round((salesByPublisher.get(pub.id) || 0) * 100) / 100,
         joinDate: pub.created_at ? new Date(pub.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown',
         status: pub.verified ? 'received' : 'pending',
-      }));
+        };
+      });
 
       setPublishers(transformed);
     } catch (err) {
@@ -71,7 +107,11 @@ export const AdminPublishers = () => {
 
   const columns = [
     { key: "name", header: "Publisher Name", sortable: true },
-    { key: "email", header: "Contact Email" },
+    {
+      key: "email",
+      header: "Contact Email",
+      render: (value: unknown) => (value as string) || <span className="text-muted-foreground">No email on file</span>,
+    },
     { key: "magazinesListed", header: "Magazines", align: "center" as const },
     { 
       key: "totalSales", 

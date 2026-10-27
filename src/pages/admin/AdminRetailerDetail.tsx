@@ -5,6 +5,7 @@ import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, InfoCard, DataTable, StatusBadge, ButtonSecondary } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrders } from "@/hooks/useOrders";
+import { isSale, orderStatusBadge } from "@/lib/orderStatus";
 import { format } from "date-fns";
 
 interface RetailerData {
@@ -61,8 +62,15 @@ export const AdminRetailerDetail = () => {
     fetchRetailer();
   }, [fetchRetailer]);
 
-  // Fetch recent orders for this retailer
-  const { orders: recentOrders } = useOrders({ retailerId: retailer?.user_id, limit: 5 });
+  // All orders for this retailer (orders.retailer_id is the buyer's user ID).
+  // Totals are computed from them since retailers.total_orders/total_spent
+  // aren't maintained; the newest five are listed.
+  const { orders: fetchedOrders } = useOrders({ retailerId: retailer?.user_id });
+  // Until the retailer loads, the hook has no filter; keep only this retailer's orders
+  const retailerOrders = fetchedOrders.filter(o => retailer && o.retailer?.id === retailer.user_id);
+  const recentOrders = retailerOrders.slice(0, 5);
+  const paidOrders = retailerOrders.filter(o => isSale(o.fulfillment_status));
+  const totalSpent = Math.round(paidOrders.reduce((sum, o) => sum + o.total_amount, 0) * 100) / 100;
 
   const handleSuspend = async () => {
     if (!retailer) return;
@@ -82,7 +90,7 @@ export const AdminRetailerDetail = () => {
     { key: "orderNumber", header: "Order #" },
     { key: "total", header: "Total", render: (value: unknown) => `$${(value as number).toFixed(2)}` },
     { key: "date", header: "Date" },
-    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge status={value as 'pending' | 'received'} /> },
+    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge {...orderStatusBadge(value as string)} /> },
   ];
 
   const transformedOrders = recentOrders.map(order => ({
@@ -90,7 +98,7 @@ export const AdminRetailerDetail = () => {
     orderNumber: order.order_number,
     total: order.total_amount,
     date: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : '',
-    status: (order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered' ? 'received' : 'pending') as 'pending' | 'received',
+    status: order.fulfillment_status,
   }));
 
   if (isLoading) {
@@ -219,11 +227,11 @@ export const AdminRetailerDetail = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-caption text-muted-foreground">Total Orders</p>
-                  <p className="font-display font-bold text-display-sm text-foreground">{retailer.total_orders || 0}</p>
+                  <p className="font-display font-bold text-display-sm text-foreground">{paidOrders.length}</p>
                 </div>
                 <div>
                   <p className="text-caption text-muted-foreground">Total Spent</p>
-                  <p className="font-display font-bold text-display-sm text-foreground">${(retailer.total_spent || 0).toLocaleString()}</p>
+                  <p className="font-display font-bold text-display-sm text-foreground">${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
             </InfoCard>

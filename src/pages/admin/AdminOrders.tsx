@@ -5,10 +5,11 @@ import { AdminLayout, StatCard, DateRangePicker } from "@/components/admin";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput } from "@/components/neesh";
 import { useOrders } from "@/hooks/useOrders";
 import { format } from "date-fns";
+import { NEEDS_FULFILLMENT_STATUSES, needsFulfillment, isShippedOrDelivered, orderStatusBadge } from "@/lib/orderStatus";
 
 const tabs = [
   { id: "all", label: "All" },
-  { id: "pending", label: "Pending" },
+  { id: "pending", label: "Needs Fulfillment" },
   { id: "fulfilled", label: "Fulfilled" },
   { id: "returned", label: "Returned" },
 ];
@@ -24,6 +25,8 @@ export const AdminOrders = () => {
   });
 
   const { orders, isLoading, error, refetch } = useOrders({ dateRange });
+  // The fulfillment backlog is counted across all dates, not just the selected range
+  const { orders: backlogOrders } = useOrders({ fulfillmentStatus: NEEDS_FULFILLMENT_STATUSES });
 
   const filteredOrders = useMemo(() => {
     return orders
@@ -31,7 +34,8 @@ export const AdminOrders = () => {
         id: order.id,
         orderNumber: order.order_number,
         retailer: order.retailer?.shop_name || "Unknown Retailer",
-        publisher: order.magazine?.title || "Unknown",
+        publisher: order.publisher_name || "Unknown Publisher",
+        title: order.magazine?.title || "Unknown",
         total: order.total_amount,
         orderDate: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : "",
         paymentStatus: order.payment_status === "paid"
@@ -39,31 +43,27 @@ export const AdminOrders = () => {
           : order.payment_status === "refunded" || order.payment_status === "disputed"
             ? order.payment_status
             : "payment-pending" as const,
-        fulfillmentStatus: order.fulfillment_status === "delivered" || order.fulfillment_status === "shipped"
-          ? "received" as const
-          : order.fulfillment_status === "pending"
-            ? "pending" as const
-            : "unfulfilled" as const,
-        [Symbol.toPrimitive]: undefined,
+        fulfillmentStatus: order.fulfillment_status,
       }))
       .filter((order) => {
         const matchesSearch =
           order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
           order.retailer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.publisher.toLowerCase().includes(searchTerm.toLowerCase());
+          order.publisher.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.title.toLowerCase().includes(searchTerm.toLowerCase());
 
         if (activeTab === "all") return matchesSearch;
-        if (activeTab === "pending") return matchesSearch && order.fulfillmentStatus === "pending";
-        if (activeTab === "fulfilled") return matchesSearch && order.fulfillmentStatus === "received";
-        if (activeTab === "returned") return matchesSearch && order.fulfillmentStatus === "unfulfilled";
+        if (activeTab === "pending") return matchesSearch && needsFulfillment(order.fulfillmentStatus);
+        if (activeTab === "fulfilled") return matchesSearch && isShippedOrDelivered(order.fulfillmentStatus);
+        if (activeTab === "returned") return matchesSearch && order.fulfillmentStatus === "returned";
         return matchesSearch;
       });
   }, [orders, searchTerm, activeTab]);
 
   const totalOrders = orders.length;
-  const pendingFulfillment = orders.filter(o => o.fulfillment_status === 'pending').length;
+  const pendingFulfillment = backlogOrders.length;
   const shippedThisWeek = orders.filter(o => {
-    if (o.fulfillment_status !== 'shipped' && o.fulfillment_status !== 'delivered') return false;
+    if (!isShippedOrDelivered(o.fulfillment_status)) return false;
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return new Date(o.created_at) > weekAgo;
   }).length;
@@ -73,6 +73,7 @@ export const AdminOrders = () => {
     { key: "orderNumber", header: "Order #", sortable: true },
     { key: "retailer", header: "Retailer" },
     { key: "publisher", header: "Publisher" },
+    { key: "title", header: "Title" },
     {
       key: "total",
       header: "Total",
@@ -88,7 +89,7 @@ export const AdminOrders = () => {
     {
       key: "fulfillmentStatus",
       header: "Fulfillment",
-      render: (value: unknown) => <StatusBadge status={value as 'received' | 'pending' | 'unfulfilled' | 'returned'} />
+      render: (value: unknown) => <StatusBadge {...orderStatusBadge(value as string)} />
     },
     {
       key: "actions",
@@ -157,7 +158,7 @@ export const AdminOrders = () => {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <FormInput
-              placeholder="Search by order #, retailer, publisher..."
+              placeholder="Search by order #, retailer, publisher, title..."
               value={searchTerm}
               onChange={setSearchTerm}
               className="pl-10"

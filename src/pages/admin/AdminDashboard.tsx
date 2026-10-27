@@ -15,10 +15,14 @@ import { DataTable, StatusBadge, ButtonPrimary, ButtonSecondary } from "@/compon
 import { Badge } from "@/components/ui/badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis } from "recharts";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, addDays } from "date-fns";
 import { useApplications } from "@/hooks/useApplications";
 import { useOrders } from "@/hooks/useOrders";
 import { supabase } from "@/integrations/supabase/client";
+import { NEEDS_FULFILLMENT_STATUSES, orderStatusBadge } from "@/lib/orderStatus";
+import { applicationStatusBadge } from "@/lib/applicationStatus";
+import { useInternalRetailers } from "@/hooks/useInternalRetailers";
+import { Switch } from "@/components/ui/switch";
 
 const chartConfig = {
   orders: {
@@ -52,13 +56,23 @@ export const AdminDashboard = () => {
   const [publisherCount, setPublisherCount] = useState(0);
   const [retailerCount, setRetailerCount] = useState(0);
 
-  // Fetch this week's orders
+  // Last 7 days, today included. Charts are labeled by date so each day lands
+  // in its own bucket (a Mon..Sun axis mixed this week with last week).
   const dateRange = useMemo(() => ({
-    start: subDays(startOfDay(new Date()), 7),
+    start: subDays(startOfDay(new Date()), 6),
     end: new Date()
   }), []);
 
-  const { orders } = useOrders({ dateRange });
+  const { orders: allOrders } = useOrders({ dateRange });
+  // Internal orders (e.g. NWM Collections) are included unless switched off
+  const [excludeInternal, setExcludeInternal] = useState(false);
+  const internalUserIds = useInternalRetailers();
+  const orders = useMemo(
+    () => excludeInternal ? allOrders.filter(o => !(o.retailer && internalUserIds.has(o.retailer.id))) : allOrders,
+    [allOrders, excludeInternal, internalUserIds],
+  );
+  // The fulfillment queue is every order that still needs shipping, however old
+  const { orders: fulfillmentBacklog } = useOrders({ fulfillmentStatus: NEEDS_FULFILLMENT_STATUSES });
 
   // Fetch publisher and retailer counts
   useEffect(() => {
@@ -90,7 +104,7 @@ export const AdminDashboard = () => {
     const pendingApps = applications.filter(a => a.status === 'pending').length;
     const ordersThisWeek = orders.length;
     const revenueThisWeek = orders.reduce((sum, o) => sum + o.total_amount, 0);
-    const fulfillmentQueue = orders.filter(o => o.fulfillment_status === 'pending').length;
+    const fulfillmentQueue = fulfillmentBacklog.length;
 
     return {
       pendingApps,
@@ -100,22 +114,25 @@ export const AdminDashboard = () => {
       activeRetailers: retailerCount,
       fulfillmentQueue,
     };
-  }, [applications, orders, publisherCount, retailerCount]);
+  }, [applications, orders, fulfillmentBacklog, publisherCount, retailerCount]);
 
   // Chart data from real orders
   const ordersChartData = useMemo(() => {
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const data = dayNames.map(day => ({ day, orders: 0, revenue: 0 }));
+    const data = Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(dateRange.start, i);
+      return { key: format(date, "yyyy-MM-dd"), day: format(date, "EEE d"), orders: 0, revenue: 0 };
+    });
+    const byKey = new Map(data.map(d => [d.key, d]));
 
     orders.forEach(order => {
-      const dayIndex = new Date(order.created_at).getDay();
-      data[dayIndex].orders += 1;
-      data[dayIndex].revenue += order.total_amount;
+      const bucket = byKey.get(format(new Date(order.created_at), "yyyy-MM-dd"));
+      if (!bucket) return;
+      bucket.orders += 1;
+      bucket.revenue = Math.round((bucket.revenue + order.total_amount) * 100) / 100;
     });
 
-    // Reorder to start from Monday
-    return [...data.slice(1), data[0]];
-  }, [orders]);
+    return data;
+  }, [orders, dateRange]);
 
   // Recent applications from real data
   const recentApplications = useMemo(() => {
@@ -124,7 +141,7 @@ export const AdminDashboard = () => {
       name: app.name,
       type: app.type === 'publisher' ? 'Publisher' : 'Retailer',
       email: app.email,
-      status: app.status === 'approved' ? 'received' as const : app.status === 'rejected' ? 'unfulfilled' as const : 'pending' as const,
+      status: app.status,
       submitted: formatRelativeTime(new Date(app.submitted_at)),
       originalType: app.type,
     }));
@@ -136,13 +153,10 @@ export const AdminDashboard = () => {
       id: order.id,
       orderNumber: order.order_number,
       retailer: order.retailer?.shop_name || 'Unknown',
-      publisher: order.magazine?.title || 'Unknown',
+      publisher: order.publisher_name || 'Unknown Publisher',
+      title: order.magazine?.title || 'Unknown',
       amount: order.total_amount,
-      status: order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered'
-        ? 'received' as const
-        : order.fulfillment_status === 'pending'
-          ? 'pending' as const
-          : 'unfulfilled' as const,
+      status: order.fulfillment_status,
     }));
   }, [orders]);
 
@@ -222,7 +236,7 @@ export const AdminDashboard = () => {
         id: 'fulfillment',
         icon: Package,
         title: `${stats.fulfillmentQueue} order${stats.fulfillmentQueue !== 1 ? 's' : ''} ready for fulfillment`,
-        description: 'Orders are packed and waiting to ship',
+        description: 'Paid orders waiting to be packed and shipped',
         action: 'View Queue',
         link: '/admin/fulfillment',
         priority: 2,
@@ -236,8 +250,9 @@ export const AdminDashboard = () => {
     { key: "orderNumber", header: "Order #" },
     { key: "retailer", header: "Retailer" },
     { key: "publisher", header: "Publisher" },
+    { key: "title", header: "Title" },
     { key: "amount", header: "Amount", render: (value: unknown) => `$${(value as number).toFixed(2)}` },
-    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge status={value as 'pending' | 'received' | 'unfulfilled'} /> },
+    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge {...orderStatusBadge(value as string)} /> },
   ];
 
   const today = format(new Date(), "EEEE, MMMM d, yyyy");
@@ -251,7 +266,11 @@ export const AdminDashboard = () => {
             <h1 className="font-display font-bold text-display-sm text-foreground">Dashboard</h1>
             <p className="text-body text-muted-foreground">{today}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 text-caption text-muted-foreground cursor-pointer">
+              <Switch checked={excludeInternal} onCheckedChange={setExcludeInternal} />
+              Exclude internal
+            </label>
             <ButtonSecondary
               onClick={() => navigate("/admin/applications")}
               className="gap-2"
@@ -288,12 +307,12 @@ export const AdminDashboard = () => {
             onClick={() => navigate("/admin/applications?status=pending")}
           />
           <StatCard
-            label="Orders This Week"
+            label="Orders (Last 7 Days)"
             value={stats.ordersThisWeek}
             onClick={() => navigate("/admin/orders")}
           />
           <StatCard
-            label="Revenue This Week"
+            label="Revenue (Last 7 Days)"
             value={`$${stats.revenueThisWeek.toLocaleString()}`}
             onClick={() => navigate("/admin/analytics")}
           />
@@ -359,7 +378,7 @@ export const AdminDashboard = () => {
         <div className="grid md:grid-cols-2 gap-4">
           {/* Orders Chart */}
           <div className="card-neesh">
-            <h3 className="font-display font-semibold text-body text-foreground mb-4">Orders This Week</h3>
+            <h3 className="font-display font-semibold text-body text-foreground mb-4">Orders, Last 7 Days</h3>
             {orders.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[160px] w-full">
                 <BarChart data={ordersChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
@@ -392,7 +411,7 @@ export const AdminDashboard = () => {
 
           {/* Revenue Chart */}
           <div className="card-neesh">
-            <h3 className="font-display font-semibold text-body text-foreground mb-4">Revenue This Week</h3>
+            <h3 className="font-display font-semibold text-body text-foreground mb-4">Revenue, Last 7 Days</h3>
             {orders.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[160px] w-full">
                 <AreaChart data={ordersChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
@@ -420,7 +439,7 @@ export const AdminDashboard = () => {
                     formatter={(value) => [`$${value}`, 'Revenue']}
                   />
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="revenue"
                     stroke="hsl(var(--chart-green))"
                     strokeWidth={2}
@@ -542,7 +561,7 @@ export const AdminDashboard = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={app.status} />
+                      <StatusBadge {...applicationStatusBadge(app.status)} />
                     </div>
                   </div>
                 ))

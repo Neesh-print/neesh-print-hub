@@ -81,10 +81,16 @@ export const FulfillmentOrderCard = ({
       <div className="mt-3">
         <h3 className="text-lg font-bold text-foreground">{order.retailerName}</h3>
         <div className="text-sm text-muted-foreground leading-relaxed mt-1">
-          <p>{order.shippingAddress.street}</p>
-          <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}</p>
-          {order.shippingAddress.country && order.shippingAddress.country !== 'USA' && (
-            <p>{order.shippingAddress.country}</p>
+          {order.shippingAddress.street || order.shippingAddress.city ? (
+            <>
+              <p>{order.shippingAddress.street}</p>
+              <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}</p>
+              {order.shippingAddress.country && order.shippingAddress.country !== 'USA' && (
+                <p>{order.shippingAddress.country}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-status-error-text font-medium">No shipping address on file</p>
           )}
         </div>
       </div>

@@ -8,11 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 import { format } from "date-fns";
+import { ORDER_STATUS_OPTIONS, orderStatusBadge, formatOrderRef } from "@/lib/orderStatus";
 
 // Flattened interface for UI consumption
 interface OrderDetail {
   id: string;
   status: string;
+  payment_status: string | null;
   total_price: number;
   unit_price: number;
   quantity: number;
@@ -37,11 +39,7 @@ interface OrderDetail {
   } | null;
 }
 
-const fulfillmentOptions = [
-  { value: "pending", label: "Pending" },
-  { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
-];
+const fulfillmentOptions = ORDER_STATUS_OPTIONS;
 
 const paymentOptions = [
   { value: "pending", label: "Payment Pending" },
@@ -72,6 +70,7 @@ export const AdminOrderDetail = () => {
         .select(`
           id,
           status,
+          payment_status,
           total_price,
           unit_price,
           quantity,
@@ -111,6 +110,7 @@ export const AdminOrderDetail = () => {
       const rawData = data as {
         id: string;
         status: string;
+        payment_status: string | null;
         total_price: number;
         unit_price: number;
         quantity: number;
@@ -134,6 +134,7 @@ export const AdminOrderDetail = () => {
       const orderData: OrderDetail = {
         id: rawData.id,
         status: rawData.status,
+        payment_status: rawData.payment_status,
         total_price: Number(rawData.total_price) || 0,
         unit_price: Number(rawData.unit_price) || 0,
         quantity: rawData.quantity,
@@ -160,7 +161,7 @@ export const AdminOrderDetail = () => {
 
       setOrder(orderData);
       setFulfillmentStatus(orderData.status);
-      setPaymentStatus(orderData.status === 'pending' ? 'pending' : 'paid');
+      setPaymentStatus(orderData.payment_status === 'paid' ? 'paid' : 'pending');
       setAdminNotes(orderData.notes || '');
 
     } catch (err) {
@@ -232,7 +233,7 @@ export const AdminOrderDetail = () => {
   }
 
   const orderDate = order.created_at ? format(new Date(order.created_at), "MMMM d, yyyy") : "Unknown";
-  const orderNumber = order.id.slice(0, 8).toUpperCase();
+  const orderNumber = formatOrderRef(order.id).slice(1);
 
   return (
     <AdminLayout>
@@ -281,13 +282,17 @@ export const AdminOrderDetail = () => {
 
           <InfoCard title="Payment Status">
             <div className="space-y-3">
-              <StatusBadge status={order.status === 'pending' ? 'payment-pending' : 'payment-received'} />
+              <StatusBadge status={
+                order.payment_status === 'paid' ? 'payment-received'
+                  : order.payment_status === 'refunded' || order.payment_status === 'disputed' ? order.payment_status
+                  : 'payment-pending'
+              } />
             </div>
           </InfoCard>
 
           <InfoCard title="Fulfillment Status">
             <div className="space-y-3">
-              <StatusBadge status={order.status === 'shipped' || order.status === 'delivered' ? 'received' : order.status === 'pending' ? 'pending' : 'unfulfilled'} />
+              <StatusBadge {...orderStatusBadge(order.status)} />
               {order.tracking_number && (
                 <div className="text-caption">
                   <p className="text-muted-foreground">Tracking:</p>

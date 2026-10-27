@@ -7,6 +7,7 @@ import { LoadingScreen } from "@/components/shared";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Tables } from "@/integrations/supabase/types";
+import { isSale } from "@/lib/orderStatus";
 
 interface Retailer {
   id: string;
@@ -32,22 +33,42 @@ export const AdminRetailers = () => {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('retailers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [retailersRes, ordersRes] = await Promise.all([
+        supabase.from('retailers').select('*').order('created_at', { ascending: false }),
+        supabase.from('orders').select('retailer_id, total_price, status'),
+      ]);
 
-      if (fetchError) throw fetchError;
+      if (retailersRes.error) throw retailersRes.error;
+      if (ordersRes.error) throw ordersRes.error;
+
+      // Test accounts are hidden from lists and counts (is_test); nothing is deleted.
+      const data = (retailersRes.data || []).filter((ret) => !(ret as { is_test?: boolean }).is_test);
+
+      const userIds = data.map((ret) => ret.user_id).filter(Boolean) as string[];
+      const { data: users } = userIds.length
+        ? await supabase.from('users').select('id, email').in('id', userIds)
+        : { data: [] as { id: string; email: string }[] };
+      const emailByUser = new Map((users || []).map((u) => [u.id, u.email]));
+
+      // orders.retailer_id is the buyer's user ID, so match on retailers.user_id
+      const totalsByUser = new Map<string, { orders: number; spent: number }>();
+      (ordersRes.data || []).forEach((o) => {
+        if (!o.retailer_id || !isSale(o.status)) return;
+        const t = totalsByUser.get(o.retailer_id) || { orders: 0, spent: 0 };
+        t.orders += 1;
+        t.spent += Number(o.total_price) || 0;
+        totalsByUser.set(o.retailer_id, t);
+      });
 
       // Transform data to match the table format
-      const transformed: Retailer[] = (data || []).map((ret: Tables<"retailers">) => ({
+      const transformed: Retailer[] = data.map((ret: Tables<"retailers">) => ({
         id: ret.id,
         storeName: ret.shop_name || 'Unknown Store',
-        email: ret.contact_email || (ret.shop_name ? `contact@${ret.shop_name.toLowerCase().replace(/\s+/g, '')}.com` : 'N/A'),
+        email: ret.contact_email || (ret.user_id && emailByUser.get(ret.user_id)) || '',
         location: [ret.city, ret.state].filter(Boolean).join(', ') || 'N/A',
         storeType: (ret.store_types && ret.store_types.length > 0) ? ret.store_types[0] : 'Independent Store',
-        totalOrders: ret.total_orders || 0,
-        totalSpent: Number(ret.total_spent) || 0,
+        totalOrders: totalsByUser.get(ret.user_id)?.orders || 0,
+        totalSpent: Math.round((totalsByUser.get(ret.user_id)?.spent || 0) * 100) / 100,
         joinDate: ret.created_at ? new Date(ret.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown',
         status: ret.verified ? 'received' : 'pending',
       }));
@@ -76,7 +97,11 @@ export const AdminRetailers = () => {
 
   const columns = [
     { key: "storeName", header: "Store Name", sortable: true },
-    { key: "email", header: "Contact Email" },
+    {
+      key: "email",
+      header: "Contact Email",
+      render: (value: unknown) => (value as string) || <span className="text-muted-foreground">No email on file</span>,
+    },
     { key: "location", header: "Location" },
     { 
       key: "storeType", 
