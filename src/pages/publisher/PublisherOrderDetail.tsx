@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CUSTOMS_DESCRIPTION, PACKAGING_OPTIONS, needsCustoms, senderPrepaysDuties } from "@/lib/shipping";
 import { money } from "@/lib/shippingCopy";
+import { isSale, orderStatusBadge } from "@/lib/orderStatus";
 
 interface OrderShipment {
   id: string;
@@ -317,7 +318,8 @@ export const PublisherOrderDetail = () => {
   }
 
   const displayOrderNumber = `#${order.id.slice(0, 8).toUpperCase()}`;
-  const isShipped = order.status === 'shipped' || order.status === 'delivered';
+  // Packed (processing) has tracking too; the carrier's first scan makes it shipped.
+  const isShipped = order.status === 'processing' || order.status === 'shipped' || order.status === 'delivered';
   const canShip = order.status === 'paid' || order.status === 'pending';
 
   return (
@@ -354,13 +356,13 @@ export const PublisherOrderDetail = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="text-caption text-muted-foreground">Payment:</span>
-                <StatusBadge 
-                  status={order.status === 'paid' || order.status === 'shipped' ? 'payment-received' : 'payment-pending'} 
+                <StatusBadge
+                  status={isSale(order.status) ? 'payment-received' : 'payment-pending'}
                 />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-caption text-muted-foreground">Fulfillment:</span>
-                <StatusBadge status={order.status as 'pending' | 'shipped' | 'delivered' | 'cancelled'} />
+                <StatusBadge {...orderStatusBadge(order.status)} />
               </div>
             </div>
           </InfoCard>
@@ -470,7 +472,12 @@ export const PublisherOrderDetail = () => {
               {getCarrier() && (
                 <p><span className="text-muted-foreground">Carrier:</span> <span className="text-foreground">{getCarrier()}</span></p>
               )}
-              <p><span className="text-muted-foreground">Status:</span> <span className="text-foreground">Shipped</span></p>
+              <p>
+                <span className="text-muted-foreground">Status:</span>{" "}
+                <span className="text-foreground">
+                  {order.status === 'processing' ? 'Packed, waiting for the first carrier scan' : order.status === 'delivered' ? 'Delivered' : 'Shipped'}
+                </span>
+              </p>
             </div>
           </div>
         )}

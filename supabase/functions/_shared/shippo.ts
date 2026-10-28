@@ -68,6 +68,26 @@ export interface ShippoClient {
   buyLabel(rateId: string, metadata?: string): Promise<ShippoTransaction>
   refundLabel(transactionId: string): Promise<ShippoRefund>
   getTracking(carrier: string, trackingNumber: string): Promise<ShippoTrack>
+  /** Ask Shippo to follow a tracking number, so track_updated webhooks fire for it. */
+  registerTracking(carrier: string, trackingNumber: string, metadata?: string): Promise<ShippoTrack>
+}
+
+/**
+ * Shippo's carrier token for a carrier as publishers enter it, or null when
+ * Shippo can't follow it ("other", Amazon Logistics).
+ */
+export function shippoCarrierToken(carrier: string | null | undefined): string | null {
+  const key = (carrier ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '')
+  const tokens: Record<string, string> = {
+    usps: 'usps',
+    ups: 'ups',
+    fedex: 'fedex',
+    dhl: 'dhl_express',
+    dhlexpress: 'dhl_express',
+    canadapost: 'canada_post',
+    royalmail: 'royal_mail',
+  }
+  return tokens[key] ?? null
 }
 
 const toShippoAddress = (a: ShipAddress) => ({
@@ -155,6 +175,16 @@ export function createShippoClient(apiKey: string, fetchImpl: FetchLike = fetch,
 
     async getTracking(carrier, trackingNumber) {
       return await call<ShippoTrack>('GET', `/tracks/${encodeURIComponent(carrier)}/${encodeURIComponent(trackingNumber)}`)
+    },
+
+    async registerTracking(carrier, trackingNumber, metadata) {
+      const track = await call<ShippoTrack>('POST', '/tracks/', {
+        carrier,
+        tracking_number: trackingNumber,
+        ...(metadata ? { metadata } : {}),
+      })
+      console.log(`shippo track registered ${carrier} status=${track.tracking_status?.status ?? 'none'}`)
+      return track
     },
   }
 }
