@@ -1,8 +1,12 @@
 /**
  * shippo-webhook (T12)
  *
- * Subscribed to Shippo track_updated. Moves order_shipments (and their
- * orders) to shipped or delivered. Protected by a secret token in the URL:
+ * Subscribed to Shippo track_updated. Moves order_shipments and orders to
+ * shipped (first carrier scan) or delivered. Orders are matched through their
+ * parcel when it has a Neesh label, and by their own tracking number when the
+ * publisher used their own label (register-tracking asks Shippo to follow
+ * those). Packed orders (`processing`) move too. Protected by a secret token
+ * in the URL:
  *   https://<project>.supabase.co/functions/v1/shippo-webhook?token=<SHIPPO_WEBHOOK_TOKEN>
  * Shipping emails to spaces (T15) are out of scope here.
  */
@@ -42,18 +46,30 @@ Deno.serve(async (req) => {
       .select('id, status')
       .eq('tracking_number', trackingNumber)
       .maybeSingle()
-    if (!shipment) return new Response('unknown shipment', { status: 200 })
-    if (shipment.status === 'delivered' || shipment.status === 'cancelled') return new Response('final', { status: 200 })
-    if (shipment.status === next) return new Response('unchanged', { status: 200 })
+    if (shipment?.status === 'cancelled') return new Response('cancelled', { status: 200 })
 
-    await admin.from('order_shipments').update({ status: next }).eq('id', shipment.id)
-    await admin.from('orders')
-      .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('shipment_id', shipment.id)
-      .in('status', next === 'delivered' ? ['paid', 'pending', 'shipped'] : ['paid', 'pending'])
+    // A self-ship parcel is already 'shipped' once tracking is added, so only
+    // move the parcel forward; its orders are checked below either way.
+    if (shipment && shipment.status !== 'delivered' && shipment.status !== next) {
+      await admin.from('order_shipments').update({ status: next }).eq('id', shipment.id)
+    }
 
-    console.log(`shippo-webhook: shipment ${shipment.id} -> ${next}`)
-    return new Response('ok', { status: 200 })
+    // Only move orders forward: delivered never goes back to shipped.
+    const from = next === 'delivered' ? ['paid', 'pending', 'processing', 'shipped'] : ['paid', 'pending', 'processing']
+    const changes = { status: next, updated_at: new Date().toISOString() }
+    const moved = new Set<string>()
+    const byTracking = await admin.from('orders').update(changes).eq('tracking_number', trackingNumber).in('status', from).select('id')
+    if (byTracking.error) throw byTracking.error
+    byTracking.data?.forEach((o) => moved.add(o.id))
+    if (shipment) {
+      const byShipment = await admin.from('orders').update(changes).eq('shipment_id', shipment.id).in('status', from).select('id')
+      if (byShipment.error) throw byShipment.error
+      byShipment.data?.forEach((o) => moved.add(o.id))
+    }
+
+    if (!shipment && moved.size === 0) return new Response('unknown tracking number', { status: 200 })
+    console.log(`shippo-webhook: ${moved.size} order(s)${shipment ? ` in shipment ${shipment.id}` : ''} -> ${next}`)
+    return new Response(moved.size > 0 ? 'ok' : 'unchanged', { status: 200 })
   } catch (err) {
     console.error('shippo-webhook error:', err instanceof Error ? err.message : err)
     return new Response('error', { status: 500 })

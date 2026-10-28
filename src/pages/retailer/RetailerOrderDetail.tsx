@@ -138,7 +138,7 @@ export const RetailerOrderDetail = () => {
     const statusMap: Record<string, OrderStatus> = {
       'pending': 'pending',
       'paid': 'confirmed',
-      'packed': 'confirmed',
+      'processing': 'confirmed',
       'shipped': 'shipped',
       'delivered': 'delivered',
     };
@@ -309,7 +309,7 @@ export const RetailerOrderDetail = () => {
           )}
 
           {/* View Invoice - Only for confirmed/shipped/delivered orders */}
-          {['paid', 'packed', 'shipped', 'delivered'].includes(order.status) && (
+          {['paid', 'processing', 'shipped', 'delivered'].includes(order.status) && (
             <ButtonSecondary
               fullWidth
               icon={<FileText className="w-4 h-4" />}
