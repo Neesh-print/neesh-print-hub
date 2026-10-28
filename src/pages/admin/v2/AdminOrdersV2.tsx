@@ -208,17 +208,24 @@ export const AdminOrdersV2 = () => {
       <div className="flex flex-col gap-5">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="font-display text-4xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">Orders</h1>
-          <label className="flex h-10 w-full max-w-xs items-center gap-2 rounded-full border border-border px-3.5">
-            <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="sr-only">Search orders</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Order #, title, publisher, space"
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {view === "to_ship" && rows.length > 0 && (
+              <Link to={`/admin/fulfillment/print?orders=${rows.map((o) => o.id).join(",")}`} className={btnLine}>
+                Print {rows.length} packing slip{rows.length === 1 ? "" : "s"}
+              </Link>
+            )}
+            <label className="flex h-10 w-full max-w-xs items-center gap-2 rounded-full border border-border px-3.5">
+              <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span className="sr-only">Search orders</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Order #, title, publisher, space"
+                className="w-full bg-transparent text-sm outline-none"
+              />
+            </label>
+          </div>
         </header>
 
         <div role="tablist" aria-label="Saved views" className="flex flex-wrap gap-2">
