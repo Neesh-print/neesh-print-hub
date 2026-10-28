@@ -51,7 +51,12 @@ interface FormData {
   instagramHandle: string;
   // Step 7: Shipping Location
   shippingCountry: string;
+  shipFromLine1: string;
+  shipFromLine2: string;
   shippingCity: string;
+  shippingState: string;
+  shipFromPostalCode: string;
+  shipFromPhone: string;
   // Step 8: Publication Details
   issueFrequency: string;
   publicationType: string;
@@ -84,7 +89,12 @@ const defaultFormValues: FormData = {
   websiteUrl: "",
   instagramHandle: "",
   shippingCountry: "",
+  shipFromLine1: "",
+  shipFromLine2: "",
   shippingCity: "",
+  shippingState: "",
+  shipFromPostalCode: "",
+  shipFromPhone: "",
   issueFrequency: "",
   publicationType: "",
   regionsCurrentlySold: [],
@@ -208,7 +218,12 @@ export const PublisherApplication = () => {
                 websiteUrl: dbData.social_website_link || additionalInfo.websiteUrl || '',
                 instagramHandle: dbData.instagram_handle || '',
                 shippingCountry: dbData.shipping_country || '',
+                shipFromLine1: additionalInfo.shipFromLine1 || '',
+                shipFromLine2: additionalInfo.shipFromLine2 || '',
                 shippingCity: dbData.shipping_city || '',
+                shippingState: dbData.shipping_state || additionalInfo.shippingState || '',
+                shipFromPostalCode: additionalInfo.shipFromPostalCode || '',
+                shipFromPhone: additionalInfo.shipFromPhone || '',
                 issueFrequency: dbData.issue_frequency || '',
                 publicationType: dbData.publication_type || additionalInfo.publicationType || '',
                 regionsCurrentlySold: dbData.distribution_channels || [],
@@ -324,6 +339,7 @@ export const PublisherApplication = () => {
           instagram_handle: mergedData.instagramHandle,
           shipping_country: mergedData.shippingCountry,
           shipping_city: mergedData.shippingCity,
+          shipping_state: mergedData.shippingState,
           issue_frequency: mergedData.issueFrequency,
           publication_type: mergedData.publicationType,
           distribution_channels: mergedData.regionsCurrentlySold,
@@ -474,7 +490,7 @@ export const PublisherApplication = () => {
       case 6:
         return !!(formValues.websiteUrl || formValues.instagramHandle);
       case 7:
-        return await trigger("shippingCountry");
+        return await trigger(["shippingCountry", "shipFromLine1", "shippingCity", "shippingState", "shipFromPostalCode"]);
       case 8:
         return true; // Optional or simple select
       case 9:
@@ -592,6 +608,7 @@ export const PublisherApplication = () => {
         instagram_handle: formValues.instagramHandle?.replace("@", ""),
         shipping_country: formValues.shippingCountry,
         shipping_city: formValues.shippingCity,
+        shipping_state: formValues.shippingState,
         issue_frequency: formValues.issueFrequency,
         publication_type: formValues.publicationType,
         distribution_channels: formValues.regionsCurrentlySold,
@@ -996,9 +1013,14 @@ export const PublisherApplication = () => {
       case 7:
         return (
           <div className="space-y-6 animate-fade-in">
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Where will you ship from?
-            </h1>
+            <div>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Where will you ship from?
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                The address your orders leave from. We use it for shipping quotes and labels.
+              </p>
+            </div>
             <div className="space-y-4">
               <Controller
                 name="shippingCountry"
@@ -1021,16 +1043,104 @@ export const PublisherApplication = () => {
                 <IntlMinimumNote country={formValues.shippingCountry} />
               )}
               <Controller
-                name="shippingCity"
+                name="shipFromLine1"
+                control={control}
+                rules={{ required: "Street address is required" }}
+                render={({ field }) => (
+                  <FormInput
+                    label="Street Address"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.shipFromLine1?.message}
+                    autoComplete="off"
+                    name="publisher-ship-from-line1"
+                    required
+                  />
+                )}
+              />
+              <Controller
+                name="shipFromLine2"
                 control={control}
                 render={({ field }) => (
                   <FormInput
-                    label="City"
-                    placeholder="e.g., Los Angeles, London"
+                    label="Apt / Suite (optional)"
                     value={field.value}
                     onChange={field.onChange}
                     autoComplete="off"
-                    name="publisher-shipping-city"
+                    name="publisher-ship-from-line2"
+                  />
+                )}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Controller
+                  name="shippingCity"
+                  control={control}
+                  rules={{ required: "City is required" }}
+                  render={({ field }) => (
+                    <FormInput
+                      label="City"
+                      placeholder="e.g., Los Angeles, London"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.shippingCity?.message}
+                      autoComplete="off"
+                      name="publisher-shipping-city"
+                      required
+                    />
+                  )}
+                />
+                <Controller
+                  name="shipFromPostalCode"
+                  control={control}
+                  rules={{ required: "Postal code is required" }}
+                  render={({ field }) => (
+                    <FormInput
+                      label="Postal Code"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.shipFromPostalCode?.message}
+                      autoComplete="off"
+                      name="publisher-ship-from-postal"
+                      required
+                    />
+                  )}
+                />
+              </div>
+              {(formValues.shippingCountry === "US" || formValues.shippingCountry === "CA") && (
+                <Controller
+                  name="shippingState"
+                  control={control}
+                  rules={{
+                    validate: (v) =>
+                      !["US", "CA"].includes(getValues("shippingCountry")) || !!v?.trim() ||
+                      (getValues("shippingCountry") === "CA" ? "Province is required" : "State is required"),
+                  }}
+                  render={({ field }) => (
+                    <FormInput
+                      label={formValues.shippingCountry === "CA" ? "Province" : "State"}
+                      placeholder={formValues.shippingCountry === "CA" ? "ON" : "NY"}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.shippingState?.message}
+                      autoComplete="off"
+                      name="publisher-ship-from-state"
+                      required
+                    />
+                  )}
+                />
+              )}
+              <Controller
+                name="shipFromPhone"
+                control={control}
+                render={({ field }) => (
+                  <FormInput
+                    label="Phone"
+                    type="tel"
+                    value={field.value}
+                    onChange={field.onChange}
+                    autoComplete="off"
+                    name="publisher-ship-from-phone"
+                    helperText="Carriers need it for labels and customs."
                   />
                 )}
               />
