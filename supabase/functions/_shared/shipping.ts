@@ -633,7 +633,7 @@ export interface CustomsDeclaration {
   non_delivery_option: 'RETURN';
   certify: true;
   certify_signer: string;
-  incoterm?: 'DDP';
+  incoterm?: 'DDP' | 'DAP';
   commercial_invoice?: boolean;
   notes?: string;
   eel_pfc?: string;
@@ -657,6 +657,13 @@ export function buildCustomsDeclaration(opts: {
   signer: string;
   lines: CustomsLine[];
   reference?: string;
+  /**
+   * Whether the rate being bought is a duty-paying courier (dutiesPaidFor).
+   * DDP only when it is; otherwise DAP, because the publisher prepays customs
+   * themselves and postal carriers (DPD UK, for one) reject DDP. Leave unset
+   * when quoting, before a rate is chosen: DDP, so couriers quote duties paid.
+   */
+  dutiesPaid?: boolean;
 }): CustomsDeclaration | null {
   const origin = normalizeCountry(opts.origin);
   const destination = normalizeCountry(opts.destination);
@@ -679,7 +686,7 @@ export function buildCustomsDeclaration(opts: {
       tariff_number: CUSTOMS_TARIFF_NUMBER,
     })),
   };
-  if (incoterm) decl.incoterm = incoterm;
+  if (incoterm) decl.incoterm = opts.dutiesPaid === false ? 'DAP' : incoterm;
   // Every parcel into the US needs an entry. Claim the informational-materials
   // exemption on a commercial invoice so the duty stays at $0.
   if (destination === 'US') {

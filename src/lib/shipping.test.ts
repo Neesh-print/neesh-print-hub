@@ -419,9 +419,23 @@ describe("US customs handling", () => {
     expect(decl.items[0].tariff_number).toBe("490290");
   });
 
+  it("sends DDP only for a duty-paying courier, DAP for post or own postage", () => {
+    const decl = (dutiesPaid?: boolean) =>
+      buildCustomsDeclaration({ origin: "GB", destination: "US", signer: "Pub", dutiesPaid, lines: [{ quantity: 3, weightGrams: 300, wsp: 10 }] })!;
+    // Quoting, before a rate is chosen: DDP so couriers price duties paid.
+    expect(decl().incoterm).toBe("DDP");
+    expect(decl(true).incoterm).toBe("DDP");
+    // DPD UK and other postal carriers reject DDP; the publisher prepays instead.
+    expect(decl(false).incoterm).toBe("DAP");
+    // The exemption claim goes on either way.
+    expect(decl(false).notes).toBe(US_CUSTOMS_EXEMPTION_NOTE);
+    expect(decl(false).commercial_invoice).toBe(true);
+  });
+
   it("leaves declarations into other countries unchanged", () => {
     const decl = buildCustomsDeclaration({ origin: "US", destination: "CA", signer: "Pub", lines: [{ quantity: 5, weightGrams: 300, wsp: 10 }] })!;
     expect(decl.commercial_invoice).toBeUndefined();
     expect(decl.notes).toBeUndefined();
+    expect(buildCustomsDeclaration({ origin: "US", destination: "CA", signer: "Pub", dutiesPaid: false, lines: [{ quantity: 5, weightGrams: 300, wsp: 10 }] })!.incoterm).toBeUndefined();
   });
 });

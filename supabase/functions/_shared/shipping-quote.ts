@@ -489,10 +489,11 @@ export async function quoteCart(opts: {
 
 /** US customs handling settings (shipping_config). Off when unreadable, so nothing charges by accident. */
 export async function loadCustomsSettings(admin: Admin): Promise<CustomsSettings> {
-  const { data, error } = await admin
+  const { data: row, error } = await admin
     .from('shipping_config')
     .select('customs_handling_enabled, customs_fee_postal_usd, customs_fee_courier_usd')
     .maybeSingle()
+  const data = row as { customs_handling_enabled: boolean; customs_fee_postal_usd: number | string; customs_fee_courier_usd: number | string } | null
   if (error || !data) {
     if (error) console.error('shipping_config customs read failed:', error.message)
     return CUSTOMS_OFF

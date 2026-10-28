@@ -33,6 +33,7 @@ import {
   shippingPayoutSplit,
   usdAmount,
   type CarrierRate,
+  type CustomsDeclaration,
   type CustomsRoute,
   type Parcel,
   type ShipAddress,
@@ -198,26 +199,38 @@ Deno.serve(async (req) => {
     if (!parcel) return json({ error: 'A title in this parcel is missing its weight.' }, 400, cors)
 
     const reference = `Neesh ${orders.map((o) => o.id.slice(0, 8).toUpperCase()).join(' ')}`
-    const customs = buildCustomsDeclaration({
+    const declare = (dutiesPaid?: boolean) => buildCustomsDeclaration({
       origin: origin.country,
       destination: destination.country,
       signer: origin.name,
       reference,
+      dutiesPaid,
       lines: orders.map((o) => ({
         quantity: o.quantity,
         weightGrams: o.magazines?.weight_grams ?? 0,
         wsp: Number(o.magazines?.wholesale_price ?? 0),
       })),
     })
-
-    const fresh = await shippo.createShipment({ from: origin, to: destination, parcel, customs, metadata: reference })
     // Rates from outside the US come back in CAD, EUR or GBP; price them all in USD.
-    const usd = (await withUsdPrices(shippo, fresh)).filter((r: CarrierRate) => usdAmount(r) !== null && isTrackedRate(r))
-    const sameService = shipment.service_token
-      ? usd.filter((r) => r.servicelevel?.token === shipment.service_token)
-          .sort((a, b) => usdAmount(a)! - usdAmount(b)!)[0] ?? null
-      : null
-    const rate = sameService ?? pickCheapestTrackedRate(usd)
+    const rateFor = async (customs: CustomsDeclaration | null, token: string | null) => {
+      const created = await shippo.createShipment({ from: origin, to: destination, parcel, customs, metadata: reference })
+      const usd = (await withUsdPrices(shippo, created)).filter((r: CarrierRate) => usdAmount(r) !== null && isTrackedRate(r))
+      const sameService = token
+        ? usd.filter((r) => r.servicelevel?.token === token).sort((a, b) => usdAmount(a)! - usdAmount(b)!)[0] ?? null
+        : null
+      return { created, rate: sameService ?? pickCheapestTrackedRate(usd) }
+    }
+
+    // Rate with DDP first, so a duty-paying courier still prices duties paid.
+    let customs = declare()
+    let { created: fresh, rate } = await rateFor(customs, shipment.service_token)
+    // Only a duty-paying courier takes DDP; postal carriers (DPD UK, for one)
+    // reject it, and on that route the publisher prepays customs themselves.
+    // Re-rate the same service with DAP before buying.
+    if (rate && customs?.incoterm === 'DDP' && !dutiesPaidFor(origin.country, destination.country, rate)) {
+      customs = declare(false)
+      ;({ created: fresh, rate } = await rateFor(customs, rate.servicelevel?.token ?? null))
+    }
     if (!rate) {
       await admin.from('order_shipments').update({ status: 'needs_review', review_reason: 'No carrier rate at label time' }).eq('id', shipment.id)
       await alertNeesh('No label rate', `No tracked rate for shipment ${shipment.id} at label time.`, [
