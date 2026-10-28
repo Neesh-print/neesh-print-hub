@@ -186,9 +186,9 @@ Deno.serve(async (req) => {
         }
 
         // Execute the Stripe transfer. The idempotency key is tied to this
-        // ledger row, so if this request is retried (or a stuck 'processing'
-        // row is retried by hand) Stripe returns the original transfer
-        // instead of paying again.
+        // ledger row and its source, so if this request is retried (or a stuck
+        // 'processing' row is retried by hand) Stripe returns the original
+        // transfer instead of paying again.
         const amountInCents = Math.round(transfer.net_amount * 100)
 
         // Tie the transfer to the order's charge so it goes through right
@@ -216,7 +216,13 @@ Deno.serve(async (req) => {
             order_id: transfer.order_id ?? '',
             shipment_id: transfer.shipment_id ?? '',
           },
-        }, { idempotencyKey: `publisher-transfer-${transfer.id}` })
+        }, {
+          // Stripe rejects a reused key whose request changed (it keeps keys
+          // for 24 hours), so the key names what the money comes from: a
+          // retry of the same payout still can't pay twice, and a request
+          // corrected after a failure (as Fay's was) isn't blocked by the old one.
+          idempotencyKey: `publisher-transfer-${transfer.id}-${source ? source.chargeId : 'balance'}`,
+        })
 
         // Mark as transferred
         await supabaseAdmin
