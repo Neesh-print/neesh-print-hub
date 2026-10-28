@@ -29,6 +29,8 @@ interface NewConversationModalProps {
   onOpenChange: (open: boolean) => void;
   onConversationCreated: (conversationId: string) => void;
   preselectedUser?: MessageableUser | null;
+  /** Text to start the message with, e.g. an admin nudge. Editable before sending. */
+  initialMessage?: string;
 }
 
 export function NewConversationModal({
@@ -36,6 +38,7 @@ export function NewConversationModal({
   onOpenChange,
   onConversationCreated,
   preselectedUser = null,
+  initialMessage = '',
 }: NewConversationModalProps) {
   const [selectedUser, setSelectedUser] = useState<MessageableUser | null>(
     preselectedUser
@@ -52,15 +55,17 @@ export function NewConversationModal({
     }
   }, [preselectedUser]);
 
-  // Reset state when modal closes
+  // Start from the suggested text when the modal opens; reset when it closes
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      if (initialMessage) setMessage(initialMessage);
+    } else {
       if (!preselectedUser) {
         setSelectedUser(null);
       }
       setMessage('');
     }
-  }, [open, preselectedUser]);
+  }, [open, preselectedUser, initialMessage]);
 
   const handleSend = async () => {
     if (!selectedUser || !message.trim() || !currentUser) return;

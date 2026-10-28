@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
+import { useNudge } from "@/hooks/useNudge";
+import { lateOrderNudge } from "@/lib/adminNudges";
 import { Loader2, Search } from "lucide-react";
 import { AdminV2Layout } from "@/components/admin/v2/AdminV2Layout";
 import { Badge, PayoutBadge, StageBadge } from "@/components/admin/v2/badges";
@@ -19,6 +21,7 @@ import {
   type OrderView,
   type OverviewOrder,
 } from "@/lib/adminOverview";
+import { trackingUrl } from "@/lib/tracking";
 import { cn } from "@/lib/utils";
 
 const VIEWS: { view: OrderView; label: string }[] = [
@@ -60,15 +63,30 @@ const NEXT_STEP: Partial<Record<OrderStage, { status: "processing" | "shipped" |
 
 const OrderPanel = ({ order, onClose }: { order: OverviewOrder; onClose: () => void }) => {
   const { releasePayouts, setOrderStatus, busy } = useAdminOrderActions();
+  const nudge = useNudge();
   const stage = stageOf(order.status);
   const payout = payoutStateOf(order);
   const rank = RANK[stage] ?? -1;
   const next = NEXT_STEP[stage];
   const t = order.transfer;
 
-  const stepNote = (s: OrderStage) => {
+  const trackUrl = trackingUrl(order.carrier, order.trackingNumber);
+  const stepNote = (s: OrderStage): React.ReactNode => {
     if (s === "to_ship") return `${format(new Date(order.createdAt), "MMM d")} · ${order.spaceName}`;
-    if (s === "packed" && order.trackingNumber) return `${order.carrier ?? "Carrier"} · tracking ${order.trackingNumber}`;
+    if (s === "packed" && order.trackingNumber) {
+      return (
+        <>
+          {order.carrier ?? "Carrier"} ·{" "}
+          {trackUrl ? (
+            <a href={trackUrl} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">
+              {order.trackingNumber}
+            </a>
+          ) : (
+            `tracking ${order.trackingNumber}`
+          )}
+        </>
+      );
+    }
     if (s === "packed") return "Label and tracking added";
     if (s === "shipped") return "First carrier scan";
     return "Updates from the carrier";
@@ -84,6 +102,7 @@ const OrderPanel = ({ order, onClose }: { order: OverviewOrder; onClose: () => v
         <SheetDescription>
           {order.issue ? `${order.issue} · ` : ""}
           {order.publisherName} → {order.spaceName}
+          {order.spaceIsInternal ? " (internal)" : ""}
         </SheetDescription>
       </SheetHeader>
 
@@ -159,9 +178,21 @@ const OrderPanel = ({ order, onClose }: { order: OverviewOrder; onClose: () => v
             {next.label}
           </button>
         )}
-        <Link to="/admin/messages" className={btnLine}>
-          Message
-        </Link>
+        <button
+          type="button"
+          className={btnLine}
+          onClick={() => {
+            const problems = problemsOf(order, new Date());
+            const draft = problems.includes("late")
+              ? lateOrderNudge(order, ageInDays(order, new Date()))
+              : problems.includes("stuck_packed")
+                ? lateOrderNudge(order, differenceInCalendarDays(new Date(), new Date(order.updatedAt ?? order.createdAt)), true)
+                : "";
+            nudge({ userId: order.publisherUserId, id: order.publisherId, name: order.publisherName, type: "publisher" }, draft);
+          }}
+        >
+          Message publisher
+        </button>
         <Link to={`/admin/orders/${order.id}`} className={btnLine} onClick={onClose}>
           Tracking, refunds
         </Link>
@@ -297,6 +328,7 @@ export const AdminOrdersV2 = () => {
                       </td>
                       <td className="px-4 py-3.5">
                         {o.publisherName} <span className="text-muted-foreground">→</span> {o.spaceName}
+                        {o.spaceIsInternal && <span className="ml-1.5 text-xs text-muted-foreground">internal</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right font-semibold">{money(o.total)}</td>
                       <td className="px-4 py-3.5">
@@ -312,9 +344,20 @@ export const AdminOrdersV2 = () => {
                           {stage === "to_ship" && problems.length === 0 && (
                             <span className="text-xs text-muted-foreground">{age <= 0 ? "today" : `${age}d`}</span>
                           )}
-                          {(stage === "packed" || stage === "shipped") && o.carrier && (
-                            <span className="text-xs text-muted-foreground">{o.carrier}</span>
-                          )}
+                          {(stage === "packed" || stage === "shipped" || stage === "delivered") &&
+                            (trackingUrl(o.carrier, o.trackingNumber) ? (
+                              <a
+                                href={trackingUrl(o.carrier, o.trackingNumber)!}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs font-semibold text-accent underline"
+                              >
+                                Track{o.carrier ? ` (${o.carrier})` : ""}
+                              </a>
+                            ) : (
+                              o.carrier && <span className="text-xs text-muted-foreground">{o.carrier}</span>
+                            ))}
                         </div>
                       </td>
                       <td className="px-4 py-3.5">

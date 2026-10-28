@@ -4,8 +4,6 @@ export { AdminPublisherDetail } from './AdminPublisherDetail';
 export { AdminRetailerDetail } from './AdminRetailerDetail';
 export { AdminOrderDetail } from './AdminOrderDetail';
 export { AdminMessages } from './AdminMessages';
-export { AdminAnalytics } from './AdminAnalytics';
 export { AdminSettings } from './AdminSettings';
-export { AdminMagazines } from './AdminMagazines';
 export { AdminBulkImport } from './AdminBulkImport';
 export { PrintSlipsPage } from './PrintSlipsPage';

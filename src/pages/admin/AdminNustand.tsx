@@ -56,6 +56,12 @@ export function AdminNustand() {
     return <p className="p-8">Nustand is private.</p>;
   return (
     <AdminLayout>
+      <header className="px-4 pb-4 md:px-6">
+        <h1 className="font-display text-4xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">Prospects</h1>
+        <p className="mt-1.5 text-[15px] text-muted-foreground">
+          Spaces to reach out to: research contacts, review them, then export or copy.
+        </p>
+      </header>
       {state?.userId !== user.id ? (
         <p className="p-8">Checking private workspace…</p>
       ) : state.error ? (

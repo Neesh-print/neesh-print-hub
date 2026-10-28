@@ -29,16 +29,19 @@ export const AdminMessages = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
   const [preselectedUser, setPreselectedUser] = useState<MessageableUser | null>(null);
+  const [draft, setDraft] = useState('');
 
-  // Handle incoming navigation state (from Contact buttons)
+  // Handle incoming navigation state (from Contact and Nudge buttons)
   const incomingState = location.state as {
     newMessage?: boolean;
     recipient?: MessageableUser;
+    draft?: string;
   } | null;
 
   useEffect(() => {
     if (incomingState?.newMessage) {
       setPreselectedUser(incomingState.recipient || null);
+      setDraft(incomingState.draft || '');
       setIsNewMessageOpen(true);
 
       // Clear the state so refreshing doesn't reopen modal
@@ -76,6 +79,7 @@ export const AdminMessages = () => {
 
   const handleNewMessageClick = () => {
     setPreselectedUser(null);
+    setDraft('');
     setIsNewMessageOpen(true);
   };
 
@@ -83,6 +87,7 @@ export const AdminMessages = () => {
     setIsNewMessageOpen(open);
     if (!open) {
       setPreselectedUser(null);
+      setDraft('');
     }
   };
 
@@ -92,7 +97,9 @@ export const AdminMessages = () => {
 
   return (
     <AdminLayout>
-      <div className="h-[calc(100vh-56px)] md:h-screen flex">
+      {/* Fills the window below the admin menu (two bars on mobile, page padding on desktop) */}
+      <div className="h-[calc(100vh-120px)] md:h-[calc(100vh-88px)] flex">
+
         {/* Conversation List */}
         {showList && (
           <div
@@ -143,6 +150,7 @@ export const AdminMessages = () => {
         onOpenChange={handleModalClose}
         onConversationCreated={handleNewConversation}
         preselectedUser={preselectedUser}
+        initialMessage={draft}
       />
     </AdminLayout>
   );
