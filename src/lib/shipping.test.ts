@@ -28,6 +28,13 @@ import {
   itemsKey,
   rateCacheKey,
   type CarrierRate,
+  CUSTOMS_OFF,
+  US_CUSTOMS_EXEMPTION_NOTE,
+  customsFeeFor,
+  customsRouteFor,
+  dutiesPaidFor,
+  shippingPayoutSplit,
+  type CustomsSettings,
 } from "./shipping";
 
 // FAY Issue 2: the worked example from the tickets.
@@ -345,5 +352,76 @@ describe("parcels and rates", () => {
     expect(itemsKey([{ magazine_id: "b", quantity: 2 }, { magazine_id: "a", quantity: 1 }])).toBe("a:1,b:2");
     expect(rateCacheKey({ postal_code: "75011", country: "FR" }, { postal_code: "10030", country: "United States" }, 1840, "padded_mailer"))
       .toBe("FR|75011|US|10030|1840|padded_mailer");
+  });
+});
+
+describe("US customs handling", () => {
+  const ON: CustomsSettings = { enabled: true, postalUsd: 4.5, courierUsd: 12 };
+  const POSTAL = { provider: "Canada Post", servicelevel: { name: "Tracked Packet USA", token: "canada_post_tracked_packet_usa" } };
+  const COURIER = { provider: "UPS", servicelevel: { name: "Standard", token: "ups_standard" } };
+  const routeFor = (o: string, d: string, rate: typeof POSTAL) => customsRouteFor(o, d, dutiesPaidFor(o, d, rate));
+
+  it("routes a US-bound postal parcel to the publisher and charges the postal fee", () => {
+    const route = routeFor("CA", "US", POSTAL);
+    expect(route).toBe("publisher");
+    expect(customsFeeFor(route, ON)).toBe(4.5);
+  });
+
+  it("routes a US-bound courier parcel to Neesh and charges the courier fee", () => {
+    const route = routeFor("FR", "US", COURIER);
+    expect(route).toBe("neesh");
+    expect(customsFeeFor(route, ON)).toBe(12);
+  });
+
+  it("adds no customs line US to US or EU to EU", () => {
+    expect(routeFor("US", "US", COURIER)).toBeNull();
+    expect(routeFor("FR", "DE", COURIER)).toBeNull();
+    expect(customsFeeFor(routeFor("US", "US", POSTAL), ON)).toBe(0);
+    expect(customsFeeFor(routeFor("FR", "DE", POSTAL), ON)).toBe(0);
+  });
+
+  it("adds no customs line when the setting is off, even with fees set", () => {
+    expect(customsFeeFor("publisher", CUSTOMS_OFF)).toBe(0);
+    expect(customsFeeFor("neesh", { ...ON, enabled: false })).toBe(0);
+  });
+
+  it("pays customs back in the shipping transfer on the publisher route only", () => {
+    expect(shippingPayoutSplit({ shippingUsd: 20, customsUsd: 4.5, customsRoute: "publisher" }))
+      .toEqual({ gross: 24.5, net: 24.5, platformFee: 0 });
+    expect(shippingPayoutSplit({ shippingUsd: 20, customsUsd: 12, customsRoute: "neesh" }))
+      .toEqual({ gross: 20, net: 20, platformFee: 0 });
+    expect(shippingPayoutSplit({ shippingUsd: 20, customsUsd: 0, customsRoute: null }))
+      .toEqual(shippingSplit(20));
+  });
+
+  it("never lets a Neesh label cost eat into the customs payback", () => {
+    // Label 23 on 20 of shipping: shipping nets 0, customs still comes back.
+    expect(shippingPayoutSplit({ shippingUsd: 20, labelCostUsd: 23, customsUsd: 4.5, customsRoute: "publisher" }))
+      .toEqual({ gross: 24.5, net: 4.5, platformFee: 0 });
+  });
+
+  it("moves the amount when the route flips at label time", () => {
+    // Quoted UPS (Neesh keeps 12), bought Canada Post: the publisher prepays, so it goes to them.
+    const quoted = routeFor("CA", "US", COURIER);
+    const bought = routeFor("CA", "US", POSTAL);
+    expect([quoted, bought]).toEqual(["neesh", "publisher"]);
+    expect(shippingPayoutSplit({ shippingUsd: 30, labelCostUsd: 28, customsUsd: 12, customsRoute: quoted }).net).toBe(2);
+    expect(shippingPayoutSplit({ shippingUsd: 30, labelCostUsd: 28, customsUsd: 12, customsRoute: bought }).net).toBe(14);
+    // And the reverse: quoted post, bought a courier.
+    expect(shippingPayoutSplit({ shippingUsd: 30, labelCostUsd: 28, customsUsd: 4.5, customsRoute: routeFor("CA", "US", COURIER) }).net).toBe(2);
+  });
+
+  it("claims the informational-materials exemption on US-bound declarations", () => {
+    const decl = buildCustomsDeclaration({ origin: "GB", destination: "US", signer: "Pub", lines: [{ quantity: 5, weightGrams: 300, wsp: 10 }] })!;
+    expect(decl.commercial_invoice).toBe(true);
+    expect(decl.notes).toBe(US_CUSTOMS_EXEMPTION_NOTE);
+    expect(decl.notes).toContain("9903.05.92");
+    expect(decl.items[0].tariff_number).toBe("490290");
+  });
+
+  it("leaves declarations into other countries unchanged", () => {
+    const decl = buildCustomsDeclaration({ origin: "US", destination: "CA", signer: "Pub", lines: [{ quantity: 5, weightGrams: 300, wsp: 10 }] })!;
+    expect(decl.commercial_invoice).toBeUndefined();
+    expect(decl.notes).toBeUndefined();
   });
 });

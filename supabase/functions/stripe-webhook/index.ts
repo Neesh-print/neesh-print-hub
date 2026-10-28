@@ -15,7 +15,7 @@ import {
   steps,
 } from '../_shared/email.ts'
 import { generateOrderConfirmationEmail } from '../_shared/retailer-emails.ts'
-import { goodsSplit, shippingSplit } from '../_shared/shipping.ts'
+import { goodsSplit, shippingPayoutSplit, type CustomsRoute } from '../_shared/shipping.ts'
 
 const ALLOWED_ORIGINS = [
   'https://neesh.art',
@@ -936,6 +936,8 @@ interface StoredQuote {
   service_token: string | null
   estimated_days: number | null
   duties_paid: boolean
+  customs_usd: number | null
+  customs_route: CustomsRoute | null
 }
 
 async function loadShippingQuotes(admin: SupabaseAdmin, idList: string): Promise<StoredQuote[]> {
@@ -1007,6 +1009,8 @@ async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailer
         service_token: q.service_token,
         estimated_days: q.estimated_days,
         duties_paid: q.duties_paid,
+        customs_usd: Number(q.customs_usd ?? 0),
+        customs_route: q.customs_route ?? null,
         status: labels ? 'awaiting_label' : 'awaiting_shipment',
       }, { onConflict: 'stripe_session_id,publisher_id', ignoreDuplicates: true })
       .select('id')
@@ -1036,7 +1040,14 @@ async function recordShipments(admin: SupabaseAdmin, sessionId: string, retailer
       .is('shipment_id', null)
     if (linkErr) throw new Error(`Failed to link orders to shipment ${shipmentId}: ${linkErr.message}`)
 
-    const split = shippingSplit(Number(q.shipping_usd))
+    // Publisher route: the customs handling the space paid is added, so their
+    // Zonos prepay comes back to them. Neesh route: it stays with Neesh against
+    // the courier's bill (recorded on the shipment as customs_usd/customs_route).
+    const split = shippingPayoutSplit({
+      shippingUsd: Number(q.shipping_usd),
+      customsUsd: Number(q.customs_usd ?? 0),
+      customsRoute: q.customs_route ?? null,
+    })
     const { error: transferErr } = await admin
       .from('publisher_transfers')
       .upsert({
@@ -1086,7 +1097,7 @@ async function getChargedItems(stripe: Stripe, sessionId: string): Promise<Map<s
     const metadata = product && typeof product === 'object' && !('deleted' in product && product.deleted)
       ? (product as Stripe.Product).metadata
       : {}
-    // shipping_v2 shipping lines are paid out by recordShipments, not here.
+    // shipping_v2 shipping and customs lines are paid out by recordShipments, not here.
     if (metadata && 'quote_id' in metadata) continue
 
     const magazineId = metadata?.magazine_id

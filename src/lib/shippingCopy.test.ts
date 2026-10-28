@@ -22,6 +22,8 @@ const group = (patch: Partial<QuoteGroup>): QuoteGroup => ({
   service: null,
   estimated_days: null,
   duties_paid: false,
+  customs_usd: 0,
+  customs_route: null,
   uses_neesh_labels: false,
   quote_id: null,
   quote_expires_at: null,

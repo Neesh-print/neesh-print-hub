@@ -109,11 +109,16 @@ export const RetailerCart = () => {
   const shippingTotal = round2(
     [...quoteGroups.values()].reduce((sum, g) => sum + (g.can_ship && g.shipping_usd !== null ? g.shipping_usd : 0), 0),
   );
+  // US customs handling: its own line, beside shipping. 0 (no line) when off.
+  const customsTotal = round2(
+    [...quoteGroups.values()].reduce((sum, g) => sum + (g.can_ship ? Number(g.customs_usd ?? 0) : 0), 0),
+  );
   const parcelCount = [...quoteGroups.values()].filter((g) => g.can_ship).length;
   const blockedGroups = [...quoteGroups.values()].filter((g) => !g.can_ship);
   const margins = groups.map((g) => {
     const q = quoteGroups.get(g.publisherId);
-    return groupMargin(g.items, q?.can_ship ? q.shipping_usd : null);
+    // Customs handling is part of what the space pays to land the parcel.
+    return groupMargin(g.items, q?.can_ship && q.shipping_usd !== null ? q.shipping_usd + Number(q.customs_usd ?? 0) : null);
   });
   const totalMargin = margins.every((m) => m !== null) ? round2(margins.reduce((s, m) => s + m!.margin, 0)) : null;
 
@@ -287,6 +292,12 @@ export const RetailerCart = () => {
           </span>
           <span>{q.shipping_usd !== null ? money(q.shipping_usd) : ""}</span>
         </div>
+        {Number(q.customs_usd ?? 0) > 0 && (
+          <div className="flex justify-between py-1">
+            <span className="text-muted-foreground">US customs handling</span>
+            <span>{money(Number(q.customs_usd))}</span>
+          </div>
+        )}
         {margin && (
           <div className="flex justify-between items-center py-1">
             <span className="text-muted-foreground">My margin</span>
@@ -385,6 +396,12 @@ export const RetailerCart = () => {
                         {needsAddress ? "Add address" : quote.isLoading ? "Quoting..." : formatPrice(shippingTotal)}
                       </span>
                     </div>
+                    {customsTotal > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>US customs handling</span>
+                        <span className="text-foreground">{formatPrice(customsTotal)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-muted-foreground">
                       <span>Tax</span>
                       <span className="text-sm">Calculated at checkout</span>
@@ -401,7 +418,7 @@ export const RetailerCart = () => {
               <div className="border-t border-border pt-4 mb-2">
                 <div className="flex justify-between font-display font-semibold text-lg text-foreground">
                   <span>Total</span>
-                  <span>{formatPrice(retailerTotal + (shippingV2 ? shippingTotal : 0))}</span>
+                  <span>{formatPrice(retailerTotal + (shippingV2 ? shippingTotal + customsTotal : 0))}</span>
                 </div>
               </div>
 
