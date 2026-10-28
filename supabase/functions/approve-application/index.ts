@@ -360,6 +360,37 @@ Deno.serve(async (req) => {
         )
       }
 
+      // shipping_v2: carry the ships-from address from the application into
+      // the private shipping settings, so onboarding doesn't ask again. Never
+      // overwrites an address the publisher already saved. Non-fatal.
+      const info = (application.additional_info ?? {}) as Record<string, unknown>
+      const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+      const shipsFrom = {
+        name: application.business_name || application.magazine_title || '',
+        line1: text(info.shipFromLine1),
+        line2: text(info.shipFromLine2),
+        city: text(application.shipping_city),
+        state: text(application.shipping_state || info.shippingState),
+        postal_code: text(info.shipFromPostalCode),
+        country: /^[A-Za-z]{2}$/.test(application.shipping_country ?? '')
+          ? String(application.shipping_country).toUpperCase()
+          : '',
+        phone: text(info.shipFromPhone),
+      }
+      if (publisherRecord?.id && shipsFrom.line1 && shipsFrom.city && shipsFrom.postal_code && shipsFrom.country) {
+        const { data: existingShipping } = await supabaseAdmin
+          .from('publisher_shipping_settings')
+          .select('ships_from_address')
+          .eq('publisher_id', publisherRecord.id)
+          .maybeSingle()
+        if (!(existingShipping?.ships_from_address as { line1?: string } | null)?.line1) {
+          const { error: shipsFromError } = await supabaseAdmin
+            .from('publisher_shipping_settings')
+            .upsert({ publisher_id: publisherRecord.id, ships_from_address: shipsFrom }, { onConflict: 'publisher_id' })
+          if (shipsFromError) console.error('Error saving ships-from address:', shipsFromError)
+        }
+      }
+
       // Create initial magazine from application data if magazine_title exists
       if (publisherRecord?.id && application.magazine_title) {
         // A title with no wholesale price can be added to a cart but not bought
