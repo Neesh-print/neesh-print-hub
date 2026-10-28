@@ -183,14 +183,19 @@ Deno.serve(async (req) => {
 
     const { data: orderRows } = await admin
       .from('orders')
-      .select('id, quantity, magazines ( wholesale_price, weight_grams, width_mm, height_mm )')
+      .select('id, quantity, payment_status, magazines ( wholesale_price, weight_grams, width_mm, height_mm )')
       .eq('shipment_id', shipment.id)
     const orders = (orderRows ?? []) as unknown as {
       id: string
       quantity: number
+      payment_status: string | null
       magazines: { wholesale_price: number | null; weight_grams: number | null; width_mm: number | null; height_mm: number | null } | null
     }[]
     if (orders.length === 0) return json({ error: 'No orders found for this parcel.' }, 400, cors)
+    // Don't pay for postage while the space's payment is contested.
+    if (orders.some((o) => o.payment_status === 'disputed')) {
+      return json({ error: "This order's payment is disputed. Hold off shipping; Neesh will be in touch." }, 409, cors)
+    }
 
     const parcel = shipment.parcel ?? buildParcel(orders.map((o) => ({
       quantity: o.quantity,
