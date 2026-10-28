@@ -6,6 +6,7 @@ import { BackNavigation, WalletDisplay, TabNavigation, DataTable, StatusBadge, E
 import { LoadingScreen } from "@/components/shared";
 import { usePublisherProfile } from "@/hooks/usePublisherProfile";
 import { Order, useOrders } from "@/hooks/useOrders";
+import { orderStatusBadge } from "@/lib/orderStatus";
 
 const tabs = [
   { id: "orders", label: "My Orders" },
@@ -79,7 +80,7 @@ export const PublisherOrdersList = () => {
     { 
       key: "fulfillment_status", 
       header: "Fulfillment Status", 
-      render: (value: string) => <StatusBadge status={value as 'pending' | 'shipped' | 'delivered' | 'cancelled'} /> 
+      render: (value: string) => <StatusBadge {...orderStatusBadge(value)} />
     },
   ];
 

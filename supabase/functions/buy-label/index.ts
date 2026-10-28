@@ -131,6 +131,8 @@ Deno.serve(async (req) => {
         label_cost_usd: null,
       }).eq('id', shipment.id)
       await admin.from('orders').update({ label_url: null, tracking_number: null, carrier: null }).eq('shipment_id', shipment.id)
+      // No label any more, so a Packed order goes back to To ship.
+      await admin.from('orders').update({ status: 'paid' }).eq('shipment_id', shipment.id).eq('status', 'processing')
       const split = shippingSplit(Number(shipment.shipping_usd))
       // Only re-hold a payout that has no other hold (refund review, dispute).
       await admin.from('publisher_transfers')
@@ -259,6 +261,12 @@ Deno.serve(async (req) => {
     await admin.from('orders')
       .update({ label_url: tx.label_url, tracking_number: tx.tracking_number ?? null, carrier })
       .eq('shipment_id', shipment.id)
+    // A bought label means Packed. Shippo follows its own labels, so the
+    // first carrier scan moves these orders to shipped through shippo-webhook.
+    await admin.from('orders')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('shipment_id', shipment.id)
+      .eq('status', 'paid')
 
     // Label cost comes out of the shipping the space paid (decision 5).
     const split = shippingSplit(paid, labelCost)
