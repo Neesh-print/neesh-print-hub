@@ -90,6 +90,8 @@ import {
 import { AdminNustand } from "./pages/admin/AdminNustand";
 import { AdminIndexReview } from "./pages/admin/AdminIndexReview";
 import { AdminSettings } from "./pages/admin/AdminSettings";
+import { AdminToday } from "./pages/admin/v2/AdminToday";
+import { AdminOrdersV2 } from "./pages/admin/v2/AdminOrdersV2";
 
 // Onboarding pages
 import { OnboardingContinue, OnboardingStart } from "./pages/onboarding";
@@ -557,6 +559,9 @@ const AppRoutes = () => {
       {/* Admin routes */}
       <Route path="/admin/nustand" element={<ProtectedRoute allowedRoles={['admin']}><AdminNustand /></ProtectedRoute>} />
       <Route path="/admin/index-review" element={<ProtectedRoute allowedRoles={['admin']}><AdminIndexReview /></ProtectedRoute>} />
+      {/* Admin v2 (Today, Orders), alongside the classic admin until it replaces it */}
+      <Route path="/admin/v2" element={<ProtectedRoute allowedRoles={['admin']}><AdminToday /></ProtectedRoute>} />
+      <Route path="/admin/v2/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersV2 /></ProtectedRoute>} />
       <Route
         path="/admin"
         element={

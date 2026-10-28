@@ -1,0 +1,307 @@
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
+import { AdminV2Layout } from "@/components/admin/v2/AdminV2Layout";
+import { Badge } from "@/components/admin/v2/badges";
+import { useAdminOverview } from "@/hooks/useAdminOverview";
+import { useAdminOrderActions } from "@/hooks/useAdminOrderActions";
+import {
+  ageInDays,
+  money,
+  needsYouCount,
+  problemsOf,
+  summarizeToday,
+  type OverviewOrder,
+} from "@/lib/adminOverview";
+
+const btn =
+  "inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 font-display text-[13px] font-semibold [font-variation-settings:'wdth'_114] disabled:opacity-50";
+const btnDark = `${btn} bg-foreground text-background hover:bg-foreground/90`;
+const btnLine = `${btn} border border-border bg-background text-foreground hover:border-[#b79adb]`;
+const btnAccent = `${btn} bg-accent text-accent-foreground hover:bg-accent/90`;
+
+const SectionHead = ({ title, count, sub, action }: { title: string; count?: number; sub?: string; action?: React.ReactNode }) => (
+  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+    <div>
+      <h2 className="font-display text-xl font-semibold tracking-tight [font-variation-settings:'wdth'_114]">
+        {title} {count !== undefined && <span className="font-medium text-muted-foreground">{count}</span>}
+      </h2>
+      {sub && <p className="mt-0.5 text-[13px] text-muted-foreground">{sub}</p>}
+    </div>
+    {action}
+  </div>
+);
+
+const Row = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-border/50 px-5 py-3.5 last:border-b-0">{children}</div>
+);
+
+const OrderLine = ({ order }: { order: OverviewOrder }) => (
+  <div className="min-w-0 flex-1 basis-64">
+    <div className="text-sm font-semibold">
+      {order.title} <span className="font-medium text-muted-foreground">× {order.quantity}</span>
+    </div>
+    <div className="text-[13px] text-muted-foreground">
+      {order.publisherName} → {order.spaceName} · <span className="font-mono text-xs">{order.ref}</span>
+    </div>
+  </div>
+);
+
+export const AdminToday = () => {
+  const { data, isLoading, error, dataUpdatedAt } = useAdminOverview();
+  const { releasePayouts, setOrderStatus, busy } = useAdminOrderActions();
+  // Ages and "today" are measured from when the data was loaded.
+  const now = useMemo(() => new Date(dataUpdatedAt || Date.now()), [dataUpdatedAt]);
+  const today = useMemo(() => (data ? summarizeToday(data.orders, now) : null), [data, now]);
+
+  if (isLoading || !data || !today) {
+    return (
+      <AdminV2Layout>
+        {error ? (
+          <p className="text-destructive">Couldn't load today: {error instanceof Error ? error.message : "unknown error"}</p>
+        ) : (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading today
+          </div>
+        )}
+      </AdminV2Layout>
+    );
+  }
+
+  const { review } = data;
+  const total = needsYouCount(today, review.applicationsWaiting);
+  const readyTotal = today.ready.reduce((s, o) => s + (o.transfer?.net ?? 0), 0);
+  const payoutCount = today.ready.length + today.failed.length + today.blocked.length;
+
+  const pulse = [
+    { label: "SALES · 7 DAYS", value: money(today.pulse.sales7d), sub: `${today.pulse.orders7d} orders`, to: "/admin/analytics" },
+    { label: "NEESH FEES", value: money(today.pulse.fees7d), sub: "10% from each side", to: "/admin/analytics" },
+    {
+      label: "PAID OUT · 7 DAYS",
+      value: money(today.pulse.paidOut7d),
+      sub: today.pulse.paidOutTo.join(", ") || "Nothing yet",
+      to: "/admin/v2/orders?view=all",
+    },
+    {
+      label: "SPACES ORDERING",
+      value: `${today.pulse.spacesOrdering90d} of ${review.spacesTotal}`,
+      sub: "in the last 90 days",
+      to: "/admin/retailers",
+    },
+  ];
+
+  const reviewItems = [
+    {
+      n: review.applicationsWaiting,
+      what: "Applications waiting",
+      sub: `${review.applicationDrafts} draft${review.applicationDrafts === 1 ? "" : "s"} not submitted`,
+      to: "/admin/applications",
+    },
+    { n: review.publishersCantBePaid, what: "Publishers can't be paid", sub: "Stripe setup not finished", to: "/admin/payouts" },
+    { n: review.publishersWithoutAddress, what: "No ships-from address", sub: "Shipping can't be quoted for their titles", to: "/admin/publishers" },
+    { n: review.titlesNeedingAttention, what: "Titles need attention", sub: "Missing price, weight or title", to: "/admin/magazines" },
+  ];
+
+  return (
+    <AdminV2Layout>
+      <div className="flex flex-col gap-7">
+        <header>
+          <div className="font-mono text-xs font-medium tracking-[0.14em] text-accent">{format(now, "EEEE, MMM d").toUpperCase()}</div>
+          <h1 className="mt-1.5 font-display text-4xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">Today</h1>
+          <p className="mt-1.5 text-[15px] text-muted-foreground">
+            {total === 0 ? "Nothing needs you. Everything is running." : `${total} thing${total === 1 ? "" : "s"} need${total === 1 ? "s" : ""} you.`}
+          </p>
+        </header>
+
+        <section aria-label="Last 7 days" className="grid grid-cols-2 overflow-hidden rounded-lg border border-border lg:grid-cols-4">
+          {pulse.map((p) => (
+            <Link key={p.label} to={p.to} className="border-b border-r border-border px-5 py-4 hover:bg-secondary lg:border-b-0">
+              <div className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground">{p.label}</div>
+              <div className="mt-1.5 font-display text-2xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">{p.value}</div>
+              <div className="truncate text-[13px] text-muted-foreground">{p.sub}</div>
+            </Link>
+          ))}
+        </section>
+
+        <div className="flex flex-wrap items-start gap-7">
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-7">
+            <section aria-label="To ship" className="rounded-lg border border-border">
+              <SectionHead
+                title="To ship"
+                count={today.toShip.length + today.stuckPacked.length}
+                sub="Publishers ship. Step in when they're late."
+                action={
+                  <Link to="/admin/v2/orders?view=to_ship" className="text-[13px] font-semibold text-accent">
+                    Open in Orders
+                  </Link>
+                }
+              />
+              {today.toShip.length + today.stuckPacked.length === 0 && (
+                <p className="px-5 py-4 text-sm text-muted-foreground">Nothing waiting to ship.</p>
+              )}
+              {today.toShip.map((o) => {
+                const problems = problemsOf(o, now);
+                const age = ageInDays(o, now);
+                return (
+                  <Row key={o.id}>
+                    <OrderLine order={o} />
+                    {problems.includes("no_address") ? (
+                      <Badge tone="error">No address</Badge>
+                    ) : (
+                      <Badge tone={problems.includes("late") ? "pending" : "neutral"}>
+                        {age <= 0 ? "Today" : `${age} day${age === 1 ? "" : "s"}`}
+                      </Badge>
+                    )}
+                    <div className="flex gap-2">
+                      {problems.includes("no_address") ? (
+                        <Link to={`/admin/orders/${o.id}`} className={btnDark}>
+                          Open order
+                        </Link>
+                      ) : (
+                        <>
+                          {problems.includes("late") && (
+                            <Link to="/admin/messages" className={btnLine}>
+                              Message publisher
+                            </Link>
+                          )}
+                          <Link to={`/admin/v2/orders?order=${o.id}`} className={btnLine}>
+                            Open
+                          </Link>
+                          <button
+                            type="button"
+                            className={btnDark}
+                            disabled={busy === o.id}
+                            onClick={() => setOrderStatus(o.id, "processing")}
+                          >
+                            Mark packed
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </Row>
+                );
+              })}
+              {today.stuckPacked.map((o) => (
+                <Row key={o.id}>
+                  <OrderLine order={o} />
+                  <Badge tone="pending">Packed, no scan</Badge>
+                  <div className="flex gap-2">
+                    <Link to="/admin/messages" className={btnLine}>
+                      Message publisher
+                    </Link>
+                    <button type="button" className={btnDark} disabled={busy === o.id} onClick={() => setOrderStatus(o.id, "shipped")}>
+                      Mark shipped
+                    </button>
+                  </div>
+                </Row>
+              ))}
+            </section>
+
+            <section aria-label="Payouts" className="rounded-lg border border-border">
+              <SectionHead
+                title="Payouts"
+                count={payoutCount}
+                sub="Ready as soon as an order is packed with tracking."
+                action={
+                  today.ready.length > 0 ? (
+                    <button
+                      type="button"
+                      className={btnAccent}
+                      disabled={busy === "release-all"}
+                      onClick={() => releasePayouts(today.ready.map((o) => o.transfer!.id), "release-all")}
+                    >
+                      {busy === "release-all" && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Release {today.ready.length} · {money(readyTotal)}
+                    </button>
+                  ) : undefined
+                }
+              />
+              {payoutCount === 0 && <p className="px-5 py-4 text-sm text-muted-foreground">No payouts waiting on you.</p>}
+              {today.ready.map((o) => (
+                <Row key={o.id}>
+                  <div className="min-w-0 flex-1 basis-64">
+                    <div className="text-sm font-semibold">
+                      {o.publisherName} <span className="font-bold">{money(o.transfer!.net)}</span>
+                    </div>
+                    <div className="text-[13px] text-muted-foreground">
+                      {o.title} × {o.quantity} · <span className="font-mono text-xs">{o.ref}</span>
+                    </div>
+                  </div>
+                  <Badge tone="success">Ready</Badge>
+                  <button
+                    type="button"
+                    className={btnLine}
+                    disabled={busy === o.transfer!.id}
+                    onClick={() => releasePayouts([o.transfer!.id], o.transfer!.id)}
+                  >
+                    Release
+                  </button>
+                </Row>
+              ))}
+              {today.failed.map((o) => (
+                <Row key={o.id}>
+                  <div className="min-w-0 flex-1 basis-64">
+                    <div className="text-sm font-semibold">
+                      {o.publisherName} <span className="font-bold">{money(o.transfer!.net)}</span>
+                    </div>
+                    <div className="text-[13px] text-muted-foreground">{o.transfer!.failureReason ?? "Stripe rejected the transfer"}</div>
+                  </div>
+                  <Badge tone="error">Failed</Badge>
+                  <Link to={`/admin/v2/orders?order=${o.id}`} className={btnLine}>
+                    Open
+                  </Link>
+                </Row>
+              ))}
+              {today.blocked.map((b) => (
+                <Row key={b.publisherId ?? b.publisherName}>
+                  <div className="min-w-0 flex-1 basis-64">
+                    <div className="text-sm font-semibold">
+                      {b.publisherName} <span className="font-bold">{money(b.amount)}</span>
+                    </div>
+                    <div className="text-[13px] text-muted-foreground">
+                      {b.orderCount} order{b.orderCount === 1 ? "" : "s"} · Stripe setup not finished
+                    </div>
+                  </div>
+                  <Badge tone="pending">Blocked</Badge>
+                  <Link to="/admin/messages" className={btnLine}>
+                    Message
+                  </Link>
+                </Row>
+              ))}
+            </section>
+          </div>
+
+          <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-7">
+            <section aria-label="Review" className="flex flex-col gap-3.5 rounded-lg border border-border px-5 py-4">
+              <h2 className="font-display text-xl font-semibold tracking-tight [font-variation-settings:'wdth'_114]">Review</h2>
+              {reviewItems.map((r) => (
+                <Link key={r.what} to={r.to} className="flex items-baseline gap-3 border-b border-border/50 pb-3 last:border-b-0 hover:text-accent">
+                  <span className="min-w-[34px] font-display text-[22px] font-bold [font-variation-settings:'wdth'_114]">{r.n}</span>
+                  <span className="text-sm leading-snug">
+                    <strong>{r.what}</strong>
+                    <br />
+                    <span className="text-[13px] text-muted-foreground">{r.sub}</span>
+                  </span>
+                </Link>
+              ))}
+            </section>
+
+            <section aria-label="Today so far" className="flex flex-col gap-3 rounded-lg bg-secondary px-5 py-4">
+              <h2 className="font-mono text-xs font-medium tracking-[0.14em] text-muted-foreground">TODAY SO FAR</h2>
+              {today.activity.length === 0 && <p className="text-[13px] text-muted-foreground">No shipments or payouts yet today.</p>}
+              {today.activity.map((a) => (
+                <div key={`${a.at}-${a.text}`} className="flex gap-3 text-[13px] leading-snug">
+                  <span className="min-w-[64px] font-mono text-xs text-muted-foreground">{format(new Date(a.at), "h:mm a")}</span>
+                  <span>{a.text}</span>
+                </div>
+              ))}
+            </section>
+          </div>
+        </div>
+      </div>
+    </AdminV2Layout>
+  );
+};
+
+export default AdminToday;
