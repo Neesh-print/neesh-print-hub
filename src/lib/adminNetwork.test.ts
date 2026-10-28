@@ -23,9 +23,11 @@ const order = (overrides: Partial<OverviewOrder> = {}): OverviewOrder => ({
   issue: null,
   publisherId: "pub-1",
   publisherName: "Filmmaker",
+  publisherUserId: "user-1",
   publisherCanBePaid: false,
   spaceId: "space-1",
   spaceName: "Ink-ish",
+  spaceIsInternal: false,
   hasAddress: true,
   carrier: null,
   trackingNumber: null,
@@ -57,7 +59,7 @@ describe("activity", () => {
 });
 
 describe("publisherStageOf", () => {
-  const none = { sales: 0, orders: 0, lastOrderAt: null, owed: 0 };
+  const none = { sales: 0, orders: 0, lastOrderAt: null, owed: 0, owedOrders: 0 };
 
   it("is selling with an order in the last 90 days, whatever the setup", () => {
     expect(publisherStageOf({ ...setUp, payoutsEnabled: false }, { ...none, lastOrderAt: "2026-10-26T00:00:00Z" }, NOW)).toBe("selling");
@@ -75,9 +77,9 @@ describe("publisherStageOf", () => {
 
 describe("spaceStageOf", () => {
   it("splits spaces into ordering, lapsed and never ordered", () => {
-    expect(spaceStageOf({ sales: 1, orders: 1, lastOrderAt: "2026-10-22T00:00:00Z", owed: 0 }, NOW)).toBe("ordering");
-    expect(spaceStageOf({ sales: 1, orders: 1, lastOrderAt: "2026-02-01T00:00:00Z", owed: 0 }, NOW)).toBe("lapsed");
-    expect(spaceStageOf({ sales: 0, orders: 0, lastOrderAt: null, owed: 0 }, NOW)).toBe("never");
+    expect(spaceStageOf({ sales: 1, orders: 1, lastOrderAt: "2026-10-22T00:00:00Z", owed: 0, owedOrders: 0 }, NOW)).toBe("ordering");
+    expect(spaceStageOf({ sales: 1, orders: 1, lastOrderAt: "2026-02-01T00:00:00Z", owed: 0, owedOrders: 0 }, NOW)).toBe("lapsed");
+    expect(spaceStageOf({ sales: 0, orders: 0, lastOrderAt: null, owed: 0, owedOrders: 0 }, NOW)).toBe("never");
   });
 });
 

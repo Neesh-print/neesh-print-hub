@@ -1,6 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
+import { Switch } from "@/components/ui/switch";
+import { differenceInCalendarDays, format } from "date-fns";
+import { useNudge, type NudgeTarget } from "@/hooks/useNudge";
+import { lateOrderNudge, setupNudge } from "@/lib/adminNudges";
 import { Loader2 } from "lucide-react";
 import { AdminV2Layout } from "@/components/admin/v2/AdminV2Layout";
 import { Badge } from "@/components/admin/v2/badges";
@@ -48,12 +51,39 @@ const OrderLine = ({ order }: { order: OverviewOrder }) => (
   </div>
 );
 
+const publisherOf = (o: OverviewOrder): NudgeTarget => ({
+  userId: o.publisherUserId,
+  id: o.publisherId,
+  name: o.publisherName,
+  type: "publisher",
+});
+
 export const AdminToday = () => {
   const { data, isLoading, error, dataUpdatedAt } = useAdminOverview();
   const { releasePayouts, setOrderStatus, busy } = useAdminOrderActions();
+  const nudge = useNudge();
   // Ages and "today" are measured from when the data was loaded.
   const now = useMemo(() => new Date(dataUpdatedAt || Date.now()), [dataUpdatedAt]);
-  const today = useMemo(() => (data ? summarizeToday(data.orders, now) : null), [data, now]);
+  // Off by default; remembered per browser. Only the 7-day numbers change.
+  const [excludeInternal, setExcludeInternal] = useState(() => {
+    try {
+      return localStorage.getItem("admin.excludeInternal") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleInternal = (on: boolean) => {
+    setExcludeInternal(on);
+    try {
+      localStorage.setItem("admin.excludeInternal", on ? "1" : "0");
+    } catch {
+      // Private windows can block storage; the switch still works for this visit.
+    }
+  };
+  const today = useMemo(
+    () => (data ? summarizeToday(data.orders, now, { excludeInternal }) : null),
+    [data, now, excludeInternal],
+  );
 
   if (isLoading || !data || !today) {
     return (
@@ -100,18 +130,24 @@ export const AdminToday = () => {
     },
     { n: review.publishersCantBePaid, what: "Publishers can't be paid", sub: "Stripe setup not finished", to: "/admin/network?setup=payouts" },
     { n: review.publishersWithoutAddress, what: "No ships-from address", sub: "Shipping can't be quoted for their titles", to: "/admin/network?setup=address" },
-    { n: review.titlesNeedingAttention, what: "Titles need attention", sub: "Missing price, weight or title", to: "/admin/magazines" },
+    { n: review.titlesNeedingAttention, what: "Titles need attention", sub: "Missing title, price or weight, or out of stock", to: "/admin/magazines?view=needs_attention" },
   ];
 
   return (
     <AdminV2Layout>
       <div className="flex flex-col gap-7">
-        <header>
-          <div className="font-mono text-xs font-medium tracking-[0.14em] text-accent">{format(now, "EEEE, MMM d").toUpperCase()}</div>
-          <h1 className="mt-1.5 font-display text-4xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">Today</h1>
-          <p className="mt-1.5 text-[15px] text-muted-foreground">
-            {total === 0 ? "Nothing needs you. Everything is running." : `${total} thing${total === 1 ? "" : "s"} need${total === 1 ? "s" : ""} you.`}
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="font-mono text-xs font-medium tracking-[0.14em] text-accent">{format(now, "EEEE, MMM d").toUpperCase()}</div>
+            <h1 className="mt-1.5 font-display text-4xl font-bold tracking-tight [font-variation-settings:'wdth'_114]">Today</h1>
+            <p className="mt-1.5 text-[15px] text-muted-foreground">
+              {total === 0 ? "Nothing needs you. Everything is running." : `${total} thing${total === 1 ? "" : "s"} need${total === 1 ? "s" : ""} you.`}
+            </p>
+          </div>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-semibold">
+            <Switch checked={excludeInternal} onCheckedChange={toggleInternal} />
+            Exclude internal
+          </label>
         </header>
 
         <section aria-label="Last 7 days" className="grid grid-cols-2 overflow-hidden rounded-lg border border-border lg:grid-cols-4">
@@ -161,9 +197,9 @@ export const AdminToday = () => {
                       ) : (
                         <>
                           {problems.includes("late") && (
-                            <Link to="/admin/messages" className={btnLine}>
-                              Message publisher
-                            </Link>
+                            <button type="button" className={btnLine} onClick={() => nudge(publisherOf(o), lateOrderNudge(o, age))}>
+                              Nudge publisher
+                            </button>
                           )}
                           <Link to={`/admin/orders?order=${o.id}`} className={btnLine}>
                             Open
@@ -187,9 +223,15 @@ export const AdminToday = () => {
                   <OrderLine order={o} />
                   <Badge tone="pending">Packed, no scan</Badge>
                   <div className="flex gap-2">
-                    <Link to="/admin/messages" className={btnLine}>
-                      Message publisher
-                    </Link>
+                    <button
+                      type="button"
+                      className={btnLine}
+                      onClick={() =>
+                        nudge(publisherOf(o), lateOrderNudge(o, differenceInCalendarDays(now, new Date(o.updatedAt ?? o.createdAt)), true))
+                      }
+                    >
+                      Nudge publisher
+                    </button>
                     <button type="button" className={btnDark} disabled={busy === o.id} onClick={() => setOrderStatus(o.id, "shipped")}>
                       Mark shipped
                     </button>
@@ -264,9 +306,18 @@ export const AdminToday = () => {
                     </div>
                   </div>
                   <Badge tone="pending">Blocked</Badge>
-                  <Link to="/admin/messages" className={btnLine}>
-                    Message
-                  </Link>
+                  <button
+                    type="button"
+                    className={btnLine}
+                    onClick={() =>
+                      nudge(
+                        { userId: b.publisherUserId, id: b.publisherId, name: b.publisherName, type: "publisher" },
+                        setupNudge(["Stripe payouts"], b.amount, b.orderCount),
+                      )
+                    }
+                  >
+                    Nudge
+                  </button>
                 </Row>
               ))}
             </section>

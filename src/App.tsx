@@ -75,8 +75,6 @@ import {
   AdminRetailerDetail,
   AdminOrderDetail,
   AdminMessages,
-  AdminAnalytics,
-  AdminMagazines,
   AdminBulkImport,
   PrintSlipsPage,
 } from "./pages/admin";
@@ -86,6 +84,8 @@ import { AdminSettings } from "./pages/admin/AdminSettings";
 import { AdminToday } from "./pages/admin/v2/AdminToday";
 import { AdminOrdersV2 } from "./pages/admin/v2/AdminOrdersV2";
 import { AdminNetwork } from "./pages/admin/v2/AdminNetwork";
+import { AdminCatalog } from "./pages/admin/v2/AdminCatalog";
+import { AdminInsights } from "./pages/admin/v2/AdminInsights";
 
 const adminOnly = (page: JSX.Element) => <ProtectedRoute allowedRoles={['admin']}>{page}</ProtectedRoute>;
 
@@ -570,10 +570,10 @@ const AppRoutes = () => {
       <Route path="/admin/applications" element={adminOnly(<AdminApplications />)} />
       <Route path="/admin/applications/:id" element={adminOnly(<AdminApplicationDetail />)} />
       <Route path="/admin/nustand" element={adminOnly(<AdminNustand />)} />
-      <Route path="/admin/magazines" element={adminOnly(<AdminMagazines />)} />
+      <Route path="/admin/magazines" element={adminOnly(<AdminCatalog />)} />
       <Route path="/admin/magazines/import" element={adminOnly(<AdminBulkImport />)} />
       <Route path="/admin/index-review" element={adminOnly(<AdminIndexReview />)} />
-      <Route path="/admin/analytics" element={adminOnly(<AdminAnalytics />)} />
+      <Route path="/admin/analytics" element={adminOnly(<AdminInsights />)} />
       <Route path="/admin/messages" element={adminOnly(<AdminMessages />)} />
       <Route path="/admin/settings" element={adminOnly(<AdminSettings />)} />
       {/* Preview links from before the redesign replaced the classic admin */}

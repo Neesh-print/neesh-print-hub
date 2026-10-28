@@ -22,9 +22,11 @@ const order = (overrides: Partial<OverviewOrder> = {}): OverviewOrder => ({
   issue: null,
   publisherId: "pub-1",
   publisherName: "Filmmaker",
+  publisherUserId: "user-1",
   publisherCanBePaid: true,
   spaceId: "space-1",
   spaceName: "Ink-ish",
+  spaceIsInternal: false,
   hasAddress: true,
   carrier: null,
   trackingNumber: null,
@@ -123,7 +125,7 @@ describe("summarizeToday", () => {
 
   it("lists ready payouts and groups blocked ones by publisher", () => {
     expect(today.ready.map((o) => o.id)).toEqual(["e"]);
-    expect(today.blocked).toEqual([{ publisherId: "pub-1", publisherName: "Filmmaker", amount: 18, orderCount: 1 }]);
+    expect(today.blocked).toEqual([{ publisherId: "pub-1", publisherUserId: "user-1", publisherName: "Filmmaker", amount: 18, orderCount: 1 }]);
   });
 
   it("sums the last 7 days and counts spaces ordering", () => {
@@ -140,5 +142,15 @@ describe("summarizeToday", () => {
       "The Drift paid out $43.20",
       "The Drift: No. 136, Fall 2026 shipped (USPS)",
     ]);
+  });
+
+  it("can leave internal orders out of the numbers but never out of the work", () => {
+    const withInternal = [...orders, order({ id: "n", ref: "#N", total: 100, spaceIsInternal: true, spaceId: "nwm" })];
+    const all = summarizeToday(withInternal, NOW);
+    const external = summarizeToday(withInternal, NOW, { excludeInternal: true });
+    expect(all.pulse.orders7d).toBe(5);
+    expect(external.pulse.orders7d).toBe(4);
+    expect(external.pulse.sales7d).toBeCloseTo(all.pulse.sales7d - 100);
+    expect(external.toShip.map((o) => o.id)).toContain("n");
   });
 });

@@ -58,10 +58,14 @@ export interface OverviewOrder {
   issue: string | null;
   publisherId: string | null;
   publisherName: string;
+  /** The publisher's login, for messages. */
+  publisherUserId: string | null;
   /** Stripe payouts enabled on the publisher's connected account. */
   publisherCanBePaid: boolean;
   spaceId: string | null;
   spaceName: string;
+  /** Neesh's own buying account (retailers.is_internal, e.g. NWM Collections). */
+  spaceIsInternal: boolean;
   hasAddress: boolean;
   carrier: string | null;
   trackingNumber: string | null;
@@ -167,6 +171,7 @@ const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
 export interface BlockedPublisher {
   publisherId: string | null;
+  publisherUserId: string | null;
   publisherName: string;
   amount: number;
   orderCount: number;
@@ -206,7 +211,17 @@ const toShipRank = (order: OverviewOrder, now: Date) => {
   return 1;
 };
 
-export function summarizeToday(orders: OverviewOrder[], now: Date): TodaySummary {
+export interface SummaryOptions {
+  /**
+   * Leave internal orders out of the 7-day numbers. They still need shipping
+   * and paying out, so the To ship and Payouts lists always include them.
+   */
+  excludeInternal?: boolean;
+}
+
+export function summarizeToday(orders: OverviewOrder[], now: Date, options: SummaryOptions = {}): TodaySummary {
+  const reporting = options.excludeInternal ? orders.filter((o) => !o.spaceIsInternal) : orders;
+
   const toShip = orders
     .filter((o) => stageOf(o.status) === "to_ship")
     .sort((a, b) => toShipRank(a, now) - toShipRank(b, now) || a.createdAt.localeCompare(b.createdAt));
@@ -221,6 +236,7 @@ export function summarizeToday(orders: OverviewOrder[], now: Date): TodaySummary
     const key = o.publisherId ?? o.publisherName;
     const entry = blockedByPublisher.get(key) ?? {
       publisherId: o.publisherId,
+      publisherUserId: o.publisherUserId,
       publisherName: o.publisherName,
       amount: 0,
       orderCount: 0,
@@ -232,8 +248,8 @@ export function summarizeToday(orders: OverviewOrder[], now: Date): TodaySummary
 
   const weekAgo = subDays(now, 7);
   const quarterAgo = subDays(now, 90);
-  const recentSales = orders.filter((o) => isSale(o) && new Date(o.createdAt) >= weekAgo);
-  const paidOutThisWeek = orders.filter(
+  const recentSales = reporting.filter((o) => isSale(o) && new Date(o.createdAt) >= weekAgo);
+  const paidOutThisWeek = reporting.filter(
     (o) => o.transfer?.status === "transferred" && o.transfer.transferredAt && new Date(o.transfer.transferredAt) >= weekAgo,
   );
 
@@ -263,7 +279,7 @@ export function summarizeToday(orders: OverviewOrder[], now: Date): TodaySummary
       paidOut7d: sum(paidOutThisWeek.map((o) => o.transfer!.net)),
       paidOutTo: [...new Set(paidOutThisWeek.map((o) => o.publisherName))],
       spacesOrdering90d: new Set(
-        orders.filter((o) => isSale(o) && o.spaceId && new Date(o.createdAt) >= quarterAgo).map((o) => o.spaceId),
+        reporting.filter((o) => isSale(o) && o.spaceId && new Date(o.createdAt) >= quarterAgo).map((o) => o.spaceId),
       ).size,
     },
     activity,

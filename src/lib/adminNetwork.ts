@@ -35,9 +35,11 @@ export interface Activity {
   lastOrderAt: string | null;
   /** Payouts not yet sent: pending goods transfers. */
   owed: number;
+  /** How many orders those pending payouts come from. */
+  owedOrders: number;
 }
 
-const EMPTY: Activity = { sales: 0, orders: 0, lastOrderAt: null, owed: 0 };
+const EMPTY: Activity = { sales: 0, orders: 0, lastOrderAt: null, owed: 0, owedOrders: 0 };
 
 const isSale = (o: OverviewOrder) => SALE_STATUSES.includes(o.status);
 
@@ -50,7 +52,10 @@ function tally(orders: OverviewOrder[], keyOf: (o: OverviewOrder) => string | nu
     a.sales += o.total;
     a.orders += 1;
     if (!a.lastOrderAt || o.createdAt > a.lastOrderAt) a.lastOrderAt = o.createdAt;
-    if (o.transfer && o.transfer.status === "pending") a.owed += o.transfer.net;
+    if (o.transfer && o.transfer.status === "pending") {
+      a.owed += o.transfer.net;
+      a.owedOrders += 1;
+    }
     out.set(key, a);
   }
   return out;
