@@ -202,8 +202,12 @@ Deno.serve(async (req) => {
           amount: amountInCents,
           currency: 'usd',
           destination: publisher.stripe_account_id,
-          ...(source ? { source_transaction: source.chargeId } : {}),
-          transfer_group: transfer.order_id ?? transfer.shipment_id,
+          // With a source charge, Stripe gives the transfer the charge's
+          // transfer group (set by the first transfer from that checkout) and
+          // rejects one passed here, so only plain transfers set it.
+          ...(source
+            ? { source_transaction: source.chargeId }
+            : { transfer_group: transfer.order_id ?? transfer.shipment_id }),
           description: transfer.kind === 'shipping'
             ? `Neesh shipping payout for shipment ${transfer.shipment_id}`
             : `Neesh payout for order ${transfer.order_id}`,
