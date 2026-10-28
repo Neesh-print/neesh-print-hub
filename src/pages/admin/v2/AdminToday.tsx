@@ -81,13 +81,13 @@ export const AdminToday = () => {
       label: "PAID OUT · 7 DAYS",
       value: money(today.pulse.paidOut7d),
       sub: today.pulse.paidOutTo.join(", ") || "Nothing yet",
-      to: "/admin/v2/orders?view=all",
+      to: "/admin/orders?view=all",
     },
     {
       label: "SPACES ORDERING",
       value: `${today.pulse.spacesOrdering90d} of ${review.spacesTotal}`,
       sub: "in the last 90 days",
-      to: "/admin/retailers",
+      to: "/admin/network?type=spaces",
     },
   ];
 
@@ -98,8 +98,8 @@ export const AdminToday = () => {
       sub: `${review.applicationDrafts} draft${review.applicationDrafts === 1 ? "" : "s"} not submitted`,
       to: "/admin/applications",
     },
-    { n: review.publishersCantBePaid, what: "Publishers can't be paid", sub: "Stripe setup not finished", to: "/admin/payouts" },
-    { n: review.publishersWithoutAddress, what: "No ships-from address", sub: "Shipping can't be quoted for their titles", to: "/admin/publishers" },
+    { n: review.publishersCantBePaid, what: "Publishers can't be paid", sub: "Stripe setup not finished", to: "/admin/network?setup=payouts" },
+    { n: review.publishersWithoutAddress, what: "No ships-from address", sub: "Shipping can't be quoted for their titles", to: "/admin/network?setup=address" },
     { n: review.titlesNeedingAttention, what: "Titles need attention", sub: "Missing price, weight or title", to: "/admin/magazines" },
   ];
 
@@ -132,7 +132,7 @@ export const AdminToday = () => {
                 count={today.toShip.length + today.stuckPacked.length}
                 sub="Publishers ship. Step in when they're late."
                 action={
-                  <Link to="/admin/v2/orders?view=to_ship" className="text-[13px] font-semibold text-accent">
+                  <Link to="/admin/orders?view=to_ship" className="text-[13px] font-semibold text-accent">
                     Open in Orders
                   </Link>
                 }
@@ -165,7 +165,7 @@ export const AdminToday = () => {
                               Message publisher
                             </Link>
                           )}
-                          <Link to={`/admin/v2/orders?order=${o.id}`} className={btnLine}>
+                          <Link to={`/admin/orders?order=${o.id}`} className={btnLine}>
                             Open
                           </Link>
                           <button
@@ -248,7 +248,7 @@ export const AdminToday = () => {
                     <div className="text-[13px] text-muted-foreground">{o.transfer!.failureReason ?? "Stripe rejected the transfer"}</div>
                   </div>
                   <Badge tone="error">Failed</Badge>
-                  <Link to={`/admin/v2/orders?order=${o.id}`} className={btnLine}>
+                  <Link to={`/admin/orders?order=${o.id}`} className={btnLine}>
                     Open
                   </Link>
                 </Row>
