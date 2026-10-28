@@ -117,7 +117,7 @@ export const RetailerOrdersList = () => {
         const statusMap: Record<string, { status: StatusType; label: string }> = {
           pending: { status: "pending", label: "PENDING" },
           paid: { status: "pending", label: "PENDING" },
-          packed: { status: "pending", label: "PACKED" },
+          processing: { status: "pending", label: "PACKED" },
           shipped: { status: "received", label: "SHIPPED" },
           delivered: { status: "received", label: "DELIVERED" },
         };

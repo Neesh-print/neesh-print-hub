@@ -33,9 +33,9 @@ export const usePublisherAnalytics = (publisherId?: string, daysToCheck = 30) =>
 
   const metrics: AnalyticsMetrics = useMemo(() => {
     // Filter for valid orders (e.g. not cancelled, maybe pending is okay if we want to show potential revenue?)
-    // Let's stick to 'paid', 'packed', 'shipped', 'delivered' for Revenue stats.
-    const validOrders = orders.filter(o => 
-      ['paid', 'packed', 'shipped', 'delivered'].includes(o.payment_status || o.status)
+    // Paid, packed (processing), shipped and delivered orders count toward revenue.
+    const validOrders = orders.filter(o =>
+      ['paid', 'processing', 'shipped', 'delivered'].includes(o.payment_status || o.status)
     );
 
     const totalRevenue = validOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);

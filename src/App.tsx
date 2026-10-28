@@ -69,27 +69,25 @@ import { RetailerSettings } from "./pages/retailer/RetailerSettings";
 import { PublisherPublicProfile, RetailerPublicProfile } from "./pages/public";
 
 import {
-  AdminDashboard,
   AdminApplications,
   AdminApplicationDetail,
-  AdminPublishers,
   AdminPublisherDetail,
-  AdminRetailers,
   AdminRetailerDetail,
-  AdminOrders,
   AdminOrderDetail,
   AdminMessages,
-  AdminAnalytics,
-  AdminFulfillmentQueue,
-  AdminMagazines,
   AdminBulkImport,
   PrintSlipsPage,
-  AdminPublisherTransfers,
-  AdminPayouts,
 } from "./pages/admin";
 import { AdminNustand } from "./pages/admin/AdminNustand";
 import { AdminIndexReview } from "./pages/admin/AdminIndexReview";
 import { AdminSettings } from "./pages/admin/AdminSettings";
+import { AdminToday } from "./pages/admin/v2/AdminToday";
+import { AdminOrdersV2 } from "./pages/admin/v2/AdminOrdersV2";
+import { AdminNetwork } from "./pages/admin/v2/AdminNetwork";
+import { AdminCatalog } from "./pages/admin/v2/AdminCatalog";
+import { AdminInsights } from "./pages/admin/v2/AdminInsights";
+
+const adminOnly = (page: JSX.Element) => <ProtectedRoute allowedRoles={['admin']}>{page}</ProtectedRoute>;
 
 // Onboarding pages
 import { OnboardingContinue, OnboardingStart } from "./pages/onboarding";
@@ -554,153 +552,33 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Admin routes */}
-      <Route path="/admin/nustand" element={<ProtectedRoute allowedRoles={['admin']}><AdminNustand /></ProtectedRoute>} />
-      <Route path="/admin/index-review" element={<ProtectedRoute allowedRoles={['admin']}><AdminIndexReview /></ProtectedRoute>} />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/applications"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminApplications />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/applications/:id"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminApplicationDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/publishers"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminPublishers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/publishers/:id"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminPublisherDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/retailers"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminRetailers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/retailers/:id"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminRetailerDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/orders"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminOrders />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/orders/:id"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminOrderDetail />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/transfers"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminPublisherTransfers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/payouts"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminPayouts />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/messages"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminMessages />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/analytics"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminAnalytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminSettings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/fulfillment"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminFulfillmentQueue />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/fulfillment/print"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <PrintSlipsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/magazines"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminMagazines />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/magazines/import"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminBulkImport />
-          </ProtectedRoute>
-        }
-      />
+      {/* Admin routes. Today, Orders and Network are the redesigned admin;
+          Dashboard, Fulfillment, Transfers, Payouts and the Publishers and
+          Retailers lists were folded into them and now redirect. */}
+      <Route path="/admin" element={adminOnly(<AdminToday />)} />
+      <Route path="/admin/orders" element={adminOnly(<AdminOrdersV2 />)} />
+      <Route path="/admin/orders/:id" element={adminOnly(<AdminOrderDetail />)} />
+      <Route path="/admin/fulfillment" element={<Navigate to="/admin/orders?view=to_ship" replace />} />
+      <Route path="/admin/fulfillment/print" element={adminOnly(<PrintSlipsPage />)} />
+      <Route path="/admin/transfers" element={<Navigate to="/admin/orders?view=payout_ready" replace />} />
+      <Route path="/admin/network" element={adminOnly(<AdminNetwork />)} />
+      <Route path="/admin/publishers" element={<Navigate to="/admin/network" replace />} />
+      <Route path="/admin/publishers/:id" element={adminOnly(<AdminPublisherDetail />)} />
+      <Route path="/admin/retailers" element={<Navigate to="/admin/network?type=spaces" replace />} />
+      <Route path="/admin/retailers/:id" element={adminOnly(<AdminRetailerDetail />)} />
+      <Route path="/admin/payouts" element={<Navigate to="/admin/network?setup=payouts" replace />} />
+      <Route path="/admin/applications" element={adminOnly(<AdminApplications />)} />
+      <Route path="/admin/applications/:id" element={adminOnly(<AdminApplicationDetail />)} />
+      <Route path="/admin/nustand" element={adminOnly(<AdminNustand />)} />
+      <Route path="/admin/magazines" element={adminOnly(<AdminCatalog />)} />
+      <Route path="/admin/magazines/import" element={adminOnly(<AdminBulkImport />)} />
+      <Route path="/admin/index-review" element={adminOnly(<AdminIndexReview />)} />
+      <Route path="/admin/analytics" element={adminOnly(<AdminInsights />)} />
+      <Route path="/admin/messages" element={adminOnly(<AdminMessages />)} />
+      <Route path="/admin/settings" element={adminOnly(<AdminSettings />)} />
+      {/* Preview links from before the redesign replaced the classic admin */}
+      <Route path="/admin/v2" element={<Navigate to="/admin" replace />} />
+      <Route path="/admin/v2/orders" element={<Navigate to="/admin/orders" replace />} />
 
       {/* Error pages */}
       <Route path="/error" element={<ErrorPage />} />

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { PACKED_STATUS } from "@/lib/orderStatus";
 
 export interface UseUpdateOrderStatusReturn {
   updateStatus: (orderId: string, status: string) => Promise<boolean>;
@@ -44,7 +45,6 @@ export const useUpdateOrderStatus = (): UseUpdateOrderStatusReturn => {
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'shipped',
           tracking_number: trackingNumber,
           carrier: carrier, // Save to proper carrier column
           updated_at: new Date().toISOString(),
@@ -52,6 +52,25 @@ export const useUpdateOrderStatus = (): UseUpdateOrderStatusReturn => {
         .eq('id', orderId);
 
       if (updateError) throw updateError;
+
+      // Tracking means Packed (stored as processing). The first carrier scan
+      // moves it to shipped through shippo-webhook. Only a paid order moves,
+      // so editing tracking on a shipped order never sends it backwards.
+      const { error: statusError } = await supabase
+        .from('orders')
+        .update({ status: PACKED_STATUS })
+        .eq('id', orderId)
+        .eq('status', 'paid');
+
+      if (statusError) throw statusError;
+
+      // Ask Shippo to follow the tracking number so carrier scans reach us.
+      // Non-fatal: without it the order waits in Packed and shows on Today.
+      supabase.functions
+        .invoke('register-tracking', { body: { orderId } })
+        .then(({ error: registerError }) => {
+          if (registerError) console.error('Failed to register tracking:', registerError);
+        });
 
       // Send automated message with tracking info
       try {
@@ -75,7 +94,7 @@ export const useUpdateOrderStatus = (): UseUpdateOrderStatusReturn => {
             ? `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`
             : `Tracking: ${trackingNumber}`;
 
-          const messageContent = `Your order for "${magazineTitle}" has shipped! 
+          const messageContent = `Your order for "${magazineTitle}" is packed and has tracking.
 Carrier: ${carrier.toUpperCase()}
 Tracking Number: ${trackingNumber}
 
@@ -83,7 +102,7 @@ You can track your package here: ${trackingLink}`;
 
           await supabase.from('notifications').insert({
               user_id: orderData.retailer_id, // Recipient: Retailer
-              title: 'Order Shipped',
+              title: 'Order Packed',
               content: messageContent,
               notification_type: 'order_update',
               related_order_id: orderId,
