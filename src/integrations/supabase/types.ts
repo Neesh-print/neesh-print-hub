@@ -621,6 +621,8 @@ export type Database = {
       }
       order_shipments: {
         Row: {
+          customs_route: string | null
+          customs_usd: number
           carrier: string | null
           commercial_invoice_url: string | null
           copies: number
@@ -655,6 +657,8 @@ export type Database = {
           zone: string
         }
         Insert: {
+          customs_route?: string | null
+          customs_usd?: number
           carrier?: string | null
           commercial_invoice_url?: string | null
           copies: number
@@ -689,6 +693,8 @@ export type Database = {
           zone: string
         }
         Update: {
+          customs_route?: string | null
+          customs_usd?: number
           carrier?: string | null
           commercial_invoice_url?: string | null
           copies?: number
@@ -1740,18 +1746,27 @@ export type Database = {
       }
       shipping_config: {
         Row: {
+          customs_fee_courier_usd: number
+          customs_fee_postal_usd: number
+          customs_handling_enabled: boolean
           healthy_margin_pct: number
           id: boolean
           shipping_v2_enabled: boolean
           updated_at: string
         }
         Insert: {
+          customs_fee_courier_usd?: number
+          customs_fee_postal_usd?: number
+          customs_handling_enabled?: boolean
           healthy_margin_pct?: number
           id?: boolean
           shipping_v2_enabled?: boolean
           updated_at?: string
         }
         Update: {
+          customs_fee_courier_usd?: number
+          customs_fee_postal_usd?: number
+          customs_handling_enabled?: boolean
           healthy_margin_pct?: number
           id?: boolean
           shipping_v2_enabled?: boolean
@@ -1761,6 +1776,8 @@ export type Database = {
       }
       shipping_quotes: {
         Row: {
+          customs_route: string | null
+          customs_usd: number
           carrier: string | null
           copies: number
           created_at: string
@@ -1789,6 +1806,8 @@ export type Database = {
           zone: string
         }
         Insert: {
+          customs_route?: string | null
+          customs_usd?: number
           carrier?: string | null
           copies: number
           created_at?: string
@@ -1817,6 +1836,8 @@ export type Database = {
           zone: string
         }
         Update: {
+          customs_route?: string | null
+          customs_usd?: number
           carrier?: string | null
           copies?: number
           created_at?: string

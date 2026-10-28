@@ -37,6 +37,9 @@ export const LABEL_RERATE_TOLERANCE = 0.15;
 /** Customs constants (decision 2). */
 export const CUSTOMS_TARIFF_NUMBER = '490290';
 export const CUSTOMS_DESCRIPTION = 'Printed magazines';
+/** Claimed on every US-bound declaration so the duty itself stays at $0. */
+export const US_CUSTOMS_EXEMPTION_NOTE =
+  'Printed periodicals. Informational materials, exempt under 50 U.S.C. 1702(b)(3). Claim HTSUS 9903.05.92.';
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -77,6 +80,24 @@ export function shippingSplit(shippingUsd: number, labelCostUsd: number | null =
   const gross = round2(Math.max(0, shippingUsd || 0));
   const net = round2(Math.max(0, gross - (labelCostUsd ?? 0)));
   return { gross, net, platformFee: 0 };
+}
+
+/**
+ * Shipping transfer for one parcel, including US customs handling. On the
+ * publisher route the customs amount the space paid is added on top, so the
+ * publisher's Zonos prepay comes back to them; a label cost never eats into
+ * it. On the Neesh route it stays in the platform balance to cover the
+ * courier's bill, so the transfer is plain shipping.
+ */
+export function shippingPayoutSplit(opts: {
+  shippingUsd: number;
+  labelCostUsd?: number | null;
+  customsUsd?: number | null;
+  customsRoute?: CustomsRoute | null;
+}): TransferSplit {
+  const base = shippingSplit(opts.shippingUsd, opts.labelCostUsd ?? null);
+  const customs = opts.customsRoute === 'publisher' ? round2(Math.max(0, opts.customsUsd ?? 0)) : 0;
+  return { gross: round2(base.gross + customs), net: round2(base.net + customs), platformFee: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -562,6 +583,33 @@ export function senderPrepaysDuties(origin: string | null | undefined, destinati
   return !!origin && !!destination && !!incotermFor(origin, destination) && !dutiesPaid;
 }
 
+/**
+ * Who pays the US customs entry for a parcel, or null when it doesn't need
+ * one. "neesh": a duty-paying courier carries it and bills Neesh's Shippo
+ * account. "publisher": the publisher prepays it (Zonos) before posting.
+ */
+export type CustomsRoute = 'publisher' | 'neesh';
+
+export function customsRouteFor(origin: string | null | undefined, destination: string | null | undefined, dutiesPaid: boolean): CustomsRoute | null {
+  if (!origin || !destination || !incotermFor(origin, destination)) return null;
+  return dutiesPaid ? 'neesh' : 'publisher';
+}
+
+/** shipping_config customs settings. The line ships off with both fees at $0. */
+export interface CustomsSettings {
+  enabled: boolean;
+  postalUsd: number;
+  courierUsd: number;
+}
+
+export const CUSTOMS_OFF: CustomsSettings = { enabled: false, postalUsd: 0, courierUsd: 0 };
+
+/** What a space pays per parcel for US customs handling. 0 when off or not needed. */
+export function customsFeeFor(route: CustomsRoute | null, settings: CustomsSettings): number {
+  if (!route || !settings.enabled) return 0;
+  return round2(Math.max(0, route === 'neesh' ? settings.courierUsd : settings.postalUsd) || 0);
+}
+
 /** Human label for a rate, e.g. "Colissimo, duties paid". */
 export function rateLabel(provider: string | null | undefined, service: string | null | undefined, dutiesPaid: boolean): string {
   const base = [provider, service].filter(Boolean).join(' ');
@@ -585,7 +633,9 @@ export interface CustomsDeclaration {
   non_delivery_option: 'RETURN';
   certify: true;
   certify_signer: string;
-  incoterm?: 'DDP';
+  incoterm?: 'DDP' | 'DAP';
+  commercial_invoice?: boolean;
+  notes?: string;
   eel_pfc?: string;
   invoice?: string;
   items: {
@@ -607,6 +657,13 @@ export function buildCustomsDeclaration(opts: {
   signer: string;
   lines: CustomsLine[];
   reference?: string;
+  /**
+   * Whether the rate being bought is a duty-paying courier (dutiesPaidFor).
+   * DDP only when it is; otherwise DAP, because the publisher prepays customs
+   * themselves and postal carriers (DPD UK, for one) reject DDP. Leave unset
+   * when quoting, before a rate is chosen: DDP, so couriers quote duties paid.
+   */
+  dutiesPaid?: boolean;
 }): CustomsDeclaration | null {
   const origin = normalizeCountry(opts.origin);
   const destination = normalizeCountry(opts.destination);
@@ -629,7 +686,13 @@ export function buildCustomsDeclaration(opts: {
       tariff_number: CUSTOMS_TARIFF_NUMBER,
     })),
   };
-  if (incoterm) decl.incoterm = incoterm;
+  if (incoterm) decl.incoterm = opts.dutiesPaid === false ? 'DAP' : incoterm;
+  // Every parcel into the US needs an entry. Claim the informational-materials
+  // exemption on a commercial invoice so the duty stays at $0.
+  if (destination === 'US') {
+    decl.commercial_invoice = true;
+    decl.notes = US_CUSTOMS_EXEMPTION_NOTE;
+  }
   // US exports under 2,500 USD per HS code need the no-EEI exemption.
   if (origin === 'US') decl.eel_pfc = 'NOEEI_30_37_a';
   if (opts.reference) decl.invoice = opts.reference;

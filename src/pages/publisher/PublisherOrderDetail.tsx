@@ -33,6 +33,9 @@ interface OrderShipment {
   carrier: string | null;
   service: string | null;
   duties_paid: boolean;
+  /** US customs handling the space paid; on the publisher route it's paid back in the shipping payout. */
+  customs_usd: number | null;
+  customs_route: "publisher" | "neesh" | null;
   tracking_number: string | null;
   review_reason: string | null;
 }
@@ -157,7 +160,7 @@ export const PublisherOrderDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_shipments")
-        .select("id, status, zone, origin_country, destination_country, copies, weight_grams, parcel, shipping_usd, rate_source, uses_neesh_labels, label_cost_usd, label_url, commercial_invoice_url, carrier, service, duties_paid, tracking_number, review_reason")
+        .select("id, status, zone, origin_country, destination_country, copies, weight_grams, parcel, shipping_usd, rate_source, uses_neesh_labels, label_cost_usd, label_url, commercial_invoice_url, carrier, service, duties_paid, customs_usd, customs_route, tracking_number, review_reason")
         .eq("id", order!.shipment_id!)
         .maybeSingle();
       if (error) throw error;
@@ -429,7 +432,9 @@ export const PublisherOrderDetail = () => {
               )}
               {senderPrepaysDuties(shipment.origin_country, shipment.destination_country, shipment.duties_paid) && (
                 <p className="text-caption text-status-pending-text py-1">
-                  Prepay US duties before you post this. Since August 2025, postal parcels into the US need duties paid by the sender (Canada Post asks for a Zonos Declaration ID). Couriers such as UPS, FedEx and DHL Express handle this for you.
+                  Prepay US customs through Zonos before you post.
+                  {Number(shipment.customs_usd ?? 0) > 0 &&
+                    ` This order already includes ${money(Number(shipment.customs_usd))} to cover it, paid back in your shipping payout.`}
                 </p>
               )}
               {shipment.uses_neesh_labels ? (
