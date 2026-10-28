@@ -6,6 +6,8 @@ import { BackNavigation, DataTable, ButtonSecondary } from "@/components/neesh";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { format, eachDayOfInterval, startOfDay } from "date-fns";
+import { Switch } from "@/components/ui/switch";
+import { useInternalRetailers } from "@/hooks/useInternalRetailers";
 
 interface OrderData {
   id: string;
@@ -41,7 +43,11 @@ export const AdminAnalytics = () => {
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     end: new Date(),
   });
-  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [allOrders, setAllOrders] = useState<OrderData[]>([]);
+  // Platform fee per order, from publisher_transfers (the Transfers tab's numbers)
+  const [feeByOrder, setFeeByOrder] = useState<Record<string, number>>({});
+  const [excludeInternal, setExcludeInternal] = useState(false);
+  const internalUserIds = useInternalRetailers();
   const [publishers, setPublishers] = useState<Record<string, string>>({});
   const [magazines, setMagazines] = useState<Record<string, { title: string; publisher_id: string }>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +67,21 @@ export const AdminAnalytics = () => {
         .order('created_at', { ascending: true });
 
       if (orderError) throw orderError;
-      setOrders(orderData || []);
+      setAllOrders(orderData || []);
+
+      const orderIds = (orderData || []).map((o) => o.id);
+      const { data: transferData } = orderIds.length
+        ? await supabase
+            .from('publisher_transfers')
+            .select('order_id, platform_fee')
+            .eq('kind', 'goods')
+            .in('order_id', orderIds)
+        : { data: [] };
+      const fees: Record<string, number> = {};
+      ((transferData || []) as { order_id: string | null; platform_fee: number }[]).forEach((t) => {
+        if (t.order_id) fees[t.order_id] = (fees[t.order_id] || 0) + Number(t.platform_fee || 0);
+      });
+      setFeeByOrder(fees);
 
       // Fetch publishers
       const { data: pubData } = await supabase
@@ -96,9 +116,20 @@ export const AdminAnalytics = () => {
     fetchData();
   }, [fetchData]);
 
+  const orders = useMemo(
+    () => excludeInternal ? allOrders.filter((o) => !internalUserIds.has(o.retailer_id)) : allOrders,
+    [allOrders, excludeInternal, internalUserIds],
+  );
+
   // Compute metrics
   const grossRevenue = useMemo(() => orders.reduce((sum, o) => sum + Number(o.total_price || 0), 0), [orders]);
-  const neeshCommission = grossRevenue * 0.1;
+  // Neesh takes 10% from the space (on top of wholesale) and 10% from the
+  // publisher, i.e. 20/110 of what the space paid. Use the recorded transfer
+  // fee where there is one; otherwise apply the same split.
+  const neeshCommission = useMemo(() => Math.round(orders.reduce((sum, o) => {
+    const fee = feeByOrder[o.id];
+    return sum + (fee !== undefined ? fee : Number(o.total_price || 0) * 0.2 / 1.1);
+  }, 0) * 100) / 100, [orders, feeByOrder]);
   const totalOrders = orders.length;
   const avgOrderValue = totalOrders > 0 ? grossRevenue / totalOrders : 0;
 
@@ -218,11 +249,17 @@ export const AdminAnalytics = () => {
       <div className="px-4 md:px-6">
         <div className="flex items-center justify-between mb-6">
           <BackNavigation title="Analytics" onBack={() => navigate("/admin")} />
-          <DateRangePicker
-            startDate={dateRange.start}
-            endDate={dateRange.end}
-            onChange={(start, end) => setDateRange({ start, end })}
-          />
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-caption text-muted-foreground cursor-pointer">
+              <Switch checked={excludeInternal} onCheckedChange={setExcludeInternal} />
+              Exclude internal
+            </label>
+            <DateRangePicker
+              startDate={dateRange.start}
+              endDate={dateRange.end}
+              onChange={(start, end) => setDateRange({ start, end })}
+            />
+          </div>
         </div>
       </div>
 
@@ -244,8 +281,8 @@ export const AdminAnalytics = () => {
               />
               <StatCard
                 label="Neesh Commission"
-                value={`$${neeshCommission.toLocaleString()}`}
-                subtitle="10% of revenue"
+                value={`$${neeshCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                subtitle="10% from spaces + 10% from publishers"
                 highlight="success"
               />
               <StatCard
@@ -284,7 +321,7 @@ export const AdminAnalytics = () => {
                         formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
                       />
                       <Line
-                        type="monotone"
+                        type="linear"
                         dataKey="revenue"
                         stroke="hsl(var(--chart-purple))"
                         strokeWidth={2}

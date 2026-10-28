@@ -3,12 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { generateApprovalEmail, generateRejectionEmail, EMAIL_SUBJECTS } from "@/lib/emailTemplates";
 
+/**
+ * Normalized application status. 'pending' means submitted and awaiting a
+ * decision; 'draft' is started but never submitted, so it is not a review
+ * that is waiting. See applicationStatusBadge in src/lib/applicationStatus.ts.
+ */
+export type ApplicationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted';
+
 export interface Application {
   id: string;
   type: 'publisher' | 'retailer';
   name: string;
   email: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: ApplicationStatus;
   submitted_at: string;
   reviewed_at: string | null;
   data: Record<string, any>;
@@ -16,7 +23,7 @@ export interface Application {
 
 export interface UseApplicationsOptions {
   type?: 'publisher' | 'retailer' | 'all';
-  status?: 'pending' | 'approved' | 'rejected' | 'all';
+  status?: ApplicationStatus | 'all';
 }
 
 export interface EmailPreviewData {
@@ -56,8 +63,13 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
       // waitlisted. Left as-is, a submitted application renders as already
       // reviewed: no approve/decline buttons, missing from the pending count
       // and the Pending filter. Treat it as what it is — awaiting review.
-      const normalizeStatus = (status: string | null): string =>
-        status === 'submitted' || !status ? 'pending' : status;
+      // Retailer applications store a decline as 'denied'; publishers use
+      // 'rejected'. Drafts stay drafts so they aren't counted as overdue reviews.
+      const normalizeStatus = (status: string | null): ApplicationStatus => {
+        if (status === 'submitted' || !status) return 'pending';
+        if (status === 'denied') return 'rejected';
+        return status as ApplicationStatus;
+      };
 
       // Fetch publisher applications if not filtered to retailers only
       if (options.type !== 'retailer') {
@@ -81,7 +93,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           type: 'publisher' as const,
           name: item.business_name || item.magazine_title || 'Unknown',
           email: item.email || '',
-          status: normalizeStatus(item.status) as 'pending' | 'approved' | 'rejected',
+          status: normalizeStatus(item.status),
           submitted_at: item.created_at,
           reviewed_at: item.reviewed_at,
           data: item,
@@ -100,7 +112,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
         if (options.status && options.status !== 'all') {
           retailerQuery = options.status === 'pending'
             ? retailerQuery.in('status', ['pending', 'submitted'])
-            : retailerQuery.eq('status', options.status);
+            : retailerQuery.eq('status', options.status === 'rejected' ? 'denied' : options.status);
         }
 
         const { data: retailerData, error: retailerError } = await retailerQuery;
@@ -112,7 +124,7 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
           type: 'retailer' as const,
           name: item.shop_name || 'Unknown',
           email: item.buyer_email || '',
-          status: normalizeStatus(item.status) as 'pending' | 'approved' | 'rejected',
+          status: normalizeStatus(item.status),
           submitted_at: item.submitted_at || item.created_at,
           reviewed_at: item.reviewed_at,
           data: item,

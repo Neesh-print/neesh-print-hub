@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
+import { formatOrderRef } from "@/lib/orderStatus";
 
 export interface OrderDetail {
   id: string;
@@ -142,7 +143,7 @@ export const useOrder = (orderId: string | undefined): UseOrderReturn => {
 
         const transformed: OrderDetail = {
           id: rawData.id,
-          order_number: `#${rawData.id.slice(0, 4).toUpperCase()}`,
+          order_number: formatOrderRef(rawData.id),
           status: rawData.status,
           fulfillment_status: rawData.status,
           payment_status: rawData.payment_status ?? (rawData.status === 'pending' ? 'pending' : 'paid'),

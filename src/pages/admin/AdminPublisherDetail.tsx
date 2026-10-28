@@ -5,6 +5,7 @@ import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, InfoCard, DataTable, StatusBadge, ButtonSecondary } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrders } from "@/hooks/useOrders";
+import { isSale, orderStatusBadge } from "@/lib/orderStatus";
 import { format } from "date-fns";
 
 interface PublisherData {
@@ -73,8 +74,15 @@ export const AdminPublisherDetail = () => {
     fetchPublisher();
   }, [fetchPublisher]);
 
-  // Fetch recent orders for this publisher's magazines
-  const { orders: recentOrders } = useOrders({ publisherId: publisher?.id, limit: 5 });
+  // All orders for this publisher's magazines: sales are computed from them
+  // (publishers.total_sales isn't maintained) and the newest five are listed
+  const { orders: fetchedOrders } = useOrders({ publisherId: publisher?.id });
+  // Until the publisher loads, the hook has no filter; keep only this publisher's orders
+  const publisherOrders = fetchedOrders.filter(o => publisher && o.magazine?.publisher_id === publisher.id);
+  const recentOrders = publisherOrders.slice(0, 5);
+  const totalSales = Math.round(
+    publisherOrders.filter(o => isSale(o.fulfillment_status)).reduce((sum, o) => sum + o.total_amount, 0) * 100
+  ) / 100;
 
   const handleSuspend = async () => {
     if (!publisher) return;
@@ -95,7 +103,7 @@ export const AdminPublisherDetail = () => {
     { key: "retailer", header: "Retailer" },
     { key: "total", header: "Total", render: (value: unknown) => `$${(value as number).toFixed(2)}` },
     { key: "date", header: "Date" },
-    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge status={value as 'pending' | 'received'} /> },
+    { key: "status", header: "Status", render: (value: unknown) => <StatusBadge {...orderStatusBadge(value as string)} /> },
   ];
 
   const transformedOrders = recentOrders.map(order => ({
@@ -104,7 +112,7 @@ export const AdminPublisherDetail = () => {
     retailer: order.retailer?.shop_name || 'Unknown',
     total: order.total_amount,
     date: order.created_at ? format(new Date(order.created_at), "MMM d, yyyy") : '',
-    status: (order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered' ? 'received' : 'pending') as 'pending' | 'received',
+    status: order.fulfillment_status,
   }));
 
   if (isLoading) {
@@ -214,13 +222,13 @@ export const AdminPublisherDetail = () => {
                 <div>
                   <p className="text-caption text-muted-foreground">Total Sales</p>
                   <p className="font-display font-bold text-display-sm text-foreground">
-                    ${(publisher.total_sales || 0).toLocaleString()}
+                    ${totalSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div>
                   <p className="text-caption text-muted-foreground">Total Magazines</p>
                   <p className="font-display font-bold text-display-sm text-foreground">
-                    {publisher.total_magazines || magazines.length}
+                    {magazines.length}
                   </p>
                 </div>
               </div>

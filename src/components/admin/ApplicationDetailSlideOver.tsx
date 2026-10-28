@@ -6,6 +6,8 @@ import { ConfirmationModal } from "./ConfirmationModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
+import { applicationStatusBadge } from "@/lib/applicationStatus";
+import type { ApplicationStatus } from "@/hooks/useApplications";
 
 export interface ApplicationNote {
   id: string;
@@ -17,7 +19,7 @@ export interface ApplicationNote {
 export interface ApplicationData {
   id: string;
   type: 'publisher' | 'retailer';
-  status: 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted';
+  status: ApplicationStatus;
   name: string;
   email: string;
   phone?: string;
@@ -108,15 +110,6 @@ export const ApplicationDetailSlideOver = ({
     }
   };
 
-  const getStatusBadgeStatus = (status: string): 'pending' | 'received' | 'unfulfilled' | 'new-order' => {
-    switch (status) {
-      case 'approved': return 'received';
-      case 'rejected': return 'unfulfilled';
-      case 'on_hold': return 'new-order';
-      case 'waitlisted': return 'new-order';
-      default: return 'pending';
-    }
-  };
 
   const formatRelativeDate = (dateString: string) => {
     try {
@@ -194,7 +187,7 @@ export const ApplicationDetailSlideOver = ({
             <div className="p-4 space-y-4">
               {/* Status */}
               <div className="flex items-center gap-2">
-                <StatusBadge status={getStatusBadgeStatus(application.status)} />
+                <StatusBadge {...applicationStatusBadge(application.status)} />
                 <span className="text-caption text-muted-foreground">
                   Submitted {formatRelativeDate(application.submitted_at)}
                 </span>
@@ -473,7 +466,7 @@ export const ApplicationDetailSlideOver = ({
                 {application.status === 'rejected' && <X className="w-4 h-4 text-status-error-text" />}
                 {(application.status === 'on_hold' || application.status === 'waitlisted') && <Clock className="w-4 h-4 text-status-pending-text" />}
                 <span className="text-body font-medium capitalize">
-                  {application.status.replace('_', ' ')}
+                  {applicationStatusBadge(application.status).label.toLowerCase()}
                   {application.reviewed_at && ` on ${formatDate(application.reviewed_at)}`}
                 </span>
               </div>

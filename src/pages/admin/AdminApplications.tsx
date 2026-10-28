@@ -5,7 +5,8 @@ import { AdminLayout, StatCard, ConfirmationModal } from "@/components/admin";
 import { ApplicationDetailSlideOver, ApplicationData, ApplicationNote } from "@/components/admin/ApplicationDetailSlideOver";
 import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, ButtonSecondary, FormInput, EmptyState, FormTextarea } from "@/components/neesh";
 import { LoadingScreen } from "@/components/shared";
-import { useApplications } from "@/hooks/useApplications";
+import { useApplications, type ApplicationStatus } from "@/hooks/useApplications";
+import { applicationStatusBadge } from "@/lib/applicationStatus";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -19,9 +20,8 @@ interface ApplicationRow {
   location?: string;
   submittedDate: string;
   submittedRelative: string;
-  status: 'pending' | 'received' | 'unfulfilled' | 'new-order';
   originalType: 'publisher' | 'retailer';
-  originalStatus: 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted';
+  originalStatus: ApplicationStatus;
   notes: ApplicationNote[];
   data: Record<string, unknown>;
   [key: string]: unknown;
@@ -30,7 +30,8 @@ interface ApplicationRow {
 // Status filter options
 const STATUS_FILTERS = [
   { id: 'all', label: 'All Statuses' },
-  { id: 'pending', label: 'Pending' },
+  { id: 'pending', label: 'Pending Review' },
+  { id: 'draft', label: 'Drafts' },
   { id: 'approved', label: 'Approved' },
   { id: 'rejected', label: 'Declined' },
   { id: 'on_hold', label: 'On Hold' },
@@ -86,7 +87,7 @@ export const AdminApplications = () => {
           const appData: ApplicationData = {
             id: liveApp.id,
             type: liveApp.type === 'publisher' ? 'publisher' : 'retailer',
-            status: liveApp.status as 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted',
+            status: liveApp.status as ApplicationStatus,
             name: liveApp.name,
             email: liveApp.email,
             phone: liveApp.data?.phone,
@@ -110,7 +111,9 @@ export const AdminApplications = () => {
 
   // Calculate stats
   const stats = useMemo(() => {
+    // Submitted and undecided. Drafts were never submitted, so they're counted separately.
     const pending = applications.filter(a => a.status === 'pending').length;
+    const drafts = applications.filter(a => a.status === 'draft').length;
     const approvedThisWeek = applications.filter(a => {
       if (a.status !== 'approved' || !a.reviewed_at) return false;
       const reviewedDate = new Date(a.reviewed_at);
@@ -120,7 +123,7 @@ export const AdminApplications = () => {
     }).length;
     const publishers = applications.filter(a => a.type === 'publisher').length;
     const retailers = applications.filter(a => a.type === 'retailer').length;
-    return { pending, approvedThisWeek, publishers, retailers };
+    return { pending, drafts, approvedThisWeek, publishers, retailers };
   }, [applications]);
 
   // Create tabs with counts
@@ -182,9 +185,8 @@ export const AdminApplications = () => {
         location,
         submittedDate: new Date(app.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         submittedRelative: formatDistanceToNow(new Date(app.submitted_at), { addSuffix: true }),
-        status: app.status === 'approved' ? 'received' : app.status === 'rejected' ? 'unfulfilled' : 'pending',
         originalType: app.type,
-        originalStatus: app.status as 'pending' | 'approved' | 'rejected' | 'on_hold' | 'waitlisted',
+        originalStatus: app.status as ApplicationStatus,
         notes,
         data: app.data,
       };
@@ -389,9 +391,9 @@ export const AdminApplications = () => {
       )
     },
     { 
-      key: "status", 
+      key: "originalStatus", 
       header: "Status",
-      render: (value: unknown) => <StatusBadge status={value as any} />
+      render: (value: unknown) => <StatusBadge {...applicationStatusBadge(value as string)} />
     },
     {
       key: "actions",
@@ -469,12 +471,17 @@ export const AdminApplications = () => {
 
       {/* Stats Summary */}
       <div className="px-4 md:px-6 pb-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard 
             label="Pending Review" 
             value={stats.pending} 
             highlight={stats.pending > 0 ? 'warning' : 'default'}
             onClick={() => handleStatusFilter('pending')}
+          />
+          <StatCard
+            label="Drafts (not submitted)"
+            value={stats.drafts}
+            onClick={() => handleStatusFilter('draft')}
           />
           <StatCard 
             label="Approved This Week" 
@@ -482,11 +489,11 @@ export const AdminApplications = () => {
             highlight="success"
           />
           <StatCard 
-            label="Total Publishers" 
+            label="Publisher Applications" 
             value={stats.publishers}
           />
           <StatCard 
-            label="Total Retailers" 
+            label="Retailer Applications" 
             value={stats.retailers}
           />
         </div>

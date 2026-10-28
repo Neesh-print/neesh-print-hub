@@ -9,7 +9,8 @@ import type { FulfillmentOrder } from "@/components/admin/FulfillmentOrderCard";
 import { toast } from "sonner";
 import { Order, useOrders } from "@/hooks/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
-import { startOfToday, endOfToday } from "date-fns";
+import { isToday } from "date-fns";
+import { NEEDS_FULFILLMENT_STATUSES, PACKED_STATUSES, PACKED_STATUS, isPacked, needsFulfillment } from "@/lib/orderStatus";
 
 const tabs = [
   { id: "pending", label: "Ready to Pack" },
@@ -23,19 +24,20 @@ export const AdminFulfillmentQueue = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [trackingModalOrder, setTrackingModalOrder] = useState<FulfillmentOrder | null>(null);
 
-  // Fetch orders by status
-  // Fetch orders by status
-  const pendingOptions = useMemo(() => ({ fulfillmentStatus: "pending" as const }), []);
+  // Fetch orders by status (see src/lib/orderStatus.ts for what each stored value means)
+  const pendingOptions = useMemo(() => ({ fulfillmentStatus: NEEDS_FULFILLMENT_STATUSES }), []);
   const { orders: pendingOrders, isLoading: pendingLoading, refetch: refetchPending } = useOrders(pendingOptions);
 
-  const packedOptions = useMemo(() => ({ fulfillmentStatus: "packed" as const }), []);
+  const packedOptions = useMemo(() => ({ fulfillmentStatus: PACKED_STATUSES }), []);
   const { orders: packedOrders, isLoading: packedLoading, refetch: refetchPacked } = useOrders(packedOptions);
 
-  const shippedOptions = useMemo(() => ({
-    fulfillmentStatus: "shipped" as const,
-    dateRange: { start: startOfToday(), end: endOfToday() },
-  }), []);
-  const { orders: shippedOrders, isLoading: shippedLoading, refetch: refetchShipped } = useOrders(shippedOptions);
+  const shippedOptions = useMemo(() => ({ fulfillmentStatus: "shipped" }), []);
+  const { orders: allShippedOrders, isLoading: shippedLoading, refetch: refetchShipped } = useOrders(shippedOptions);
+  // Shipped today means the order was marked shipped today, whenever it was placed
+  const shippedOrders = useMemo(
+    () => allShippedOrders.filter((o) => o.shipped_at && isToday(new Date(o.shipped_at))),
+    [allShippedOrders],
+  );
 
   const { updateStatus, addTracking, isUpdating } = useUpdateOrderStatus();
 
@@ -57,7 +59,7 @@ export const AdminFulfillmentQueue = () => {
       title: order.magazine?.title || 'Unknown',
       quantity: order.quantity,
     }],
-    status: order.fulfillment_status === 'pending' ? 'ready' : order.fulfillment_status as 'ready' | 'packed' | 'shipped',
+    status: needsFulfillment(order.fulfillment_status) ? 'ready' : isPacked(order.fulfillment_status) ? 'packed' : 'shipped',
     createdAt: order.created_at,
   });
 
@@ -110,7 +112,7 @@ export const AdminFulfillmentQueue = () => {
   };
 
   const handleMarkPacked = async (orderId: string) => {
-    const success = await updateStatus(orderId, 'packed');
+    const success = await updateStatus(orderId, PACKED_STATUS);
     if (success) {
       toast.success("Order marked as packed");
       refetchPending();
@@ -129,7 +131,7 @@ export const AdminFulfillmentQueue = () => {
       return;
     }
     
-    const promises = Array.from(selectedIds).map(id => updateStatus(id, 'packed'));
+    const promises = Array.from(selectedIds).map(id => updateStatus(id, PACKED_STATUS));
     await Promise.all(promises);
     
     toast.success(`${selectedIds.size} orders marked as packed`);

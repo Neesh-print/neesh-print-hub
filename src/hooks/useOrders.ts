@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { parseShippingAddress } from "@/utils/parseShippingAddress";
+import { formatOrderRef } from "@/lib/orderStatus";
 
 export interface Order {
   [key: string]: unknown; // Index signature for DataTable compatibility
@@ -37,6 +38,7 @@ export interface Order {
     cover_image_url: string | null;
     publisher_id: string;
   } | null;
+  publisher_name: string | null;
   quantity: number;
   unit_price: number;
 }
@@ -44,8 +46,9 @@ export interface Order {
 export interface UseOrdersOptions {
   publisherId?: string;
   retailerId?: string;
-  status?: 'pending' | 'paid' | 'packed' | 'shipped' | 'delivered' | 'all';
-  fulfillmentStatus?: 'pending' | 'packed' | 'shipped' | 'delivered';
+  status?: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'all';
+  /** Matches orders.status; pass several to match any of them. */
+  fulfillmentStatus?: string | readonly string[];
   limit?: number;
   dateRange?: { start: Date; end: Date };
 }
@@ -58,6 +61,10 @@ export interface UseOrdersReturn {
 }
 
 export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
+  // Callers often pass a fresh array; depend on its contents, not its identity
+  const fulfillmentKey = typeof options.fulfillmentStatus === 'string'
+    ? options.fulfillmentStatus
+    : options.fulfillmentStatus?.join(',');
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +111,8 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
       // Cast to any[] to handle new columns not yet in generated types
       const transformedOrders: Order[] = ((data as any[]) || []).map((item, index) => ({
         id: item.id || `temp-${index}`,
-        order_number: `#${String(index + 1).padStart(4, '0')}`,
+        // Stable reference from the order's own ID, so it matches the detail page
+        order_number: formatOrderRef(item.id),
         status: item.status || 'pending',
         fulfillment_status: item.status || 'pending',
         // Older rows (and views without the column) fall back to the status.
@@ -127,6 +135,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
           cover_image_url: item.cover_image_url,
           publisher_id: item.publisher_id,
         } : null,
+        publisher_name: item.publisher_name ?? null,
         quantity: item.quantity || 0,
         unit_price: Number(item.unit_price) || 0,
       }));
@@ -135,9 +144,10 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
       let filteredOrders = transformedOrders;
 
       // Filter by fulfillment status if specified
-      if (options.fulfillmentStatus) {
+      if (fulfillmentKey) {
+        const wanted = fulfillmentKey.split(',');
         filteredOrders = filteredOrders.filter(
-          order => order.fulfillment_status === options.fulfillmentStatus
+          order => wanted.includes(order.fulfillment_status)
         );
       }
 
@@ -152,7 +162,7 @@ export const useOrders = (options: UseOrdersOptions = {}): UseOrdersReturn => {
     options.publisherId, 
     options.retailerId, 
     options.status, 
-    options.fulfillmentStatus, 
+    fulfillmentKey,
     options.limit, 
     options.dateRange?.start.toISOString(), 
     options.dateRange?.end.toISOString()
