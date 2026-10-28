@@ -115,7 +115,7 @@ export const AdminToday = () => {
     },
     {
       label: "SPACES ORDERING",
-      value: `${today.pulse.spacesOrdering90d} of ${review.spacesTotal}`,
+      value: `${today.pulse.spacesOrdering90d} of ${review.spacesTotal - (excludeInternal ? review.internalSpaces : 0)}`,
       sub: "in the last 90 days",
       to: "/admin/network?type=spaces",
     },
@@ -165,7 +165,7 @@ export const AdminToday = () => {
             <section aria-label="To ship" className="rounded-lg border border-border">
               <SectionHead
                 title="To ship"
-                count={today.toShip.length + today.stuckPacked.length}
+                count={today.toShip.length}
                 sub="Publishers ship. Step in when they're late."
                 action={
                   <Link to="/admin/orders?view=to_ship" className="text-[13px] font-semibold text-accent">
@@ -208,7 +208,7 @@ export const AdminToday = () => {
                             type="button"
                             className={btnDark}
                             disabled={busy === o.id}
-                            onClick={() => setOrderStatus(o.id, "processing")}
+                            onClick={() => setOrderStatus(o.id, o.status, "processing")}
                           >
                             Mark packed
                           </button>
@@ -218,6 +218,16 @@ export const AdminToday = () => {
                   </Row>
                 );
               })}
+              {today.stuckPacked.length > 0 && (
+                <div className="flex items-center justify-between gap-3 border-y border-border bg-secondary/50 px-5 py-2.5">
+                  <span className="text-[13px] font-semibold">
+                    Packed, no carrier scan for {"3+"} days <span className="font-medium text-muted-foreground">{today.stuckPacked.length}</span>
+                  </span>
+                  <Link to="/admin/orders?view=problems" className="text-[13px] font-semibold text-accent">
+                    Open in Problems
+                  </Link>
+                </div>
+              )}
               {today.stuckPacked.map((o) => (
                 <Row key={o.id}>
                   <OrderLine order={o} />
@@ -232,7 +242,7 @@ export const AdminToday = () => {
                     >
                       Nudge publisher
                     </button>
-                    <button type="button" className={btnDark} disabled={busy === o.id} onClick={() => setOrderStatus(o.id, "shipped")}>
+                    <button type="button" className={btnDark} disabled={busy === o.id} onClick={() => setOrderStatus(o.id, o.status, "shipped")}>
                       Mark shipped
                     </button>
                   </div>

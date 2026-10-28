@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   inView,
+  isCountedSale,
   payoutStateOf,
   problemsOf,
   stageOf,
@@ -16,6 +17,7 @@ const order = (overrides: Partial<OverviewOrder> = {}): OverviewOrder => ({
   createdAt: "2026-10-26T14:00:00Z",
   updatedAt: "2026-10-26T14:00:00Z",
   status: "paid",
+  paymentStatus: "paid",
   quantity: 5,
   total: 22,
   title: "No. 136, Fall 2026",
@@ -48,15 +50,20 @@ describe("payoutStateOf", () => {
     expect(payoutStateOf(order({ status: "paid" }))).toBe("waiting");
   });
 
-  it("is ready from Packed on", () => {
-    expect(payoutStateOf(order({ status: "processing" }))).toBe("ready");
+  it("is ready from Packed with tracking on", () => {
+    expect(payoutStateOf(order({ status: "processing", trackingNumber: "9400" }))).toBe("ready");
     expect(payoutStateOf(order({ status: "shipped" }))).toBe("ready");
     expect(payoutStateOf(order({ status: "delivered" }))).toBe("ready");
   });
 
-  it("is blocked when the publisher can't be paid, even before packing", () => {
-    expect(payoutStateOf(order({ publisherCanBePaid: false }))).toBe("blocked");
+  it("needs tracking when packed by hand without it", () => {
+    expect(payoutStateOf(order({ status: "processing", trackingNumber: null }))).toBe("needs_tracking");
+  });
+
+  it("is blocked only once there's something to pay", () => {
+    expect(payoutStateOf(order({ publisherCanBePaid: false }))).toBe("waiting");
     expect(payoutStateOf(order({ status: "shipped", publisherCanBePaid: false }))).toBe("blocked");
+    expect(payoutStateOf(order({ status: "cancelled", publisherCanBePaid: false }))).toBe("waiting");
   });
 
   it("puts holds ahead of readiness", () => {
@@ -90,6 +97,21 @@ describe("problemsOf", () => {
     const failed = order({ status: "delivered", transfer: { ...order().transfer!, status: "failed" } });
     expect(problemsOf(failed, NOW)).toEqual(["payout_failed"]);
   });
+
+  it("flags refunds and disputes on orders still in play", () => {
+    expect(problemsOf(order({ status: "shipped", paymentStatus: "disputed" }), NOW)).toEqual(["payment_issue"]);
+    expect(problemsOf(order({ status: "cancelled", paymentStatus: "refunded" }), NOW)).toEqual([]);
+  });
+});
+
+describe("isCountedSale", () => {
+  it("leaves out refunded and written-off orders", () => {
+    expect(isCountedSale(order({ status: "delivered" }))).toBe(true);
+    expect(isCountedSale(order({ status: "delivered", paymentStatus: "refunded" }))).toBe(false);
+    expect(isCountedSale(order({ status: "shipped", paymentStatus: "written_off" }))).toBe(false);
+    expect(isCountedSale(order({ status: "shipped", paymentStatus: "disputed" }))).toBe(true);
+    expect(isCountedSale(order({ status: "cancelled" }))).toBe(false);
+  });
 });
 
 describe("inView", () => {
@@ -103,6 +125,7 @@ describe("summarizeToday", () => {
   const orders = [
     order({ id: "a", ref: "#A", createdAt: "2026-10-26T14:00:00Z" }),
     order({ id: "b", ref: "#B", createdAt: "2026-10-22T03:00:00Z", publisherCanBePaid: false }),
+    order({ id: "f", ref: "#F", status: "shipped", createdAt: "2026-10-01T00:00:00Z", publisherCanBePaid: false }),
     order({ id: "c", ref: "#C", createdAt: "2026-02-15T00:00:00Z", hasAddress: false, transfer: null, spaceId: "space-2" }),
     order({
       id: "d",

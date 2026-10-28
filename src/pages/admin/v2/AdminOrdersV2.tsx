@@ -39,6 +39,7 @@ const PROBLEM_LABEL: Record<OrderProblem, string> = {
   late: "Late",
   stuck_packed: "Packed, no scan",
   payout_failed: "Payout failed",
+  payment_issue: "Payment issue",
 };
 
 const btn =
@@ -174,7 +175,7 @@ const OrderPanel = ({ order, onClose }: { order: OverviewOrder; onClose: () => v
           </button>
         )}
         {next && (
-          <button type="button" className={btnDark} disabled={busy === order.id} onClick={() => setOrderStatus(order.id, next.status)}>
+          <button type="button" className={btnDark} disabled={busy === order.id} onClick={() => setOrderStatus(order.id, order.status, next.status)}>
             {next.label}
           </button>
         )}
@@ -204,7 +205,8 @@ const OrderPanel = ({ order, onClose }: { order: OverviewOrder; onClose: () => v
 export const AdminOrdersV2 = () => {
   const { data, isLoading, error, dataUpdatedAt } = useAdminOverview();
   const [params, setParams] = useSearchParams();
-  const [search, setSearch] = useState("");
+  // ?q= prefills the search, so a publisher or space page can link to its orders.
+  const [search, setSearch] = useState(() => params.get("q") ?? "");
   const view = (params.get("view") as OrderView) || "all";
   const openId = params.get("order");
   // Ages are measured from when the data was loaded.

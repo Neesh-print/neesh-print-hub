@@ -36,6 +36,7 @@ const STAGE_TONE: Record<OrderStage, BadgeTone> = {
 const PAYOUT_TONE: Record<PayoutState, BadgeTone> = {
   none: "neutral",
   waiting: "neutral",
+  needs_tracking: "pending",
   ready: "success",
   blocked: "pending",
   held: "pending",

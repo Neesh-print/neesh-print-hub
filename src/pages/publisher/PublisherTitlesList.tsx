@@ -87,12 +87,20 @@ export const PublisherTitlesList = () => {
 
   const handleRestoreTitle = async (titleId: string, titleName: string) => {
     try {
-      const { error } = await supabase
+      // Only an archived title (false) can be restored here. A title Neesh
+      // suspended (null) stays hidden until an admin makes it live.
+      const { data, error } = await supabase
         .from('magazines')
         .update({ is_active: true })
-        .eq('id', titleId);
+        .eq('id', titleId)
+        .eq('is_active', false)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) {
+        toast.error(`${titleName} is suspended by Neesh. Message us to bring it back.`);
+        return;
+      }
       
       toast.success(`${titleName} has been restored`);
       refetch();

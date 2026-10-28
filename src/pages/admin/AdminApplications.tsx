@@ -467,7 +467,7 @@ export const AdminApplications = () => {
 
   return (
     <AdminLayout>
-      <BackNavigation title="Applications" onBack={() => navigate("/admin")} />
+      <BackNavigation title="Applications" onBack={() => navigate("/admin/network")} />
 
       {/* Stats Summary */}
       <div className="px-4 md:px-6 pb-4">

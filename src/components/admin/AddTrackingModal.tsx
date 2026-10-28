@@ -15,7 +15,9 @@ const carrierOptions = [
   { value: 'usps', label: 'USPS' },
   { value: 'ups', label: 'UPS' },
   { value: 'fedex', label: 'FedEx' },
-  { value: 'dhl', label: 'DHL' },
+  { value: 'dhl', label: 'DHL Express' },
+  { value: 'canada_post', label: 'Canada Post' },
+  { value: 'royal_mail', label: 'Royal Mail' },
   { value: 'amazon', label: 'Amazon Logistics' },
   { value: 'other', label: 'Other' },
 ];

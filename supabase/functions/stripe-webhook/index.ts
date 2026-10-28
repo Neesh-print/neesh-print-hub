@@ -834,7 +834,8 @@ async function sendOrderNotificationToAdmin(
         { label: 'Status', badge: { text: 'Paid', tone: 'success' } },
       ]),
       lineItems(lines),
-      button('Open orders in admin', `${BRAND_URL}/admin/orders`),
+      // The admin lives on the app, not the marketing site (BRAND_URL).
+      button('Open orders in admin', 'https://app.neesh.art/admin/orders?view=to_ship'),
       reference('Stripe session', sessionId),
     ],
     footerNote: 'You are receiving this because you are an admin on Neesh.',
@@ -1259,8 +1260,19 @@ async function markOrdersRefunded(supabaseAdmin: SupabaseAdmin, paymentIntentId:
     .from('orders')
     .update({ status: 'cancelled' })
     .eq('payment_intent_id', paymentIntentId)
-    .in('status', ['pending', 'paid', 'processing'])
+    .in('status', ['pending', 'paid'])
   if (cancelError) console.error('Failed to cancel refunded orders:', cancelError)
+
+  // Packed (processing) with tracking may already be in the post, so it stays
+  // as it is and carrier scans keep updating it; packed without tracking
+  // hasn't gone anywhere yet.
+  const { error: packedError } = await supabaseAdmin
+    .from('orders')
+    .update({ status: 'cancelled' })
+    .eq('payment_intent_id', paymentIntentId)
+    .eq('status', 'processing')
+    .is('tracking_number', null)
+  if (packedError) console.error('Failed to cancel refunded packed orders:', packedError)
 }
 
 // Applies refund or dispute protection to payouts just created for a

@@ -147,7 +147,7 @@ export const PrintSlipsPage = () => {
           <AlertCircle className="w-10 h-10 text-status-error-text mx-auto mb-3" />
           <h3 className="font-display font-semibold text-heading text-foreground mb-1">Failed to load orders</h3>
           <p className="text-body text-muted-foreground mb-4">{error}</p>
-          <ButtonSecondary onClick={() => navigate("/admin/fulfillment")}>Back to Fulfillment</ButtonSecondary>
+          <ButtonSecondary onClick={() => navigate("/admin/orders?view=to_ship")}>Back to Orders</ButtonSecondary>
         </div>
       </div>
     );
@@ -160,8 +160,8 @@ export const PrintSlipsPage = () => {
           <Printer className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
           <h3 className="font-display font-semibold text-heading text-foreground mb-1">No orders found to print</h3>
           <p className="text-body text-muted-foreground mb-4">The requested orders could not be found.</p>
-          <ButtonSecondary onClick={() => navigate("/admin/fulfillment")}>
-            Back to Fulfillment
+          <ButtonSecondary onClick={() => navigate("/admin/orders?view=to_ship")}>
+            Back to Orders
           </ButtonSecondary>
         </div>
       </div>
@@ -174,10 +174,10 @@ export const PrintSlipsPage = () => {
       <div className="no-print sticky top-0 bg-background border-b border-border z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <ButtonSecondary
-            onClick={() => navigate("/admin/fulfillment")}
+            onClick={() => navigate("/admin/orders?view=to_ship")}
             icon={<ArrowLeft className="w-4 h-4" />}
           >
-            Back to Fulfillment
+            Back to Orders
           </ButtonSecondary>
           <ButtonPrimary
             onClick={handlePrint}

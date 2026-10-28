@@ -1,6 +1,5 @@
 import { subDays } from "date-fns";
-import { SALE_STATUSES } from "@/lib/orderStatus";
-import type { OverviewOrder } from "@/lib/adminOverview";
+import { isCountedSale, type OverviewOrder } from "@/lib/adminOverview";
 
 /**
  * Admin v2 Network: where each publisher and space is in its life on Neesh,
@@ -41,7 +40,7 @@ export interface Activity {
 
 const EMPTY: Activity = { sales: 0, orders: 0, lastOrderAt: null, owed: 0, owedOrders: 0 };
 
-const isSale = (o: OverviewOrder) => SALE_STATUSES.includes(o.status);
+const isSale = isCountedSale;
 
 function tally(orders: OverviewOrder[], keyOf: (o: OverviewOrder) => string | null): Map<string, Activity> {
   const out = new Map<string, Activity>();
