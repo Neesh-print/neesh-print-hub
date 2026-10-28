@@ -24,14 +24,17 @@ import {
   LABEL_RERATE_TOLERANCE,
   buildCustomsDeclaration,
   buildParcel,
+  customsRouteFor,
   dutiesPaidFor,
   isLabelReadyAddress,
   isTrackedRate,
   pickCheapestTrackedRate,
   round2,
-  shippingSplit,
+  shippingPayoutSplit,
   usdAmount,
   type CarrierRate,
+  type CustomsDeclaration,
+  type CustomsRoute,
   type Parcel,
   type ShipAddress,
 } from '../_shared/shipping.ts'
@@ -55,6 +58,8 @@ interface ShipmentRow {
   carrier: string | null
   shippo_transaction_id: string | null
   label_cost_usd: number | null
+  customs_usd: number | null
+  customs_route: CustomsRoute | null
 }
 
 async function alertNeesh(subject: string, summary: string, rows: [string, string][]) {
@@ -133,10 +138,14 @@ Deno.serve(async (req) => {
       await admin.from('orders').update({ label_url: null, tracking_number: null, carrier: null }).eq('shipment_id', shipment.id)
       // No label any more, so a Packed order goes back to To ship.
       await admin.from('orders').update({ status: 'paid' }).eq('shipment_id', shipment.id).eq('status', 'processing')
-      const split = shippingSplit(Number(shipment.shipping_usd))
+      const split = shippingPayoutSplit({
+        shippingUsd: Number(shipment.shipping_usd),
+        customsUsd: Number(shipment.customs_usd ?? 0),
+        customsRoute: shipment.customs_route,
+      })
       // Only re-hold a payout that has no other hold (refund review, dispute).
       await admin.from('publisher_transfers')
-        .update({ net_amount: split.net })
+        .update({ gross_amount: split.gross, net_amount: split.net })
         .eq('shipment_id', shipment.id).eq('status', 'pending')
       await admin.from('publisher_transfers')
         .update({ hold_reason: 'awaiting_label' })
@@ -192,26 +201,38 @@ Deno.serve(async (req) => {
     if (!parcel) return json({ error: 'A title in this parcel is missing its weight.' }, 400, cors)
 
     const reference = `Neesh ${orders.map((o) => o.id.slice(0, 8).toUpperCase()).join(' ')}`
-    const customs = buildCustomsDeclaration({
+    const declare = (dutiesPaid?: boolean) => buildCustomsDeclaration({
       origin: origin.country,
       destination: destination.country,
       signer: origin.name,
       reference,
+      dutiesPaid,
       lines: orders.map((o) => ({
         quantity: o.quantity,
         weightGrams: o.magazines?.weight_grams ?? 0,
         wsp: Number(o.magazines?.wholesale_price ?? 0),
       })),
     })
-
-    const fresh = await shippo.createShipment({ from: origin, to: destination, parcel, customs, metadata: reference })
     // Rates from outside the US come back in CAD, EUR or GBP; price them all in USD.
-    const usd = (await withUsdPrices(shippo, fresh)).filter((r: CarrierRate) => usdAmount(r) !== null && isTrackedRate(r))
-    const sameService = shipment.service_token
-      ? usd.filter((r) => r.servicelevel?.token === shipment.service_token)
-          .sort((a, b) => usdAmount(a)! - usdAmount(b)!)[0] ?? null
-      : null
-    const rate = sameService ?? pickCheapestTrackedRate(usd)
+    const rateFor = async (customs: CustomsDeclaration | null, token: string | null) => {
+      const created = await shippo.createShipment({ from: origin, to: destination, parcel, customs, metadata: reference })
+      const usd = (await withUsdPrices(shippo, created)).filter((r: CarrierRate) => usdAmount(r) !== null && isTrackedRate(r))
+      const sameService = token
+        ? usd.filter((r) => r.servicelevel?.token === token).sort((a, b) => usdAmount(a)! - usdAmount(b)!)[0] ?? null
+        : null
+      return { created, rate: sameService ?? pickCheapestTrackedRate(usd) }
+    }
+
+    // Rate with DDP first, so a duty-paying courier still prices duties paid.
+    let customs = declare()
+    let { created: fresh, rate } = await rateFor(customs, shipment.service_token)
+    // Only a duty-paying courier takes DDP; postal carriers (DPD UK, for one)
+    // reject it, and on that route the publisher prepays customs themselves.
+    // Re-rate the same service with DAP before buying.
+    if (rate && customs?.incoterm === 'DDP' && !dutiesPaidFor(origin.country, destination.country, rate)) {
+      customs = declare(false)
+      ;({ created: fresh, rate } = await rateFor(customs, rate.servicelevel?.token ?? null))
+    }
     if (!rate) {
       await admin.from('order_shipments').update({ status: 'needs_review', review_reason: 'No carrier rate at label time' }).eq('id', shipment.id)
       await alertNeesh('No label rate', `No tracked rate for shipment ${shipment.id} at label time.`, [
@@ -231,6 +252,18 @@ Deno.serve(async (req) => {
         ['Label now', `$${labelCost.toFixed(2)}`], ['Carrier', `${rate.provider} ${rate.servicelevel?.name ?? ''}`],
       ])
       return json({ error: 'The label price changed since the order. Neesh has been told and will sort it out.' }, 409, cors)
+    }
+
+    // US customs handling follows who clears customs on the rate actually
+    // bought. If that flipped since checkout (a courier was quoted and post is
+    // bought, or the reverse), record the new route before buying; the
+    // shipping payout below then pays the customs amount to the publisher only
+    // on the publisher route. The space paid the same amount either way.
+    const customsUsd = Number(shipment.customs_usd ?? 0)
+    const customsRoute = customsRouteFor(origin.country, destination.country, dutiesPaid)
+    if (customsRoute !== shipment.customs_route) {
+      await admin.from('order_shipments').update({ customs_route: customsRoute }).eq('id', shipment.id)
+      console.log(`buy-label: shipment ${shipment.id} customs route ${shipment.customs_route} -> ${customsRoute} (${customsUsd} USD)`)
     }
 
     const tx = await shippo.buyLabel(rate.object_id, reference)
@@ -268,11 +301,12 @@ Deno.serve(async (req) => {
       .eq('shipment_id', shipment.id)
       .eq('status', 'paid')
 
-    // Label cost comes out of the shipping the space paid (decision 5).
-    const split = shippingSplit(paid, labelCost)
+    // Label cost comes out of the shipping the space paid (decision 5); customs
+    // handling is added on the publisher route.
+    const split = shippingPayoutSplit({ shippingUsd: paid, labelCostUsd: labelCost, customsUsd, customsRoute })
     // Clears only the label hold; a refund-review or dispute hold stays.
     await admin.from('publisher_transfers')
-      .update({ net_amount: split.net, platform_fee: 0 })
+      .update({ gross_amount: split.gross, net_amount: split.net, platform_fee: 0 })
       .eq('shipment_id', shipment.id)
       .eq('status', 'pending')
     await admin.from('publisher_transfers')
@@ -288,6 +322,7 @@ Deno.serve(async (req) => {
       await alertNeesh('Courier will bill US duties', `${carrier} carries shipment ${shipment.id} into the US with duties paid. The carrier bills duties and its duty-handling fee to the Shippo account after delivery; they are not in the label cost.`, [
         ['Shipment', shipment.id], ['Publisher', publisher.company_name ?? ''], ['Carrier', carrier],
         ['Label cost', `$${labelCost.toFixed(2)}`], ['Shippo transaction', tx.object_id],
+        ['Customs handling collected', `$${customsUsd.toFixed(2)}`],
       ]).catch((err) => console.error('buy-label: duties alert failed:', err instanceof Error ? err.message : err))
     }
 

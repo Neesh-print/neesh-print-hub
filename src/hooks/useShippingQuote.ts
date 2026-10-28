@@ -24,6 +24,9 @@ export interface QuoteGroup {
   service: string | null;
   estimated_days: number | null;
   duties_paid: boolean;
+  /** US customs handling for this parcel; 0 when off or not US-bound from abroad. */
+  customs_usd: number;
+  customs_route: "publisher" | "neesh" | null;
   uses_neesh_labels: boolean;
   quote_id: string | null;
   quote_expires_at: string | null;

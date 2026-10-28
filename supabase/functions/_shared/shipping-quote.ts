@@ -14,6 +14,11 @@ import {
   buildParcel,
   checkMinimums,
   destinationKey,
+  CUSTOMS_OFF,
+  customsFeeFor,
+  customsRouteFor,
+  type CustomsRoute,
+  type CustomsSettings,
   dutiesPaidFor,
   flatRatesFor,
   flatShipping,
@@ -87,6 +92,9 @@ export interface QuoteGroup {
   service: string | null
   estimated_days: number | null
   duties_paid: boolean
+  /** US customs handling the space pays for this parcel (0 when off or not US-bound from abroad). */
+  customs_usd: number
+  customs_route: CustomsRoute | null
   uses_neesh_labels: boolean
   quote_id: string | null
   quote_expires_at: string | null
@@ -135,6 +143,8 @@ interface StoredQuoteRow {
   service: string | null
   estimated_days: number | null
   duties_paid: boolean
+  customs_usd: number | null
+  customs_route: CustomsRoute | null
 }
 
 const num = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v))
@@ -296,7 +306,7 @@ export async function quoteCart(opts: {
   if (opts.reuseQuoteIds?.length) {
     const { data } = await admin
       .from('shipping_quotes')
-      .select('id, publisher_id, items_key, destination_key, expires_at, shipping_usd, rate_source, carrier, service, estimated_days, duties_paid')
+      .select('id, publisher_id, items_key, destination_key, expires_at, shipping_usd, rate_source, carrier, service, estimated_days, duties_paid, customs_usd, customs_route')
       .in('id', opts.reuseQuoteIds)
       .eq('retailer_user_id', opts.retailerUserId)
     stored = (data as StoredQuoteRow[] | null) ?? []
@@ -304,6 +314,7 @@ export async function quoteCart(opts: {
 
   const destKey = destinationKey(destination)
   const groups: QuoteGroup[] = []
+  const customsSettings = await loadCustomsSettings(admin)
 
   for (const [publisherId, lines] of byPublisher) {
     const pub = publishers.get(publisherId)
@@ -339,6 +350,8 @@ export async function quoteCart(opts: {
       service: null,
       estimated_days: null,
       duties_paid: false,
+      customs_usd: 0,
+      customs_route: null,
       uses_neesh_labels: !!pub?.uses_neesh_labels,
       quote_id: null,
       quote_expires_at: null,
@@ -362,6 +375,8 @@ export async function quoteCart(opts: {
         service: reuse.service,
         estimated_days: reuse.estimated_days,
         duties_paid: reuse.duties_paid,
+        customs_usd: Number(reuse.customs_usd ?? 0),
+        customs_route: reuse.customs_route ?? null,
         quote_id: reuse.id,
         quote_expires_at: reuse.expires_at,
       })
@@ -411,6 +426,10 @@ export async function quoteCart(opts: {
       // Rates cached before this field existed read as not duties paid.
       duties_paid: !!live?.dutiesPaid,
     })
+    // US customs handling: the route follows who clears customs (a courier on
+    // a duties-paid rate, otherwise the publisher), the fee follows the route.
+    group.customs_route = customsRouteFor(originCountry, destCountry, group.duties_paid)
+    group.customs_usd = customsFeeFor(group.customs_route, customsSettings)
 
     if (opts.persist) {
       const expiresAt = new Date(Date.now() + QUOTE_TTL_DAYS * 86_400_000).toISOString()
@@ -441,6 +460,8 @@ export async function quoteCart(opts: {
           rate_currency_local: live?.currencyLocal ?? null,
           estimated_days: live?.estimatedDays ?? null,
           duties_paid: group.duties_paid,
+          customs_usd: group.customs_usd,
+          customs_route: group.customs_route,
         })
         .select('id')
         .single()
@@ -463,6 +484,24 @@ export async function quoteCart(opts: {
     },
     destination_is_reference: !!opts.destinationIsReference,
     groups,
+  }
+}
+
+/** US customs handling settings (shipping_config). Off when unreadable, so nothing charges by accident. */
+export async function loadCustomsSettings(admin: Admin): Promise<CustomsSettings> {
+  const { data: row, error } = await admin
+    .from('shipping_config')
+    .select('customs_handling_enabled, customs_fee_postal_usd, customs_fee_courier_usd')
+    .maybeSingle()
+  const data = row as { customs_handling_enabled: boolean; customs_fee_postal_usd: number | string; customs_fee_courier_usd: number | string } | null
+  if (error || !data) {
+    if (error) console.error('shipping_config customs read failed:', error.message)
+    return CUSTOMS_OFF
+  }
+  return {
+    enabled: !!data.customs_handling_enabled,
+    postalUsd: Number(data.customs_fee_postal_usd ?? 0),
+    courierUsd: Number(data.customs_fee_courier_usd ?? 0),
   }
 }
 

@@ -52,6 +52,8 @@ interface CheckoutRequest {
 
 /** Stripe tax code for shipping, so automatic_tax treats the line as shipping. */
 const SHIPPING_TAX_CODE = 'txcd_92010001'
+// US customs handling is a pass-through fee, not a taxable sale.
+const NONTAXABLE_TAX_CODE = 'txcd_00000000'
 
 /** Why a publisher group cannot be checked out, in the words the cart uses. */
 function blockedMessage(g: QuoteGroup): string {
@@ -379,6 +381,28 @@ Deno.serve(async (req) => {
         },
         quantity: 1,
       })
+
+      // US customs handling: its own line beside shipping, no Neesh fee. Off,
+      // or not US-bound from abroad, means 0 and no line, so checkout is
+      // unchanged. stripe-webhook skips both lines when paying out goods
+      // (they carry quote_id) and routes customs from the stored quote.
+      const customsCents = Math.round((g.customs_usd ?? 0) * 100)
+      if (customsCents > 0) {
+        totalAmount += customsCents
+        lineItems.push({
+          price_data: {
+            currency: 'usd',
+            tax_behavior: 'exclusive',
+            product_data: {
+              name: `US customs handling, ${g.publisher_name}`,
+              tax_code: NONTAXABLE_TAX_CODE,
+              metadata: { publisher_id: g.publisher_id, quote_id: g.quote_id ?? '', kind: 'customs' },
+            },
+            unit_amount: customsCents,
+          },
+          quantity: 1,
+        })
+      }
     }
 
     const metadata: Record<string, string> = {
