@@ -5,6 +5,8 @@ import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, InfoCard, DataTable, StatusBadge, ButtonSecondary } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrders } from "@/hooks/useOrders";
+import { useBack } from "@/hooks/useBack";
+import { useNudge } from "@/hooks/useNudge";
 import { isSale, orderStatusBadge } from "@/lib/orderStatus";
 import { format } from "date-fns";
 
@@ -30,6 +32,8 @@ interface Magazine {
 
 export const AdminPublisherDetail = () => {
   const navigate = useNavigate();
+  const goBack = useBack("/admin/network");
+  const nudge = useNudge();
   const { id } = useParams();
   const [publisher, setPublisher] = useState<PublisherData | null>(null);
   const [magazines, setMagazines] = useState<Magazine[]>([]);
@@ -118,7 +122,7 @@ export const AdminPublisherDetail = () => {
   if (isLoading) {
     return (
       <AdminLayout>
-        <BackNavigation title="Publisher Details" onBack={() => navigate("/admin/publishers")} />
+        <BackNavigation title="Publisher Details" onBack={goBack} />
         <div className="px-4 md:px-6 pb-8 flex items-center justify-center py-20">
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-muted-foreground" />
@@ -132,13 +136,13 @@ export const AdminPublisherDetail = () => {
   if (error || !publisher) {
     return (
       <AdminLayout>
-        <BackNavigation title="Publisher Details" onBack={() => navigate("/admin/publishers")} />
+        <BackNavigation title="Publisher Details" onBack={goBack} />
         <div className="px-4 md:px-6 pb-8">
           <div className="card-neesh flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-10 h-10 text-status-error-text mb-3" />
             <h3 className="font-display font-semibold text-heading text-foreground mb-1">Publisher not found</h3>
             <p className="text-body text-muted-foreground mb-4">{error || 'This publisher could not be loaded.'}</p>
-            <ButtonSecondary onClick={() => navigate("/admin/publishers")}>Back to Publishers</ButtonSecondary>
+            <ButtonSecondary onClick={goBack}>Back to Network</ButtonSecondary>
           </div>
         </div>
       </AdminLayout>
@@ -154,7 +158,7 @@ export const AdminPublisherDetail = () => {
 
   return (
     <AdminLayout>
-      <BackNavigation title={publisher.company_name || 'Publisher'} onBack={() => navigate("/admin/publishers")} />
+      <BackNavigation title={publisher.company_name || 'Publisher'} onBack={goBack} />
 
       <div className="px-4 md:px-6 pb-8">
         <div className="grid lg:grid-cols-2 gap-6">
@@ -264,7 +268,7 @@ export const AdminPublisherDetail = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-semibold text-heading text-foreground">Recent Orders</h3>
                 <button
-                  onClick={() => navigate("/admin/orders")}
+                  onClick={() => navigate(`/admin/orders?q=${encodeURIComponent(publisher.company_name || "")}`)}
                   className="text-caption text-accent hover:underline"
                 >
                   View all
@@ -287,11 +291,16 @@ export const AdminPublisherDetail = () => {
             <div className="card-neesh">
               <h3 className="font-display font-semibold text-heading text-foreground mb-4">Admin Actions</h3>
               <div className="grid grid-cols-2 gap-3">
-                <ButtonSecondary className="gap-2">
+                <ButtonSecondary
+                  className="gap-2"
+                  onClick={() =>
+                    nudge({ userId: publisher.user_id, id: publisher.id, name: publisher.company_name || "this publisher", type: "publisher" })
+                  }
+                >
                   <MessageSquare className="w-4 h-4" />
                   Send Message
                 </ButtonSecondary>
-                <ButtonSecondary onClick={() => navigate("/admin/orders")} className="gap-2">
+                <ButtonSecondary onClick={() => navigate(`/admin/orders?q=${encodeURIComponent(publisher.company_name || "")}`)} className="gap-2">
                   View All Orders
                 </ButtonSecondary>
               </div>

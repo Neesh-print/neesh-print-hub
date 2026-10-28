@@ -17,6 +17,7 @@ const order = (overrides: Partial<OverviewOrder> = {}): OverviewOrder => ({
   createdAt: "2026-10-26T14:00:00Z",
   updatedAt: null,
   status: "paid",
+  paymentStatus: "paid",
   quantity: 1,
   total: 22,
   title: "Title",

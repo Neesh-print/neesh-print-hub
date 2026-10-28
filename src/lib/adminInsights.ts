@@ -1,14 +1,12 @@
 import { eachDayOfInterval, eachWeekOfInterval, format, startOfDay, startOfWeek, subDays } from "date-fns";
-import { SALE_STATUSES } from "@/lib/orderStatus";
-import type { OverviewOrder } from "@/lib/adminOverview";
+import { FEE_SHARE, feeOf, isCountedSale, type OverviewOrder } from "@/lib/adminOverview";
+
+export { FEE_SHARE, feeOf };
 
 /**
  * Admin v2 Insights: sales, Neesh's take and who is buying and selling, over
  * a period, from the same orders the Today and Orders screens use.
  */
-
-/** Neesh keeps 10% from the space and 10% from the publisher: 0.2 / 1.1 of what the space paid. */
-export const FEE_SHARE = 0.2 / 1.1;
 
 export interface Period {
   from: Date;
@@ -41,10 +39,7 @@ export interface Insights {
   topTitles: (Ranked & { publisher: string })[];
 }
 
-const isSale = (o: OverviewOrder) => SALE_STATUSES.includes(o.status);
-
-/** The recorded platform fee when the order has a payout, else the standard share. */
-export const feeOf = (o: OverviewOrder) => o.transfer?.fee ?? o.total * FEE_SHARE;
+const isSale = isCountedSale;
 
 const within = (o: OverviewOrder, p: Period) => {
   const at = new Date(o.createdAt);

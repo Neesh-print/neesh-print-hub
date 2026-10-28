@@ -328,7 +328,9 @@ export const PublisherEditTitle = () => {
         publication_date: formData.publicationDate,
         // Using existing columns based on schema inference
         publication_type: formData.isSingleIssue ? 'Issue' : 'Journal',
-        is_active: true,
+        // New titles go live; editing keeps the current status, so a title an
+        // admin suspended or archived doesn't come back on a save.
+        ...(isNew ? { is_active: true } : {}),
         fulfillment_method: formData.fulfillmentMethod,
         minimum_order_quantity: parseInt(formData.minimumOrderQuantity) || 1,
       };

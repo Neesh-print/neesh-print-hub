@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, isSameDay, subDays } from "date-fns";
+import { differenceInCalendarDays, isSameDay, startOfDay, subDays } from "date-fns";
 import { SALE_STATUSES } from "@/lib/orderStatus";
 
 /**
@@ -23,6 +23,7 @@ export type OrderStage =
 export type PayoutState =
   | "none"
   | "waiting"
+  | "needs_tracking"
   | "ready"
   | "blocked"
   | "held"
@@ -31,7 +32,7 @@ export type PayoutState =
   | "failed"
   | "cancelled";
 
-export type OrderProblem = "no_address" | "late" | "stuck_packed" | "payout_failed";
+export type OrderProblem = "no_address" | "late" | "stuck_packed" | "payout_failed" | "payment_issue";
 
 /** Days an order can sit in To ship or Packed before it counts as a problem. */
 export const LATE_AFTER_DAYS = 3;
@@ -52,6 +53,8 @@ export interface OverviewOrder {
   createdAt: string;
   updatedAt: string | null;
   status: string;
+  /** orders.payment_status: paid, refunded, disputed, invoiced, overdue, written_off... */
+  paymentStatus: string | null;
   quantity: number;
   total: number;
   title: string;
@@ -95,6 +98,7 @@ export const STAGE_LABEL: Record<OrderStage, string> = {
 export const PAYOUT_LABEL: Record<PayoutState, string> = {
   none: "No payout",
   waiting: "After packing",
+  needs_tracking: "Needs tracking",
   ready: "Ready",
   blocked: "Blocked",
   held: "On hold",
@@ -106,10 +110,33 @@ export const PAYOUT_LABEL: Record<PayoutState, string> = {
 
 export const money = (n: number) => `$${n.toFixed(2)}`;
 
-export const stageOf =(status: string | null | undefined): OrderStage =>
+export const stageOf = (status: string | null | undefined): OrderStage =>
   STAGE_BY_STATUS[status ?? ""] ?? "unpaid";
 
-const PAYABLE_STAGES: OrderStage[] = ["packed", "shipped", "delivered"];
+/** Payment problems that undo or put a sale in doubt. */
+const PAYMENT_ISSUES = ["refunded", "disputed", "overdue", "written_off"];
+/** Payments that mean the money is gone, so the order isn't a sale. */
+const NOT_A_SALE = ["refunded", "written_off"];
+
+/** A sale: paid for, not cancelled or returned, and not refunded or written off. */
+export const isCountedSale = (o: OverviewOrder) =>
+  SALE_STATUSES.includes(o.status) && !NOT_A_SALE.includes(o.paymentStatus ?? "");
+
+/** Neesh keeps 10% from the space and 10% from the publisher: 0.2 / 1.1 of what the space paid. */
+export const FEE_SHARE = 0.2 / 1.1;
+
+/** The recorded platform fee when the order has a payout, else the standard share. */
+export const feeOf = (o: OverviewOrder) => o.transfer?.fee ?? o.total * FEE_SHARE;
+
+/**
+ * Whether the parcel is on its way: shipped or delivered, or packed with a
+ * tracking number. Packed by hand without tracking doesn't count, so an
+ * admin's "Mark packed" alone never makes a payout releasable.
+ */
+const isOnItsWay = (o: OverviewOrder) => {
+  const stage = stageOf(o.status);
+  return stage === "shipped" || stage === "delivered" || (stage === "packed" && !!o.trackingNumber?.trim());
+};
 
 export function payoutStateOf(order: OverviewOrder): PayoutState {
   const t = order.transfer;
@@ -125,8 +152,11 @@ export function payoutStateOf(order: OverviewOrder): PayoutState {
       return "cancelled";
   }
   if (t.holdReason) return "held";
+  const stage = stageOf(order.status);
+  // Not shipped yet (or never will be): nothing is owed right now.
+  if (stage !== "packed" && stage !== "shipped" && stage !== "delivered") return "waiting";
   if (!order.publisherCanBePaid) return "blocked";
-  return PAYABLE_STAGES.includes(stageOf(order.status)) ? "ready" : "waiting";
+  return isOnItsWay(order) ? "ready" : "needs_tracking";
 }
 
 /** Whole days since the order was placed. */
@@ -143,6 +173,7 @@ export function problemsOf(order: OverviewOrder, now: Date): OrderProblem[] {
     if (differenceInCalendarDays(now, since) >= LATE_AFTER_DAYS) problems.push("stuck_packed");
   }
   if (payoutStateOf(order) === "failed") problems.push("payout_failed");
+  if (PAYMENT_ISSUES.includes(order.paymentStatus ?? "") && stage !== "cancelled") problems.push("payment_issue");
   return problems;
 }
 
@@ -166,8 +197,8 @@ export function inView(order: OverviewOrder, view: OrderView, now: Date): boolea
   }
 }
 
-const isSale = (order: OverviewOrder) => SALE_STATUSES.includes(order.status);
-const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+const isSale = isCountedSale;
+const sum =(values: number[]) => values.reduce((a, b) => a + b, 0);
 
 export interface BlockedPublisher {
   publisherId: string | null;
@@ -246,7 +277,8 @@ export function summarizeToday(orders: OverviewOrder[], now: Date, options: Summ
     blockedByPublisher.set(key, entry);
   }
 
-  const weekAgo = subDays(now, 7);
+  // Today plus the 6 days before it, the same window as Insights' "7 days".
+  const weekAgo = startOfDay(subDays(now, 6));
   const quarterAgo = subDays(now, 90);
   const recentSales = reporting.filter((o) => isSale(o) && new Date(o.createdAt) >= weekAgo);
   const paidOutThisWeek = reporting.filter(
@@ -275,7 +307,7 @@ export function summarizeToday(orders: OverviewOrder[], now: Date, options: Summ
     pulse: {
       sales7d: sum(recentSales.map((o) => o.total)),
       orders7d: recentSales.length,
-      fees7d: sum(recentSales.map((o) => o.transfer?.fee ?? 0)),
+      fees7d: sum(recentSales.map(feeOf)),
       paidOut7d: sum(paidOutThisWeek.map((o) => o.transfer!.net)),
       paidOutTo: [...new Set(paidOutThisWeek.map((o) => o.publisherName))],
       spacesOrdering90d: new Set(

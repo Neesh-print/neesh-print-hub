@@ -50,7 +50,20 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ error: 'Shipping is not configured' }, 500, cors)
 
     const track = await createShippoClient(apiKey).registerTracking(carrier, trackingNumber, `order ${order.id}`)
-    return json({ registered: true, carrier, status: track.tracking_status?.status ?? null }, 200, cors)
+
+    // Tracking added after the parcel moved: Shippo may not send another
+    // update for a scan it already has, so apply the current one now. Same
+    // forward-only rules as shippo-webhook.
+    const status = track.tracking_status?.status ?? null
+    const next = status === 'DELIVERED' ? 'delivered' : status === 'TRANSIT' ? 'shipped' : null
+    if (next) {
+      await admin
+        .from('orders')
+        .update({ status: next, updated_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .in('status', next === 'delivered' ? ['paid', 'processing', 'shipped'] : ['paid', 'processing'])
+    }
+    return json({ registered: true, carrier, status, moved_to: next }, 200, cors)
   } catch (err) {
     if (err instanceof ShippoError) {
       // A wrong or not-yet-active tracking number lands here; the order stays Packed.

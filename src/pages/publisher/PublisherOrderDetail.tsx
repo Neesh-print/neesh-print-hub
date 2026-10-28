@@ -212,7 +212,7 @@ export const PublisherOrderDetail = () => {
     const success = await addTracking(order.id, trackingData.carrier, trackingData.trackingNumber);
     
     if (success) {
-      toast.success("Order marked as shipped!");
+      toast.success("Tracking saved. The order moves to shipped on the carrier's first scan.");
       setIsTrackingModalOpen(false);
       
       // Refresh order data
@@ -321,6 +321,9 @@ export const PublisherOrderDetail = () => {
   // Packed (processing) has tracking too; the carrier's first scan makes it shipped.
   const isShipped = order.status === 'processing' || order.status === 'shipped' || order.status === 'delivered';
   const canShip = order.status === 'paid' || order.status === 'pending';
+  // Packed with the publisher's own label: they can still correct the tracking
+  // number until the carrier scans it.
+  const canFixTracking = order.status === 'processing' && !shipment?.uses_neesh_labels;
 
   return (
     <PublisherLayout>
@@ -513,6 +516,15 @@ export const PublisherOrderDetail = () => {
                 Mark as Shipped
               </ButtonPrimary>
             )
+          )}
+          {canFixTracking && (
+            <ButtonSecondary
+              fullWidth
+              onClick={() => setIsTrackingModalOpen(true)}
+              icon={<Package className="w-4 h-4" />}
+            >
+              Update tracking
+            </ButtonSecondary>
           )}
 
           <ButtonSecondary

@@ -36,15 +36,30 @@ export function useAdminOrderActions() {
     }
   };
 
-  /** Move an order to a stored status (processing = Packed). */
-  const setOrderStatus = async (orderId: string, status: "processing" | "shipped" | "delivered", key = orderId) => {
+  /**
+   * Move an order from `from` to a stored status (processing = Packed). Only
+   * changes the order if it's still in `from`, so a screen that's out of date
+   * (a carrier scan arrived meanwhile) can't move it backwards.
+   */
+  const setOrderStatus = async (
+    orderId: string,
+    from: string,
+    status: "processing" | "shipped" | "delivered",
+    key = orderId,
+  ) => {
     setBusy(key);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", orderId);
+        .eq("id", orderId)
+        .eq("status", from)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) {
+        toast.error("This order changed since the page loaded. It's been refreshed.");
+        return;
+      }
       toast.success(status === "processing" ? "Marked packed" : `Marked ${status}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't update the order");

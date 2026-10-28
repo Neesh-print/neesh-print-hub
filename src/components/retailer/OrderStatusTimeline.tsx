@@ -255,7 +255,8 @@ export const OrderStatusTimeline = ({
       </div>
 
       {/* Tracking Information */}
-      {(status === "shipped" || status === "delivered") && (
+      {/* Packed orders show as "confirmed" here but already have tracking */}
+      {(status === "shipped" || status === "delivered" || (status === "confirmed" && !!trackingNumber)) && (
         <div className="card-neesh bg-secondary/50">
           <h3 className="font-display font-semibold text-lg mb-4">Tracking Information</h3>
           

@@ -54,8 +54,9 @@ Deno.serve(async (req) => {
       await admin.from('order_shipments').update({ status: next }).eq('id', shipment.id)
     }
 
-    // Only move orders forward: delivered never goes back to shipped.
-    const from = next === 'delivered' ? ['paid', 'pending', 'processing', 'shipped'] : ['paid', 'pending', 'processing']
+    // Only move paid orders forward: delivered never goes back to shipped,
+    // and an unpaid ('pending') order never becomes a shipped sale.
+    const from = next === 'delivered' ? ['paid', 'processing', 'shipped'] : ['paid', 'processing']
     const changes = { status: next, updated_at: new Date().toISOString() }
     const moved = new Set<string>()
     const byTracking = await admin.from('orders').update(changes).eq('tracking_number', trackingNumber).in('status', from).select('id')

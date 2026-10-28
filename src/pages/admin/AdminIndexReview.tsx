@@ -122,7 +122,7 @@ export const AdminIndexReview = () => {
 
   return (
     <AdminLayout>
-      <BackNavigation title="Index review" onBack={() => navigate("/admin")} />
+      <BackNavigation title="Index review" onBack={() => navigate("/admin/magazines")} />
 
       {/* Stats Row — one count per kind */}
       <div className="px-4 md:px-6 pb-6">

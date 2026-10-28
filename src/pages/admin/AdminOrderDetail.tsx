@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useBack } from "@/hooks/useBack";
 import { Package, MapPin, MessageSquare, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, InfoCard, StatusBadge, ButtonSecondary, FormTextarea } from "@/components/neesh";
@@ -48,6 +49,7 @@ const paymentOptions = [
 
 export const AdminOrderDetail = () => {
   const navigate = useNavigate();
+  const goBack = useBack("/admin/orders");
   const { id } = useParams();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -205,7 +207,7 @@ export const AdminOrderDetail = () => {
   if (isLoading) {
     return (
       <AdminLayout>
-        <BackNavigation title="Order Details" onBack={() => navigate("/admin/orders")} />
+        <BackNavigation title="Order Details" onBack={goBack} />
         <div className="px-4 md:px-6 pb-8 flex items-center justify-center py-20">
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-muted-foreground" />
@@ -219,13 +221,13 @@ export const AdminOrderDetail = () => {
   if (error || !order) {
     return (
       <AdminLayout>
-        <BackNavigation title="Order Details" onBack={() => navigate("/admin/orders")} />
+        <BackNavigation title="Order Details" onBack={goBack} />
         <div className="px-4 md:px-6 pb-8">
           <div className="card-neesh flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-10 h-10 text-status-error-text mb-3" />
             <h3 className="font-display font-semibold text-heading text-foreground mb-1">Order not found</h3>
             <p className="text-body text-muted-foreground mb-4">{error || 'This order could not be loaded.'}</p>
-            <ButtonSecondary onClick={() => navigate("/admin/orders")}>Back to Orders</ButtonSecondary>
+            <ButtonSecondary onClick={goBack}>Back to Orders</ButtonSecondary>
           </div>
         </div>
       </AdminLayout>
@@ -237,7 +239,7 @@ export const AdminOrderDetail = () => {
 
   return (
     <AdminLayout>
-      <BackNavigation title={`Order #${orderNumber}`} onBack={() => navigate("/admin/orders")} />
+      <BackNavigation title={`Order #${orderNumber}`} onBack={goBack} />
 
       <div className="px-4 md:px-6 pb-8">
         {/* Info Cards Grid */}

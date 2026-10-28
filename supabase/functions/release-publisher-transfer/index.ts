@@ -185,10 +185,21 @@ Deno.serve(async (req) => {
           continue
         }
 
+        // A row reset by hand after an unclear outcome may already have been
+        // paid. The idempotency key alone can't promise that (it lasts 24
+        // hours and depends on the source found below), so look for a transfer
+        // carrying this row's id first and record it instead of paying again.
+        let existing: { id: string } | null = null
+        for await (const t of stripe.transfers.list({ destination: publisher.stripe_account_id, limit: 100 })) {
+          if (t.metadata?.publisher_transfer_id === transfer.id && !t.reversed) {
+            existing = t
+            break
+          }
+        }
+
         // Execute the Stripe transfer. The idempotency key is tied to this
-        // ledger row and its source, so if this request is retried (or a stuck
-        // 'processing' row is retried by hand) Stripe returns the original
-        // transfer instead of paying again.
+        // ledger row and its source, so a retry of the same request returns
+        // the original transfer instead of paying again.
         const amountInCents = Math.round(transfer.net_amount * 100)
 
         // Tie the transfer to the order's charge so it goes through right
@@ -196,9 +207,9 @@ Deno.serve(async (req) => {
         // The publisher's funds then settle on the charge's own schedule. If
         // there's no usable charge (invoice-paid orders, lookups that fail),
         // fall back to a plain transfer from the available balance.
-        const source = await findSourceCharge(stripe, transfer.stripe_session_id)
+        const source = existing ? null : await findSourceCharge(stripe, transfer.stripe_session_id)
 
-        const stripeTransfer = await stripe.transfers.create({
+        const stripeTransfer = existing ?? await stripe.transfers.create({
           amount: amountInCents,
           currency: 'usd',
           destination: publisher.stripe_account_id,
@@ -224,8 +235,9 @@ Deno.serve(async (req) => {
           idempotencyKey: `publisher-transfer-${transfer.id}-${source ? source.chargeId : 'balance'}`,
         })
 
-        // Mark as transferred
-        await supabaseAdmin
+        // Mark as transferred. The money has moved, so a failed write must not
+        // read as "not paid": keep the row in processing with the transfer id.
+        const { error: markError } = await supabaseAdmin
           .from('publisher_transfers')
           .update({
             status: 'transferred',
@@ -234,8 +246,17 @@ Deno.serve(async (req) => {
             transferred_at: new Date().toISOString(),
           })
           .eq('id', transferId)
+        if (markError) {
+          console.error(`Transfer ${transferId} paid as ${stripeTransfer.id} but not recorded:`, markError.message)
+          await supabaseAdmin
+            .from('publisher_transfers')
+            .update({ stripe_transfer_id: stripeTransfer.id, failure_reason: `Paid as ${stripeTransfer.id}; marking it transferred failed. Do not release again.` })
+            .eq('id', transferId)
+          results.push({ id: transferId, success: true, stripe_transfer_id: stripeTransfer.id })
+          continue
+        }
 
-        console.log(`Transfer ${transferId} completed: ${stripeTransfer.id} → ${publisher.company_name}`)
+        console.log(`Transfer ${transferId} ${existing ? 'found already paid' : 'completed'}: ${stripeTransfer.id} → ${publisher.company_name}`)
         results.push({ id: transferId, success: true, stripe_transfer_id: stripeTransfer.id })
 
       } catch (err) {

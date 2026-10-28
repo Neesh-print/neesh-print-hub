@@ -20,6 +20,7 @@ import {
 } from "@/lib/adminCatalog";
 import { money } from "@/lib/adminOverview";
 import { SALE_STATUSES } from "@/lib/orderStatus";
+import { fetchAll } from "@/lib/fetchAll";
 import { cn } from "@/lib/utils";
 
 const btn =
@@ -44,42 +45,70 @@ type Sales = { units: number; revenue: number };
 type Row = CatalogTitle & { sales: Sales };
 
 async function fetchCatalog(): Promise<Row[]> {
-  const [mags, orders] = await Promise.all([
-    supabase
-      .from("magazines")
-      .select(
-        "id, title, issue_number, cover_image_url, publisher_id, is_active, wholesale_price, suggested_retail_price, weight_grams, inventory_count, fulfillment_method, publisher:publishers(company_name)",
-      )
-      .order("title"),
-    supabase.from("orders").select("magazine_id, quantity, total_price, status"),
+  type MagRow = {
+    id: string;
+    title: string | null;
+    issue_number: string | null;
+    cover_image_url: string | null;
+    publisher_id: string;
+    is_active: boolean | null;
+    wholesale_price: number | string | null;
+    suggested_retail_price: number | string | null;
+    weight_grams: number | null;
+    inventory_count: number | null;
+    fulfillment_method: string | null;
+    publisher: { company_name: string | null; user_id: string | null; is_test?: boolean } | null;
+  };
+  type OrderRow = { magazine_id: string | null; quantity: number | null; total_price: number | string | null; status: string; payment_status: string | null };
+  const [mags, orders, apps] = await Promise.all([
+    fetchAll<MagRow>((from, to) =>
+      supabase
+        .from("magazines")
+        .select(
+          // publishers(*) so is_test comes through; the generated types predate it.
+          "id, title, issue_number, cover_image_url, publisher_id, is_active, wholesale_price, suggested_retail_price, weight_grams, inventory_count, fulfillment_method, publisher:publishers(*)",
+        )
+        .order("title")
+        .order("id")
+        .range(from, to) as unknown as PromiseLike<{ data: MagRow[] | null; error: unknown }>,
+    ),
+    fetchAll<OrderRow>((from, to) =>
+      supabase.from("orders").select("magazine_id, quantity, total_price, status, payment_status").order("id").range(from, to),
+    ),
+    supabase.from("publisher_applications").select("user_id, business_name"),
   ]);
-  if (mags.error) throw mags.error;
-  if (orders.error) throw orders.error;
+  if (apps.error) throw apps.error;
+  const businessName = new Map((apps.data ?? []).filter((a) => a.user_id && a.business_name).map((a) => [a.user_id as string, a.business_name as string]));
 
   const sales = new Map<string, Sales>();
-  for (const o of orders.data ?? []) {
-    if (!o.magazine_id || !SALE_STATUSES.includes(o.status)) continue;
+  for (const o of orders) {
+    // Same rule as the other admin screens: refunded or written-off isn't a sale.
+    if (!o.magazine_id || !SALE_STATUSES.includes(o.status) || ["refunded", "written_off"].includes(o.payment_status ?? "")) continue;
     const s = sales.get(o.magazine_id) ?? { units: 0, revenue: 0 };
     s.units += o.quantity ?? 0;
     s.revenue += Number(o.total_price ?? 0);
     sales.set(o.magazine_id, s);
   }
 
-  return (mags.data ?? []).map((m) => ({
-    id: m.id,
-    title: m.title,
-    issue: m.issue_number || null,
-    coverUrl: m.cover_image_url,
-    publisherId: m.publisher_id,
-    publisherName: (m.publisher as { company_name?: string } | null)?.company_name || "Unknown publisher",
-    isActive: m.is_active,
-    wholesalePrice: m.wholesale_price == null ? null : Number(m.wholesale_price),
-    retailPrice: m.suggested_retail_price == null ? null : Number(m.suggested_retail_price),
-    weightGrams: m.weight_grams,
-    inventory: m.inventory_count,
-    publisherHandled: m.fulfillment_method !== "neesh_handled",
-    sales: sales.get(m.id) ?? { units: 0, revenue: 0 },
-  }));
+  return mags
+    // Titles from test accounts stay out of the catalog, as they do in Network.
+    .filter((m) => !m.publisher?.is_test)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      issue: m.issue_number || null,
+      coverUrl: m.cover_image_url,
+      publisherId: m.publisher_id,
+      publisherName:
+        m.publisher?.company_name || (m.publisher?.user_id && businessName.get(m.publisher.user_id)) || "Unknown publisher",
+      isActive: m.is_active,
+      wholesalePrice: m.wholesale_price == null ? null : Number(m.wholesale_price),
+      retailPrice: m.suggested_retail_price == null ? null : Number(m.suggested_retail_price),
+      weightGrams: m.weight_grams,
+      inventory: m.inventory_count,
+      publisherHandled: m.fulfillment_method !== "neesh_handled",
+      sales: sales.get(m.id) ?? { units: 0, revenue: 0 },
+    }));
 }
 
 const TitlePanel = ({ t, onClose }: { t: Row; onClose: () => void }) => {
@@ -138,7 +167,10 @@ const TitlePanel = ({ t, onClose }: { t: Row; onClose: () => void }) => {
           <dt className="text-muted-foreground">Weight</dt>
           <dd>{t.weightGrams ? `${t.weightGrams} g` : "—"}</dd>
           <dt className="text-muted-foreground">In stock</dt>
-          <dd>{t.publisherHandled ? (t.inventory ?? "—") : "Held by Neesh"}</dd>
+          <dd>
+            {t.inventory ?? "—"}
+            {!t.publisherHandled && <span className="text-muted-foreground"> (held by Neesh)</span>}
+          </dd>
           <dt className="text-muted-foreground">Sold</dt>
           <dd>
             {t.sales.units} · {money(t.sales.revenue)}
@@ -191,8 +223,8 @@ const TitlePanel = ({ t, onClose }: { t: Row; onClose: () => void }) => {
               {confirm === true
                 ? "Spaces will be able to order it again."
                 : confirm === false
-                  ? "It leaves the catalog. You can make it live again later."
-                  : "It's hidden while you look into it."}
+                  ? "It leaves the catalog. The publisher can restore it themselves."
+                  : "It's hidden while you look into it. Only an admin can make it live again."}
             </span>
             <button type="button" className={btnLine} onClick={() => setConfirm(undefined)}>
               Cancel
@@ -329,7 +361,7 @@ export const AdminCatalog = () => {
                         {t.wholesalePrice == null ? "—" : money(t.wholesalePrice)}
                         <span className="text-muted-foreground"> / {t.retailPrice == null ? "—" : money(t.retailPrice)}</span>
                       </td>
-                      <td className="px-4 py-3 text-right">{t.publisherHandled ? (t.inventory ?? "—") : "Neesh"}</td>
+                      <td className="px-4 py-3 text-right">{t.inventory ?? "—"}</td>
                       <td className="px-4 py-3 text-right">{t.sales.units}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
