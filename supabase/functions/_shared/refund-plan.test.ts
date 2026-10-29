@@ -1,4 +1,4 @@
-import { planRefund } from './refund-plan.ts'
+import { missingPaymentMessage, planRefund } from './refund-plan.ts'
 
 const assertEquals = (a: unknown, b: unknown) => {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`)
@@ -24,9 +24,17 @@ Deno.test('refuses orders that cannot be refunded here', () => {
   assertEquals(planRefund({ ...paid, payment_status: 'disputed' }, charge(12100), 0).ok, false)
   assertEquals(planRefund({ ...paid, payment_method: 'net_30' }, charge(12100), 0).ok, false)
   assertEquals(planRefund({ ...paid, payment_status: 'unpaid' }, charge(12100), 0).ok, false)
+  assertEquals(planRefund({ ...paid, payment_status: 'written_off' }, charge(12100), 0).ok, false)
   assertEquals(planRefund(paid, null, 0).ok, false)
   assertEquals(planRefund(paid, charge(12100, 0, { status: 'pending' }), 0).ok, false)
   assertEquals(planRefund(paid, charge(12100, 0, { disputed: true }), 0).ok, false)
   assertEquals(planRefund(paid, charge(12100, 12100), 0).ok, false)
   assertEquals(planRefund(paid, charge(30000, 20000), 1).ok, false)
+})
+
+Deno.test('explains payments the live Stripe account cannot see', () => {
+  assertEquals(missingPaymentMessage('cs_test_abc', 'pi_123').includes('test mode'), true)
+  assertEquals(missingPaymentMessage('cs_demo_abc', 'pi_demo_undergrowth_0001').includes('demo order'), true)
+  assertEquals(missingPaymentMessage(null, 'pi_demo_x').includes('demo order'), true)
+  assertEquals(missingPaymentMessage('cs_live_abc', 'pi_123').includes('no record'), true)
 })

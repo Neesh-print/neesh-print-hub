@@ -411,7 +411,7 @@ export const AdminOrderDetail = () => {
           <div className="flex gap-3 flex-wrap mb-6">
             <ButtonSecondary
               onClick={openRefund}
-              disabled={order.payment_status === 'refunded' || order.payment_status === 'disputed'}
+              disabled={['refunded', 'disputed', 'written_off'].includes(order.payment_status)}
               className="gap-2 text-status-error-text"
             >
               <RefreshCw className="w-4 h-4" />

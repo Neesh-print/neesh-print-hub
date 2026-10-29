@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14.10.0?target=deno'
-import { planRefund } from '../_shared/refund-plan.ts'
+import { missingPaymentMessage, planRefund } from '../_shared/refund-plan.ts'
 
 // Refunds one order's card payment in Stripe (Admin > Orders > Issue Refund).
 //
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, payment_intent_id, payment_method, payment_status, status, total_price, tracking_number, shipment_id')
+      .select('id, payment_intent_id, stripe_session_id, payment_method, payment_status, status, total_price, tracking_number, shipment_id')
       .eq('id', orderId)
       .maybeSingle()
     if (orderError) throw orderError
@@ -89,7 +89,15 @@ Deno.serve(async (req) => {
       .neq('payment_status', 'refunded')
     if (othersError) throw othersError
 
-    const pi = await stripe.paymentIntents.retrieve(order.payment_intent_id, { expand: ['latest_charge'] })
+    let pi: Stripe.PaymentIntent
+    try {
+      pi = await stripe.paymentIntents.retrieve(order.payment_intent_id, { expand: ['latest_charge'] })
+    } catch (error) {
+      if ((error as { code?: string }).code === 'resource_missing') {
+        return json({ error: missingPaymentMessage(order.stripe_session_id, order.payment_intent_id) }, 409)
+      }
+      throw error
+    }
     const charge = pi.latest_charge && typeof pi.latest_charge !== 'string' ? pi.latest_charge : null
 
     const plan = planRefund(order, charge, others ?? 0)
