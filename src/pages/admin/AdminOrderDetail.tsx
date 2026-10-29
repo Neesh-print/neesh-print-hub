@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateOrderStatus } from "@/hooks/useUpdateOrderStatus";
 import { parseShippingAddress, ShippingAddress } from "@/utils/parseShippingAddress";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { ORDER_STATUS_OPTIONS, orderStatusBadge, formatOrderRef } from "@/lib/orderStatus";
 
 // Flattened interface for UI consumption
@@ -58,6 +59,8 @@ export const AdminOrderDetail = () => {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundPreview, setRefundPreview] = useState<RefundPreview | null>(null);
+  const [isRefunding, setIsRefunding] = useState(false);
   const { updateStatus, isUpdating } = useUpdateOrderStatus();
 
   const fetchOrder = useCallback(async () => {
@@ -198,10 +201,37 @@ export const AdminOrderDetail = () => {
     }
   };
 
-  const handleRefund = () => {
-    // In a real app, this would call a Stripe refund endpoint
-    console.log("Processing refund for order:", id);
+  // Asks refund-order what it would refund, so the dialog shows the real
+  // amount (shipping included when the order is the whole payment).
+  const openRefund = async () => {
+    if (!order) return;
+    setRefundPreview(null);
+    setShowRefundModal(true);
+    const { data, error } = await invokeRefund({ orderId: order.id, preview: true });
+    if (error) {
+      setShowRefundModal(false);
+      toast.error(error);
+      return;
+    }
+    setRefundPreview(data as RefundPreview);
+  };
+
+  const handleRefund = async () => {
+    if (!order || !refundPreview) return;
+    setIsRefunding(true);
+    const { data, error } = await invokeRefund({ orderId: order.id });
+    setIsRefunding(false);
     setShowRefundModal(false);
+    if (error) {
+      toast.error(error);
+    } else {
+      const result = data as RefundResult;
+      const extra = result.payoutsNeedReversal > 0
+        ? ` The publisher was already paid, so that payout is flagged for reversal.`
+        : '';
+      toast.success(`Refunded $${result.amount.toFixed(2)} to the retailer.${extra}`);
+    }
+    fetchOrder();
   };
 
   if (isLoading) {
@@ -379,9 +409,13 @@ export const AdminOrderDetail = () => {
           </div>
 
           <div className="flex gap-3 flex-wrap mb-6">
-            <ButtonSecondary onClick={() => setShowRefundModal(true)} className="gap-2 text-status-error-text">
+            <ButtonSecondary
+              onClick={openRefund}
+              disabled={order.payment_status === 'refunded' || order.payment_status === 'disputed'}
+              className="gap-2 text-status-error-text"
+            >
               <RefreshCw className="w-4 h-4" />
-              Issue Refund
+              {order.payment_status === 'refunded' ? 'Refunded' : 'Issue Refund'}
             </ButtonSecondary>
             <ButtonSecondary className="gap-2">
               <MessageSquare className="w-4 h-4" />
@@ -413,12 +447,51 @@ export const AdminOrderDetail = () => {
         onClose={() => setShowRefundModal(false)}
         onConfirm={handleRefund}
         title="Issue Refund"
-        message={`Are you sure you want to issue a full refund of $${order.total_price.toFixed(2)} for this order? This action cannot be undone.`}
+        message={refundMessage(refundPreview)}
         confirmLabel="Issue Refund"
         confirmVariant="destructive"
+        isLoading={isRefunding || !refundPreview}
       />
     </AdminLayout>
   );
 };
+
+interface RefundPreview {
+  amount: number;
+  full: boolean;
+  sharedPayment: boolean;
+}
+
+interface RefundResult extends RefundPreview {
+  refundId: string;
+  cancelled: boolean;
+  payoutsStopped: number;
+  payoutsNeedReversal: number;
+}
+
+function refundMessage(preview: RefundPreview | null): string {
+  if (!preview) return 'Checking the payment in Stripe...';
+  const shared = preview.sharedPayment
+    ? ' This order was paid together with others, so only its own total is refunded.'
+    : '';
+  return `Refund $${preview.amount.toFixed(2)} to the retailer's card through Stripe?${shared} ` +
+    `If the order hasn't shipped it will be cancelled, and its publisher payout stopped. This can't be undone.`;
+}
+
+/** Calls refund-order and turns a non-2xx response into its error message. */
+async function invokeRefund(body: { orderId: string; preview?: boolean }): Promise<{ data: unknown; error: string | null }> {
+  const { data, error } = await supabase.functions.invoke("refund-order", { body });
+  if (!error) return { data, error: null };
+  let message = "Couldn't confirm the refund. Try again: it won't refund twice.";
+  if ("context" in error && error.context instanceof Response) {
+    try {
+      const parsed = await error.context.json();
+      if (parsed?.error) message = parsed.error;
+    } catch {
+      // keep the generic message
+    }
+  }
+  return { data: null, error: message };
+}
 
 export default AdminOrderDetail;
