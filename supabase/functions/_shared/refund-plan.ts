@@ -37,6 +37,7 @@ export function planRefund(
   if (order.payment_method !== 'pay_now') {
     return { ok: false, error: 'This order is on invoice terms, so there is no card payment to refund here.' }
   }
+  if (order.payment_status === 'written_off') return { ok: false, error: 'This order was written off, so there is nothing to refund.' }
   if (order.payment_status !== 'paid') return { ok: false, error: 'This order has not been paid, so there is nothing to refund.' }
   if (!charge || charge.status !== 'succeeded') return { ok: false, error: 'No successful Stripe charge was found for this order.' }
   if (charge.disputed) return { ok: false, error: 'This payment is disputed. Resolve it through the dispute in Stripe.' }
@@ -52,4 +53,19 @@ export function planRefund(
     return { ok: false, error: 'Less is left on this payment than the order total. Refund it from Stripe instead.' }
   }
   return { ok: true, amountCents: orderCents, full: orderCents === remaining }
+}
+
+/**
+ * What to tell the admin when Stripe has no record of an order's payment.
+ * Orders from before the switch to live payments were paid in test mode (or
+ * seeded with demo ids), so the live account can't see them.
+ */
+export function missingPaymentMessage(sessionId: string | null, paymentIntentId: string): string {
+  if (paymentIntentId.startsWith('pi_demo_') || sessionId?.startsWith('cs_demo_')) {
+    return 'This is a demo order that was never charged through Stripe, so there is nothing to refund.'
+  }
+  if (sessionId?.startsWith('cs_test_')) {
+    return "This order was paid in Stripe test mode, so it can't be refunded from the live account. No real money was charged."
+  }
+  return "Stripe has no record of this order's payment, so it can't be refunded from here. Check the payment in the Stripe dashboard."
 }
