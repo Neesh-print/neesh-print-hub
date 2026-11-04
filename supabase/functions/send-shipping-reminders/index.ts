@@ -8,8 +8,10 @@ import { isQuotableAddress, type ShipAddress } from '../_shared/shipping.ts'
 // is in. The email also lists the publisher's live titles with no weight,
 // which block quotes the same way.
 //
-// Stops on its own: a publisher drops out once their address is complete (or
-// they switch to their own flat rates). No reminder counter.
+// Capped at MAX_REMINDERS sends per publisher (publishers.shipping_reminder_count),
+// at least 4 days apart. Also stops once the address is complete, the publisher
+// switches to their own flat rates, or shipping_reminders_opted_out is set
+// (e.g. they replied "stop").
 //
 // Conventions match send-price-reminders / send-image-reminders:
 // verify_jwt = false, guarded by the shared REMINDER_SECRET via the
@@ -22,33 +24,39 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-reminder-secret',
 }
 
+const MAX_REMINDERS = 2
+
 interface PublisherGroup {
   publisherId: string
   email: string
+  firstName: string | null
   company: string
+  sendNumber: number
   titlesWithoutWeight: { id: string; title: string; issue: string | null; coverUrl: string | null }[]
 }
 
 const generateReminderEmail = (group: PublisherGroup): string => {
   const missingWeights = group.titlesWithoutWeight.length
+  const isLast = group.sendNumber >= MAX_REMINDERS
+  const greeting = group.firstName ? `Hi ${group.firstName},` : 'Hi there,'
   return renderEmail({
-    preheader: 'Spaces can’t check out your titles until we know where you ship from.',
+    preheader: `Two minutes in Settings and spaces can check out ${group.company}.`,
     label: 'Shipping',
-    eyebrow: 'Action needed',
-    heading: 'Add where you ship from so spaces can order.',
-    intro: `Hi ${group.company}, spaces now pay shipping at checkout, quoted live from your ships-from address. Until you add it, spaces can’t check out your titles. It takes about two minutes.`,
+    eyebrow: isLast ? 'Last reminder' : 'Shipping is live',
+    heading: 'Add your ships-from address so spaces can order.',
+    intro: `${greeting} spaces on Neesh now see live shipping at checkout, quoted from where you ship. We don't have an address for ${group.company} yet, so spaces can't check out your titles until it's in.`,
     blocks: [
       button('Add your ships-from address', `${BRAND_URL}/publisher/settings`),
       ...(missingWeights > 0
         ? [
             smallText(
               missingWeights === 1
-                ? 'This title also needs the weight of one copy, so we can quote shipping:'
-                : 'These titles also need the weight of one copy, so we can quote shipping:',
+                ? 'We also need the weight of one copy of this title:'
+                : 'We also need the weight of one copy of each of these:',
             ),
             titleList(group.titlesWithoutWeight.map((t) => ({
               title: t.title,
-              subtitle: formatIssue(t.issue) ?? undefined,
+              subtitle: [group.company, formatIssue(t.issue)].filter(Boolean).join(' · '),
               coverUrl: t.coverUrl,
               badge: { text: 'No weight', tone: 'pending' as const },
               href: `${BRAND_URL}/publisher/titles/${t.id}/edit`,
@@ -56,7 +64,10 @@ const generateReminderEmail = (group: PublisherGroup): string => {
             }))),
           ]
         : []),
-      smallText('Shipping passes to you in full. Once your address is in, these reminders stop. Easier to reply with your address and weights? Do that and we’ll add them for you.'),
+      smallText('Spaces pay shipping at checkout, so it never comes out of your pocket. Rather not log in? Reply with your address and weights and we will add them for you.'),
+      smallText(isLast
+        ? 'This is the last reminder we will send about this.'
+        : 'We will send one more reminder at most. Reply "stop" and we will not send that either.'),
     ],
     footerNote: 'You are getting this because you publish on Neesh.',
   })
@@ -97,9 +108,11 @@ Deno.serve(async (req) => {
     // 1. Approved publishers on live rates.
     const { data: pubs, error: pubErr } = await supabase
       .from('publishers')
-      .select('id, user_id, company_name, shipping_rate_mode')
+      .select('id, user_id, company_name, shipping_rate_mode, shipping_reminder_count, shipping_reminder_last_sent_at, shipping_reminders_opted_out')
       .eq('application_status', 'approved')
       .neq('shipping_rate_mode', 'flat')
+      .eq('shipping_reminders_opted_out', false)
+      .lt('shipping_reminder_count', MAX_REMINDERS)
     if (pubErr) throw pubErr
     if (!pubs?.length) return json({ ok: true, dryRun, publishersEmailed: 0, recipients: [] })
 
@@ -110,7 +123,9 @@ Deno.serve(async (req) => {
       .in('publisher_id', pubs.map((p) => p.id))
     if (setErr) throw setErr
     const addressById = new Map((settings ?? []).map((s) => [s.publisher_id, s.ships_from_address as Partial<ShipAddress> | null]))
+    const minGapMs = 4 * 24 * 60 * 60 * 1000
     const missing = pubs.filter((p) => {
+      if (p.shipping_reminder_last_sent_at && Date.now() - new Date(p.shipping_reminder_last_sent_at).getTime() < minGapMs) return false
       const a = addressById.get(p.id)
       return !isQuotableAddress(a ? { ...a, name: a.name || p.company_name || 'Publisher' } : null)
     })
@@ -125,6 +140,11 @@ Deno.serve(async (req) => {
       .eq('is_demo', false) // skip demo / test accounts
     if (userErr) throw userErr
     const emailByUser = new Map((users ?? []).map((u) => [u.id, u.email as string | null]))
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', userIds)
+    const firstNameByUser = new Map((profiles ?? []).map((pr) => [pr.user_id, ((pr.full_name as string | null) ?? '').trim().split(/\s+/)[0] || null]))
 
     const { data: mags, error: magErr } = await supabase
       .from('magazines')
@@ -142,7 +162,9 @@ Deno.serve(async (req) => {
       groups.push({
         publisherId: pub.id,
         email,
-        company: pub.company_name || 'there',
+        firstName: firstNameByUser.get(pub.user_id) ?? null,
+        company: pub.company_name || 'your publication',
+        sendNumber: (pub.shipping_reminder_count ?? 0) + 1,
         titlesWithoutWeight: (mags ?? [])
           .filter((m) => m.publisher_id === pub.id && !(Number(m.weight_grams) > 0))
           .map((m) => ({ id: m.id, title: m.title || 'Untitled', issue: m.issue_number, coverUrl: m.cover_image_url })),
@@ -174,12 +196,20 @@ Deno.serve(async (req) => {
           from: 'Neesh <hi@neesh.art>',
           to: group.email,
           reply_to: 'hi@neesh.art',
-          subject: 'Add your ships-from address so spaces can order on Neesh',
+          subject: group.sendNumber >= MAX_REMINDERS
+            ? 'Last reminder: add your ships-from address on Neesh'
+            : 'Add your ships-from address so spaces can order on Neesh',
           html: generateReminderEmail(group),
+          headers: { 'List-Unsubscribe': '<mailto:hi@neesh.art?subject=stop%20shipping%20reminders>' },
         }),
       })
       if (res.ok) {
         publishersEmailed++
+        const { error: bumpErr } = await supabase
+          .from('publishers')
+          .update({ shipping_reminder_count: group.sendNumber, shipping_reminder_last_sent_at: new Date().toISOString() })
+          .eq('id', group.publisherId)
+        if (bumpErr) failures.push(`${group.email}: sent but counter not bumped: ${bumpErr.message}`)
       } else {
         failures.push(`${group.email}: ${res.status} ${await res.text().catch(() => '')}`)
       }

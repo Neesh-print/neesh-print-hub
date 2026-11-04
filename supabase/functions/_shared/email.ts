@@ -251,7 +251,7 @@ export const reference = (label: string, value: string): Html =>
 // ---------------------------------------------------------------------------
 
 export interface EmailOptions {
-  // Inbox preview line; also shown above the card.
+  // Inbox preview line only (hidden in the body, so it never shows twice).
   preheader: string
   // Mono label at the right of the header ("Admin · Order").
   label: string
@@ -298,7 +298,6 @@ export const renderEmail = (o: EmailOptions): string => {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${C.band};">
 <tr><td class="outer" align="center" style="padding: 40px 20px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
-    <tr><td align="center" style="padding: 0 0 16px; font-family: ${FONT_BODY}; font-size: 13px; line-height: 1.5; color: ${C.muted};">${o.preheader}</td></tr>
     <tr><td>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${C.paper}; border: 1px solid ${C.border}; border-radius: 8px; border-collapse: separate;">
         <tr><td class="px" style="padding: 26px 40px; border-bottom: 1px solid ${C.border};">
