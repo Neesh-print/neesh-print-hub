@@ -30,3 +30,7 @@ verify_jwt = false
 # shipping_v2: called by pg_cron with the shared reminder secret, not a JWT.
 [functions.send-shipping-reminders]
 verify_jwt = false
+
+# Owner-checked inside the handler via the caller's own session.
+[functions.index-listing]
+verify_jwt = true
