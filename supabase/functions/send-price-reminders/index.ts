@@ -6,7 +6,7 @@ import { BRAND_URL, button, formatIssue, renderEmail, smallText, titleList } fro
 // approve-application creates it inactive — meaning it is invisible to
 // retailers until the publisher sets a price. Nothing else tells them to.
 //
-// Each title is reminded at most 4 times (price_reminder_count < 4) and stops
+// Each title is reminded at most 2 times (price_reminder_count < 2) and stops
 // as soon as a wholesale price is set. Note this deliberately does NOT filter
 // on is_active: unpriced titles are precisely the ones held inactive, so
 // filtering them out would skip every title this job exists to chase.
@@ -21,7 +21,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-reminder-secret',
 }
 
-const MAX_REMINDERS = 4
+const MAX_REMINDERS = 2
 
 interface MagazineRow {
   id: string
@@ -29,23 +29,29 @@ interface MagazineRow {
   issue_number: string | null
   cover_image_url: string | null
   publisher_id: string
+  price_reminder_count: number
 }
 
 interface PublisherGroup {
   publisherId: string
   email: string
+  firstName: string | null
   company: string
+  isLast: boolean
   titles: { id: string; title: string; issue: string | null; coverUrl: string | null }[]
 }
 
 const generateReminderEmail = (group: PublisherGroup): string => {
   const n = group.titles.length
+  const greeting = group.firstName ? `Hi ${group.firstName},` : 'Hi there,'
   return renderEmail({
-    preheader: `${n === 1 ? 'One of your titles is' : `${n} of your titles are`} hidden from retailers until ${n === 1 ? 'it has' : 'they have'} a price.`,
+    preheader: n === 1
+      ? 'Spaces can order this title as soon as it has a wholesale price.'
+      : `Spaces can order these ${n} titles as soon as they have wholesale prices.`,
     label: 'Your titles',
-    eyebrow: 'One step left',
-    heading: n === 1 ? 'Set a wholesale price so stores can order.' : 'Set wholesale prices so stores can order.',
-    intro: `Hi ${group.company}, retailers buy at your wholesale price, so until one is set these titles stay out of the catalogue. It takes about a minute each.`,
+    eyebrow: group.isLast ? 'Last reminder' : 'One step left',
+    heading: n === 1 ? 'Set a wholesale price so spaces can order.' : 'Set wholesale prices so spaces can order.',
+    intro: `${greeting} spaces buy ${group.company} at your wholesale price, so until there is one, ${n === 1 ? 'this title stays' : 'these titles stay'} out of the catalogue. It takes about a minute each.`,
     blocks: [
       titleList(group.titles.map((t) => ({
         title: t.title,
@@ -56,7 +62,10 @@ const generateReminderEmail = (group: PublisherGroup): string => {
         linkText: 'Set a wholesale price',
       }))),
       button(n === 1 ? 'Set price' : 'Set prices', `${BRAND_URL}/publisher/titles`),
-      smallText('Once a price is set, the title goes live in the catalogue and these reminders stop. Not sure what to charge? Reply and we will help you price it.'),
+      smallText('Not sure what to charge? Reply and we will help you price it.'),
+      smallText(group.isLast
+        ? 'This is the last reminder we will send about this.'
+        : 'We will send one more reminder at most. Reply "stop" and we will not send that either.'),
     ],
     footerNote: 'You are getting this because you publish on Neesh.',
   })
@@ -96,7 +105,7 @@ Deno.serve(async (req) => {
     //    No is_active filter — see the note at the top of this file.
     const { data: mags, error: magErr } = await supabase
       .from('magazines')
-      .select('id, title, issue_number, cover_image_url, publisher_id')
+      .select('id, title, issue_number, cover_image_url, publisher_id, price_reminder_count')
       .is('wholesale_price', null)
       .lt('price_reminder_count', MAX_REMINDERS)
     if (magErr) throw magErr
@@ -104,7 +113,7 @@ Deno.serve(async (req) => {
     const magazines = (mags ?? []) as MagazineRow[]
     if (magazines.length === 0) return json({ ok: true, dryRun, publishersEmailed: 0, titles: 0, recipients: [] })
 
-    // 2. Resolve publisher -> email + company name.
+    // 2. Resolve publisher -> email, first name and company name.
     const publisherIds = [...new Set(magazines.map((m) => m.publisher_id))]
     const { data: pubs, error: pubErr } = await supabase
       .from('publishers')
@@ -118,8 +127,13 @@ Deno.serve(async (req) => {
       .select('id, email')
       .in('id', userIds)
     if (userErr) throw userErr
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, full_name')
+      .in('user_id', userIds)
 
     const emailByUser = new Map((users ?? []).map((u) => [u.id, u.email as string | null]))
+    const firstNameByUser = new Map((profiles ?? []).map((pr) => [pr.user_id, ((pr.full_name as string | null) ?? '').trim().split(/\s+/)[0] || null]))
     const pubById = new Map((pubs ?? []).map((p) => [p.id, p]))
 
     // 3. Group titles by publisher, one email each.
@@ -134,11 +148,16 @@ Deno.serve(async (req) => {
         groupMap.set(mag.publisher_id, {
           publisherId: mag.publisher_id,
           email,
-          company: pub.company_name || 'there',
+          firstName: firstNameByUser.get(pub.user_id) ?? null,
+          company: pub.company_name || 'your titles',
+          isLast: true,
           titles: [],
         })
       }
-      groupMap.get(mag.publisher_id)!.titles.push({
+      const g = groupMap.get(mag.publisher_id)!
+      // 'Last reminder' only when every title in the email is on its final send.
+      if ((mag.price_reminder_count ?? 0) + 1 < MAX_REMINDERS) g.isLast = false
+      g.titles.push({
         id: mag.id,
         title: mag.title || 'Untitled',
         issue: mag.issue_number,
@@ -180,6 +199,7 @@ Deno.serve(async (req) => {
               ? 'Set a wholesale price for your Neesh title'
               : `Set wholesale prices for ${group.titles.length} of your Neesh titles`,
           html: generateReminderEmail(group),
+          headers: { 'List-Unsubscribe': '<mailto:hi@neesh.art?subject=stop%20price%20reminders>' },
         }),
       })
 
