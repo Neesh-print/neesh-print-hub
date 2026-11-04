@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Globe, Instagram, Mail, Phone, MapPin, AlertCircle, Loader2 } from "lucide-react";
+import { Globe, Instagram, Mail, Newspaper, Phone, MapPin, AlertCircle, Loader2 } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
 import { BackNavigation, InfoCard, ButtonPrimary, ButtonSecondary, FormTextarea } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,8 @@ interface ApplicationData {
   phone: string | null;
   website: string | null;
   instagram: string | null;
+  // Publisher's optional "Subscription link" from the application wizard.
+  subscribeUrl: string | null;
   submittedDate: string;
   status: string;
   location: string | null;
@@ -75,6 +77,11 @@ export const AdminApplicationDetail = () => {
           phone: null,
           website: pubData.social_website_link,
           instagram: null,
+          // Only http(s) links are shown, so a hand-edited value can't become a javascript: href.
+          subscribeUrl: (() => {
+            const raw = ((pubData.additional_info as { subscribeUrl?: string } | null)?.subscribeUrl || "").trim();
+            return /^https?:\/\//i.test(raw) ? raw : null;
+          })(),
           submittedDate: pubData.created_at ? format(new Date(pubData.created_at), "MMMM d, yyyy") : 'Unknown',
           status: pubData.status || 'submitted',
           location: location || null,
@@ -113,6 +120,7 @@ export const AdminApplicationDetail = () => {
           phone: retData.phone,
           website: retData.shop_url,
           instagram: retData.instagram_handle,
+          subscribeUrl: null,
           submittedDate: retData.submitted_at
             ? format(new Date(retData.submitted_at), "MMMM d, yyyy")
             : retData.created_at
@@ -274,6 +282,12 @@ export const AdminApplicationDetail = () => {
                       <Instagram className="w-4 h-4 text-muted-foreground" />
                       {application.instagram}
                     </div>
+                  )}
+                  {application.subscribeUrl && (
+                    <a href={application.subscribeUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-body text-accent hover:underline">
+                      <Newspaper className="w-4 h-4 text-muted-foreground" />
+                      Subscribe: {application.subscribeUrl}
+                    </a>
                   )}
                 </div>
 

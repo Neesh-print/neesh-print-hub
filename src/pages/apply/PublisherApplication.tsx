@@ -18,6 +18,7 @@ import {
   PUBLISHER_APPLICATION_STEPS,
 } from "@/lib/constants";
 import { IntlMinimumNote } from "@/components/publisher/shipping/IntlMinimumNote";
+import { isValidSubscribeUrl, normalizeSubscribeUrl } from "@/lib/subscribe-url";
 
 const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
 
@@ -49,6 +50,10 @@ interface FormData {
   // Step 6: Online Presence
   websiteUrl: string;
   instagramHandle: string;
+  // Optional. Kept in additional_info.subscribeUrl; a DB trigger copies it to
+  // publisher_applications.subscribe_url and, once the claim links to an
+  // Index title, onto directory_titles.subscribe_url.
+  subscribeUrl: string;
   // Step 7: Shipping Location
   shippingCountry: string;
   shipFromLine1: string;
@@ -88,6 +93,7 @@ const defaultFormValues: FormData = {
   description: "",
   websiteUrl: "",
   instagramHandle: "",
+  subscribeUrl: "",
   shippingCountry: "",
   shipFromLine1: "",
   shipFromLine2: "",
@@ -217,6 +223,7 @@ export const PublisherApplication = () => {
                 description: dbData.description || '',
                 websiteUrl: dbData.social_website_link || additionalInfo.websiteUrl || '',
                 instagramHandle: dbData.instagram_handle || '',
+                subscribeUrl: additionalInfo.subscribeUrl || '',
                 shippingCountry: dbData.shipping_country || '',
                 shipFromLine1: additionalInfo.shipFromLine1 || '',
                 shipFromLine2: additionalInfo.shipFromLine2 || '',
@@ -488,7 +495,7 @@ export const PublisherApplication = () => {
       case 5:
         return await trigger("description");
       case 6:
-        return !!(formValues.websiteUrl || formValues.instagramHandle);
+        return !!(formValues.websiteUrl || formValues.instagramHandle) && await trigger("subscribeUrl");
       case 7:
         return await trigger(["shippingCountry", "shipFromLine1", "shippingCity", "shippingState", "shipFromPostalCode"]);
       case 8:
@@ -535,8 +542,15 @@ export const PublisherApplication = () => {
       return; // trigger() handles field errors
     }
 
-    // Save progress before moving to next step
-    await saveProgress();
+    // Store the subscription link as a full URL (bare domains get https://).
+    if (currentStep === 6) {
+      const subscribeUrl = normalizeSubscribeUrl(getValues("subscribeUrl"));
+      setValue("subscribeUrl", subscribeUrl);
+      await saveProgress({ subscribeUrl });
+    } else {
+      // Save progress before moving to next step
+      await saveProgress();
+    }
 
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
@@ -621,6 +635,7 @@ export const PublisherApplication = () => {
         submitted_at: new Date().toISOString(),
         additional_info: {
           ...formValues,
+          subscribeUrl: normalizeSubscribeUrl(formValues.subscribeUrl),
           ...(claimSlug ? { claimSlug } : {}),
           ...(firstTouch ? { firstTouch } : {}),
           acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null,
@@ -991,6 +1006,28 @@ export const PublisherApplication = () => {
                     }}
                     autoComplete="off"
                     name="publisher-instagram"
+                  />
+                )}
+              />
+              <Controller
+                name="subscribeUrl"
+                control={control}
+                rules={{
+                  validate: (value) =>
+                    isValidSubscribeUrl(value) || "Please enter a link that starts with http:// or https://",
+                }}
+                render={({ field }) => (
+                  <FormInput
+                    id="publisher-subscribe-url"
+                    label="Subscription link"
+                    inputMode="url"
+                    placeholder="https://yourmagazine.com/subscribe"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={() => field.onChange(normalizeSubscribeUrl(field.value))}
+                    error={errors.subscribeUrl?.message}
+                    helperText="Where readers can subscribe. We'll link to it from your Index page."
+                    autoComplete="off"
                   />
                 )}
               />

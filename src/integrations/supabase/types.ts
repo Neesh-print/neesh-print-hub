@@ -1089,6 +1089,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           suggested_retail_price: number | null
+          subscribe_url: string | null
           updated_at: string
           user_id: string | null
           volume_pricing: Json | null
@@ -1136,6 +1137,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           suggested_retail_price?: number | null
+          subscribe_url?: string | null
           updated_at?: string
           user_id?: string | null
           volume_pricing?: Json | null
@@ -1183,6 +1185,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           suggested_retail_price?: number | null
+          subscribe_url?: string | null
           updated_at?: string
           user_id?: string | null
           volume_pricing?: Json | null
