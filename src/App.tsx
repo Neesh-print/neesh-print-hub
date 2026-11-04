@@ -44,6 +44,7 @@ import {
 } from "./pages/publisher";
 import { PublisherTitlesList } from "./pages/publisher/PublisherTitlesList";
 import { PublisherSettings } from "./pages/publisher/PublisherSettings";
+import { PublisherIndexListing } from "./pages/publisher/PublisherIndexListing";
 import { PublisherHelpCenter, RetailerHelpCenter } from "./pages/shared/HelpCenter";
 
 // Retailer pages
@@ -248,6 +249,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
             <PublisherEditProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/publisher/index-listing"
+        element={
+          <ProtectedRoute allowedRoles={['publisher']}>
+            <PublisherIndexListing />
           </ProtectedRoute>
         }
       />

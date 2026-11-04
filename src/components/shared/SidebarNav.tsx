@@ -22,10 +22,12 @@ import {
   HelpCircle,
   Banknote,
   CreditCard,
-  ClipboardCheck
+  ClipboardCheck,
+  Globe
 } from "lucide-react";
 import { Logo } from "@/components/neesh/Logo";
 import { CartSidebarBadge } from "@/components/retailer/CartSidebarBadge";
+import { useOwnsIndexListing } from "@/hooks/useIndexListing";
 
 interface SidebarNavProps {
   userRole: 'publisher' | 'retailer' | 'admin';
@@ -42,10 +44,15 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   const navigate = useNavigate();
   const { signOut, profile } = useAuth();
   const unreadMessageCount = useUnreadMessageCount();
+  // Only the publisher who claimed an Index listing sees the item.
+  const ownsIndexListing = useOwnsIndexListing();
 
   const publisherNavItems: NavItem[] = [
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
     { label: "My Titles", icon: <BookOpen className="w-5 h-5" />, path: "/publisher/titles" },
+    ...(ownsIndexListing
+      ? [{ label: "Index listing", icon: <Globe className="w-5 h-5" />, path: "/publisher/index-listing" }]
+      : []),
     { label: "Orders", icon: <Package className="w-5 h-5" />, path: "/publisher/orders" },
     { label: "Analytics", icon: <BarChart3 className="w-5 h-5" />, path: "/publisher/analytics" },
     { label: "Transactions", icon: <Receipt className="w-5 h-5" />, path: "/publisher/transactions" },

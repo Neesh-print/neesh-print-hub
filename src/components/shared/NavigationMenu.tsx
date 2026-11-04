@@ -1,6 +1,7 @@
-import { X, LayoutDashboard, ShoppingBag, Package, Receipt, MessageSquare, User, LogOut, Store, ShoppingCart, Users, FileText, BarChart3, Settings, HelpCircle } from "lucide-react";
+import { X, LayoutDashboard, ShoppingBag, Package, Receipt, MessageSquare, User, LogOut, Store, ShoppingCart, Users, FileText, BarChart3, Settings, HelpCircle, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useOwnsIndexListing } from "@/hooks/useIndexListing";
 
 interface NavigationMenuProps {
   isOpen: boolean;
@@ -17,11 +18,15 @@ interface MenuItem {
 export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProps) => {
   const navigate = useNavigate();
   const { signOut, profile } = useAuth();
+  const ownsIndexListing = useOwnsIndexListing();
 
   const publisherMenuItems: MenuItem[] = [
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
     { label: "My Orders", icon: <Package className="w-5 h-5" />, path: "/publisher/orders" },
     { label: "My Titles", icon: <ShoppingBag className="w-5 h-5" />, path: "/publisher/titles" },
+    ...(ownsIndexListing
+      ? [{ label: "Index listing", icon: <Globe className="w-5 h-5" />, path: "/publisher/index-listing" }]
+      : []),
     { label: "Transactions", icon: <Receipt className="w-5 h-5" />, path: "/publisher/transactions" },
     { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/publisher/messages" },
     { label: "Profile", icon: <User className="w-5 h-5" />, path: "/publisher/profile" },
