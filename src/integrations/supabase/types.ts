@@ -1322,13 +1322,9 @@ export type Database = {
           created_at: string | null
           current_onboarding_step: number | null
           description: string | null
-          domestic_additional_copy_usd: number | null
-          domestic_first_copy_usd: number | null
           flat_rates: Json
           id: string
           instagram_handle: string | null
-          intl_additional_copy_usd: number | null
-          intl_first_copy_usd: number | null
           intl_min_copies: number
           packaging_preset: string
           profile_reminder_sent_at: string | null
@@ -1367,13 +1363,9 @@ export type Database = {
           created_at?: string | null
           current_onboarding_step?: number | null
           description?: string | null
-          domestic_additional_copy_usd?: number | null
-          domestic_first_copy_usd?: number | null
           flat_rates?: Json
           id?: string
           instagram_handle?: string | null
-          intl_additional_copy_usd?: number | null
-          intl_first_copy_usd?: number | null
           intl_min_copies?: number
           packaging_preset?: string
           profile_reminder_sent_at?: string | null
@@ -1412,13 +1404,9 @@ export type Database = {
           created_at?: string | null
           current_onboarding_step?: number | null
           description?: string | null
-          domestic_additional_copy_usd?: number | null
-          domestic_first_copy_usd?: number | null
           flat_rates?: Json
           id?: string
           instagram_handle?: string | null
-          intl_additional_copy_usd?: number | null
-          intl_first_copy_usd?: number | null
           intl_min_copies?: number
           packaging_preset?: string
           profile_reminder_sent_at?: string | null
