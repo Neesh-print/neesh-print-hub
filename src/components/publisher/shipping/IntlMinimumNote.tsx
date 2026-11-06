@@ -24,12 +24,15 @@ export const IntlMinimumNote = ({
   const name = countryName(country);
   const home = isEU(country) ? "the EU" : name;
   const costs = one !== null && five !== null
-    ? `shipping one copy to New York costs about ${money(one)}; five cost about ${money(five)}.`
-    : "shipping one copy to New York often costs 40 USD or more.";
+    ? `shipping one copy from ${name} to New York costs about ${money(one)} (five cost about ${money(five)}).`
+    : `shipping one copy from ${name} to New York often costs 40 USD or more.`;
 
+  // Says plainly that the minimum applies to spaces ordering from the
+  // publisher, not to the publisher. A UK publisher read the old wording
+  // ("orders ... start at 5 copies") as Neesh asking them to buy 5 issues.
   return (
     <div className={`p-4 rounded-lg bg-accent/5 border border-accent/30 text-sm text-foreground ${className}`}>
-      Most Neesh spaces are in the US. From {name}, {costs} To keep it worth it for spaces, orders from outside {home} start at 5 copies. You can change this later.
+      Most Neesh spaces are in the US, and {costs} So when a space outside {home} orders your title, their order starts at 5 copies. This only sets the smallest order spaces can place with you. You can change it anytime.
     </div>
   );
 };
