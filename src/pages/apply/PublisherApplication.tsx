@@ -944,8 +944,7 @@ export const PublisherApplication = () => {
                   : "Put your magazine on the Neesh Index"}
               </h1>
               <p className="text-muted-foreground text-lg max-w-md mx-auto mt-4">
-                Takes about 3 minutes. Claiming your page is free, and selling on Neesh is a
-                separate choice you&rsquo;ll make later in this form.
+                Takes about 3 minutes.
               </p>
             </div>
             <div className="space-y-4">
