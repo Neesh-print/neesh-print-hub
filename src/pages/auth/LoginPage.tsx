@@ -12,7 +12,7 @@ const passwordSchema = z.string().min(1, 'Password is required');
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isLoading: authLoading, isRoleLoading, userRole, signIn } = useAuth();
+  const { user, isLoading: authLoading, isRoleLoading, userRole, signIn, signInWithEmailLink } = useAuth();
 
   // ProtectedRoute sends the intended destination along when it bounces an
   // unauthenticated visitor here. Emailed links (e.g. the payout nudge landing
@@ -27,6 +27,9 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // "Email me a sign-in link": works for any existing account, no password.
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [linkSentTo, setLinkSentTo] = useState<string | null>(null);
 
   // Redirect if already logged in AND role is loaded
   useEffect(() => {
@@ -109,6 +112,54 @@ const LoginPage = () => {
     }
   };
 
+  const handleEmailLink = async () => {
+    setError('');
+    const emailResult = emailSchema.safeParse(email.trim());
+    if (!emailResult.success) {
+      setError('Enter your email above and we will send you a sign-in link.');
+      return;
+    }
+    setIsSendingLink(true);
+    try {
+      // The result is deliberately not shown: an email with no account gets
+      // exactly the same screen, so this can't be used to find out who has one.
+      const { error: linkError } = await signInWithEmailLink(email.trim(), redirectPath);
+      if (linkError) console.warn('Sign-in link not sent:', linkError.message);
+    } catch (err) {
+      console.warn('Sign-in link not sent:', err);
+    } finally {
+      setIsSendingLink(false);
+      setLinkSentTo(email.trim());
+    }
+  };
+
+  if (linkSentTo) {
+    return (
+      <AuthLayout showBackArrow onBack={() => setLinkSentTo(null)}>
+        <div className="mb-8">
+          <h1 className="font-display font-bold text-display text-foreground mb-2">
+            Check your email
+          </h1>
+          <p className="text-body text-text-secondary">
+            If there&rsquo;s a Neesh account for <span className="text-foreground">{linkSentTo}</span>,
+            we&rsquo;ve sent a sign-in link. It works once, for an hour.
+          </p>
+        </div>
+        <p className="text-caption text-text-secondary">
+          Nothing arrived? Check your spam folder, or{' '}
+          <button
+            type="button"
+            onClick={() => setLinkSentTo(null)}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            try again
+          </button>
+          .
+        </p>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout showBackArrow onBack={() => navigate('/')}>
       {/* Header */}
@@ -165,6 +216,18 @@ const LoginPage = () => {
         >
           Log in
         </ButtonPrimary>
+
+        <button
+          type="button"
+          onClick={handleEmailLink}
+          disabled={isSendingLink}
+          className="w-full h-12 rounded-lg border border-border text-body font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-60"
+        >
+          {isSendingLink ? 'Sending...' : 'Email me a sign-in link'}
+        </button>
+        <p className="text-caption text-text-secondary text-center">
+          No password needed. We&rsquo;ll email you a link that signs you in.
+        </p>
       </form>
 
       {/* Divider */}

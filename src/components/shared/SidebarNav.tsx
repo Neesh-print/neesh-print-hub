@@ -42,7 +42,9 @@ interface NavItem {
 export const SidebarNav = ({ userRole }: SidebarNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, publisherStatus } = useAuth();
+  // Claim-only publishers don't sell on Neesh: no orders, listings or money pages.
+  const claimOnly = !!publisherStatus && !publisherStatus.sellsOnNeesh;
   const unreadMessageCount = useUnreadMessageCount();
   // Only the publisher who claimed an Index listing sees the item.
   const ownsIndexListing = useOwnsIndexListing();
@@ -99,8 +101,9 @@ export const SidebarNav = ({ userRole }: SidebarNavProps) => {
     { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/admin/settings" },
   ];
 
+  const sellerOnlyPaths = ["/publisher/orders", "/publisher/titles", "/publisher/transactions"];
   const navItems = userRole === 'publisher' 
-    ? publisherNavItems 
+    ? publisherNavItems.filter((item) => !claimOnly || !sellerOnlyPaths.includes(item.path)) 
     : userRole === 'retailer' 
       ? retailerNavItems 
       : adminNavItems;

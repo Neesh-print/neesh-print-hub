@@ -1092,6 +1092,7 @@ export type Database = {
           subscribe_url: string | null
           updated_at: string
           user_id: string | null
+          wants_to_sell: boolean | null
           volume_pricing: Json | null
           volume_pricing_tiers: Json | null
           wholesale_price: number | null
@@ -1140,6 +1141,7 @@ export type Database = {
           subscribe_url?: string | null
           updated_at?: string
           user_id?: string | null
+          wants_to_sell?: boolean | null
           volume_pricing?: Json | null
           volume_pricing_tiers?: Json | null
           wholesale_price?: number | null
@@ -1188,6 +1190,7 @@ export type Database = {
           subscribe_url?: string | null
           updated_at?: string
           user_id?: string | null
+          wants_to_sell?: boolean | null
           volume_pricing?: Json | null
           volume_pricing_tiers?: Json | null
           wholesale_price?: number | null
@@ -1314,6 +1317,8 @@ export type Database = {
       publishers: {
         Row: {
           application_data: Json | null
+          sell_opt_in_at: string | null
+          sells_on_neesh: boolean
           application_status:
             | Database["public"]["Enums"]["publisher_application_status"]
             | null
@@ -1359,6 +1364,8 @@ export type Database = {
         }
         Insert: {
           application_data?: Json | null
+          sell_opt_in_at?: string | null
+          sells_on_neesh?: boolean
           application_status?:
             | Database["public"]["Enums"]["publisher_application_status"]
             | null
@@ -1404,6 +1411,8 @@ export type Database = {
         }
         Update: {
           application_data?: Json | null
+          sell_opt_in_at?: string | null
+          sells_on_neesh?: boolean
           application_status?:
             | Database["public"]["Enums"]["publisher_application_status"]
             | null

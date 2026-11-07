@@ -6,5 +6,7 @@ export {
   EMAIL_SUBJECTS,
   generateApplicationReceivedEmail,
   generateApprovalEmail,
+  generateClaimApprovalEmail,
+  generateSellApprovalEmail,
   generateRejectionEmail,
 } from "../../supabase/functions/_shared/application-emails";

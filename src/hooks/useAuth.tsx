@@ -25,6 +25,9 @@ interface PublisherStatus {
   publisherId: string;
   applicationStatus: ApplicationStatus;
   currentStep: number;
+  // False for a claim-only publisher: they own an Index page but don't sell
+  // on Neesh, so the marketplace parts of the portal are locked.
+  sellsOnNeesh: boolean;
 }
 
 interface AuthContextType {
@@ -36,6 +39,7 @@ interface AuthContextType {
   isLoading: boolean;
   isRoleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithEmailLink: (email: string, next?: string | null) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, role: UserRole) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
@@ -58,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchPublisherStatus = async (userId: string) => {
     const { data: publisher, error } = await supabase
       .from('publishers')
-      .select('id, application_status, current_onboarding_step')
+      .select('id, application_status, current_onboarding_step, sells_on_neesh')
       .eq('user_id', userId)
       .single();
 
@@ -67,6 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         publisherId: publisher.id,
         applicationStatus: publisher.application_status as ApplicationStatus,
         currentStep: publisher.current_onboarding_step || 1,
+        // Before the column exists (migration not applied) everyone is a seller.
+        sellsOnNeesh: publisher.sells_on_neesh !== false,
       });
     } else {
       setPublisherStatus(null);
@@ -160,6 +166,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+    });
+    return { error: error as Error | null };
+  };
+
+  // "Email me a sign-in link". Existing accounts only (shouldCreateUser:
+  // false), so it can't be used to sign up. The caller shows the same
+  // message whatever happens, so nobody learns who has an account.
+  const signInWithEmailLink = async (email: string, next?: string | null) => {
+    const callback = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: next ? `${callback}?next=${encodeURIComponent(next)}` : callback,
+      },
     });
     return { error: error as Error | null };
   };
@@ -268,6 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       isRoleLoading,
       signIn,
+      signInWithEmailLink,
       signUp,
       signInWithGoogle,
       resetPassword,

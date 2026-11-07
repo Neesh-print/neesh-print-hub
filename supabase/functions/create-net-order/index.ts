@@ -191,7 +191,24 @@ Deno.serve(async (req) => {
       return json(400, { error: 'No valid magazines found in cart' })
     }
 
-    const magazineMap = new Map(magazines.map(m => [m.id, m]))
+    // Claim-only publishers don't sell on Neesh: their titles can't be bought,
+    // even if a magazine id is sent to this function directly.
+    const sellerIds = new Set<string>()
+    {
+      const publisherIds = [...new Set(magazines.map(m => m.publisher_id))]
+      const { data: sellers, error: sellersError } = await supabaseAdmin
+        .from('publishers')
+        .select('id')
+        .in('id', publisherIds)
+        .eq('sells_on_neesh', true)
+      if (sellersError) {
+        console.error('Error checking sellers:', sellersError)
+        return json(500, { error: 'Failed to fetch magazine data' })
+      }
+      for (const row of sellers ?? []) sellerIds.add(row.id)
+    }
+
+    const magazineMap = new Map(magazines.filter(m => sellerIds.has(m.publisher_id)).map(m => [m.id, m]))
 
     interface Line {
       magazine_id: string
