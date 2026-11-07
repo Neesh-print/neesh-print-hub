@@ -2073,8 +2073,7 @@ export const PublisherApplication = () => {
               <div className="mb-6 p-4 rounded-lg border border-accent/40 bg-accent/5 text-sm text-foreground">
                 You&apos;re claiming{" "}
                 <strong>{formValues.magazineTitle || "your title"}</strong> from the
-                Neesh Index. Claiming is free, and selling is a separate choice
-                you&apos;ll make later in this form.
+                Neesh Index.
               </div>
             )}
 
