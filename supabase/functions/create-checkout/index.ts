@@ -233,8 +233,28 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Claim-only publishers don't sell on Neesh: their titles can't be bought,
+    // even if a magazine id is sent to this function directly.
+    const sellerIds = new Set<string>()
+    {
+      const publisherIds = [...new Set(magazines.map(m => m.publisher_id))]
+      const { data: sellers, error: sellersError } = await supabaseClient
+        .from('publishers')
+        .select('id')
+        .in('id', publisherIds)
+        .eq('sells_on_neesh', true)
+      if (sellersError) {
+        console.error('Error checking sellers:', sellersError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch magazine data' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      for (const row of sellers ?? []) sellerIds.add(row.id)
+    }
+
     // Create a map of magazine data for quick lookup
-    const magazineMap = new Map(magazines.map(m => [m.id, m]))
+    const magazineMap = new Map(magazines.filter(m => sellerIds.has(m.publisher_id)).map(m => [m.id, m]))
 
     // Validate all cart items have valid magazines
     for (const item of checkoutRequest.cart_items) {

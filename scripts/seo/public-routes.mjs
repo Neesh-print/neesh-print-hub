@@ -34,6 +34,7 @@ export const KNOWN_UNRENDERED = new Set([
   '/legal/privacy',
   '/legal/terms',
   '/legal/publisher-agreement',
+  '/legal/index-terms',
   '/legal/retailer-agreement',
   '/home', // redirect helper
   '/login',

@@ -60,9 +60,11 @@ Deno.serve(async (req) => {
 
     // Generate email HTML
     const emailHtml = generateApplicationReceivedEmail(requestData)
-    const subject = requestData.claimTitle
-      ? EMAIL_SUBJECTS.claimReceived(requestData.claimTitle)
-      : EMAIL_SUBJECTS.applicationReceived(requestData.businessName)
+    const subject = requestData.sellUpgrade
+      ? EMAIL_SUBJECTS.sellApplicationReceived(requestData.businessName)
+      : requestData.claimTitle
+        ? EMAIL_SUBJECTS.claimReceived(requestData.claimTitle)
+        : EMAIL_SUBJECTS.applicationReceived(requestData.businessName)
 
     console.log(`Sending application received email to ${requestData.email}`)
 

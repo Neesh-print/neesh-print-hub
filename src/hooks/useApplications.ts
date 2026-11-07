@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { generateApprovalEmail, generateRejectionEmail, EMAIL_SUBJECTS } from "@/lib/emailTemplates";
+import {
+  generateApprovalEmail,
+  generateClaimApprovalEmail,
+  generateSellApprovalEmail,
+  generateRejectionEmail,
+  EMAIL_SUBJECTS,
+} from "@/lib/emailTemplates";
+import { publisherApplicationKind } from "@/lib/applicationStatus";
 
 /**
  * Normalized application status. 'pending' means submitted and awaiting a
@@ -264,15 +271,49 @@ export const useApplications = (options: UseApplicationsOptions = {}): UseApplic
         ? (application.business_name || application.magazine_title || 'Your Business')
         : (application.shop_name || 'Your Shop');
 
-      // Placeholder link for the preview; the real one is generated when sending
-      const recoveryLinkUrl = `${window.location.origin}/${type}`;
+      // Placeholder links for the preview; the real ones are generated when sending.
+      const origin = window.location.origin;
+      const kind = type === 'publisher' ? publisherApplicationKind(application) : 'claim_and_sell';
+
+      if (kind === 'claim_only') {
+        const titleName = application.magazine_title || application.business_name || 'Your title';
+        return {
+          to: email,
+          subject: EMAIL_SUBJECTS.claimApproval(titleName),
+          html: generateClaimApprovalEmail({
+            firstName,
+            titleName,
+            editPageUrl: `${origin}/publisher/index-listing`,
+            loginUrl: `${origin}/login`,
+            startSellingUrl: `${origin}/apply/publisher?sell=1`,
+          }),
+          recipientName: firstName,
+          businessName,
+        };
+      }
+
+      if (kind === 'start_selling') {
+        return {
+          to: email,
+          subject: EMAIL_SUBJECTS.sellApproval(businessName),
+          html: generateSellApprovalEmail({
+            firstName,
+            businessName,
+            dashboardUrl: `${origin}/publisher`,
+            loginUrl: `${origin}/login`,
+          }),
+          recipientName: firstName,
+          businessName,
+        };
+      }
 
       const html = generateApprovalEmail({
         firstName,
         businessName,
         role: type,
-        recoveryLinkUrl,
-        forgotPasswordUrl: `${window.location.origin}/forgot-password`,
+        recoveryLinkUrl: `${origin}/${type}`,
+        forgotPasswordUrl: `${origin}/forgot-password`,
+        loginUrl: `${origin}/login`,
       });
 
       return {

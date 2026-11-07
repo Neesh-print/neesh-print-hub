@@ -11,12 +11,28 @@ interface PublisherLayoutProps {
 
 export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, publisherStatus, session } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
 
+  // Claim-only publishers sign in with an email link and never need a
+  // password, and anyone who came in by email link can set one later from
+  // Settings. Only password-path users are made to set one here.
+  const claimOnly = !!publisherStatus && !publisherStatus.sellsOnNeesh;
+  const signedInByEmailLink = (() => {
+    try {
+      const payload = session?.access_token?.split(".")[1];
+      if (!payload) return false;
+      const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+      return Array.isArray(claims.amr) && claims.amr.some((m: { method?: string }) => m.method === "otp" || m.method === "magiclink");
+    } catch {
+      return false;
+    }
+  })();
+  const skipForcedPassword = claimOnly || signedInByEmailLink;
+
   useEffect(() => {
-    if (!user) return;
+    if (!user || skipForcedPassword) return;
     const checkPassword = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -28,7 +44,7 @@ export const PublisherLayout = ({ children }: PublisherLayoutProps) => {
       }
     };
     checkPassword();
-  }, [user]);
+  }, [user, skipForcedPassword]);
 
   return (
     <div className="min-h-screen bg-background">

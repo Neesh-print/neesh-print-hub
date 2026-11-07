@@ -17,8 +17,10 @@ interface MenuItem {
 
 export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProps) => {
   const navigate = useNavigate();
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, publisherStatus } = useAuth();
   const ownsIndexListing = useOwnsIndexListing();
+  // Claim-only publishers don't sell on Neesh: no orders, listings or money pages.
+  const claimOnly = !!publisherStatus && !publisherStatus.sellsOnNeesh;
 
   const publisherMenuItems: MenuItem[] = [
     { label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/publisher" },
@@ -52,8 +54,9 @@ export const NavigationMenu = ({ isOpen, onClose, userRole }: NavigationMenuProp
     { label: "Settings", icon: <Settings className="w-5 h-5" />, path: "/admin/settings" },
   ];
 
+  const sellerOnlyPaths = ["/publisher/orders", "/publisher/titles", "/publisher/transactions"];
   const menuItems = userRole === 'publisher' 
-    ? publisherMenuItems 
+    ? publisherMenuItems.filter((item) => !claimOnly || !sellerOnlyPaths.includes(item.path)) 
     : userRole === 'retailer' 
       ? retailerMenuItems 
       : adminMenuItems;

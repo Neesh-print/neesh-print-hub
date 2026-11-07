@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Globe, Instagram, Mail, Newspaper, Phone, MapPin, AlertCircle, Loader2 } from "lucide-react";
 import { AdminLayout, ConfirmationModal } from "@/components/admin";
+import { ApplicationKindBadge } from "@/components/admin/ApplicationKindBadge";
+import { publisherApplicationKind } from "@/lib/applicationStatus";
 import { BackNavigation, InfoCard, ButtonPrimary, ButtonSecondary, FormTextarea } from "@/components/neesh";
 import { supabase } from "@/integrations/supabase/client";
 import { useApplications } from "@/hooks/useApplications";
@@ -51,6 +53,9 @@ export const AdminApplicationDetail = () => {
   // Keeps the confirm button disabled while a decision is in flight, so a
   // second click cannot send a second approval email.
   const [isDeciding, setIsDeciding] = useState(false);
+  // The raw publisher_applications row, for the claim / sell kind.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [rawPublisherApp, setRawPublisherApp] = useState<Record<string, any> | null>(null);
 
   const { approveApplication, rejectApplication } = useApplications();
 
@@ -68,6 +73,7 @@ export const AdminApplicationDetail = () => {
         .maybeSingle();
 
       if (pubData) {
+        setRawPublisherApp(pubData);
         const location = [pubData.shipping_city, pubData.shipping_state].filter(Boolean).join(', ');
         setApplication({
           id: pubData.id,
@@ -256,7 +262,20 @@ export const AdminApplicationDetail = () => {
                   }`}>
                     {application.type === 'publisher' ? 'Publisher' : 'Retailer'}
                   </span>
+                  {application.type === 'publisher' && (
+                    <span className="ml-2 align-middle"><ApplicationKindBadge data={rawPublisherApp} /></span>
+                  )}
                 </div>
+                {application.type === 'publisher' && publisherApplicationKind(rawPublisherApp) === "claim_only" && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 text-caption text-foreground">
+                  <p className="font-medium">Claim only: lighter review</p>
+                  <p className="text-muted-foreground mt-1">
+                    Confirm the person is really the publisher: the email domain matches the
+                    website, or the Instagram matches. No product review. Approving creates a
+                    login, marks the Index page claimed, and creates no listing.
+                  </p>
+                </div>
+              )}
 
                 <div className="space-y-2">
                   {application.email && (
@@ -501,7 +520,9 @@ export const AdminApplicationDetail = () => {
         onConfirm={handleApprove}
         isLoading={isDeciding}
         title="Approve Application"
-        message={`Are you sure you want to approve ${application.name}? This will create their account and send an approval email.`}
+        message={application.type === 'publisher' && publisherApplicationKind(rawPublisherApp) === 'claim_only'
+          ? `Approve the claim for ${application.name}? This creates their login, marks their Index page claimed, and emails them a link to edit it. Nothing is listed for sale.`
+          : `Are you sure you want to approve ${application.name}? This will create their account and send an approval email.`}
         confirmLabel="Approve"
       />
 

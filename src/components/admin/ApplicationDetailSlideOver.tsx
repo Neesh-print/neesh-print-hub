@@ -6,7 +6,8 @@ import { ConfirmationModal } from "./ConfirmationModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { applicationStatusBadge } from "@/lib/applicationStatus";
+import { applicationStatusBadge, publisherApplicationKind } from "@/lib/applicationStatus";
+import { ApplicationKindBadge } from "./ApplicationKindBadge";
 import type { ApplicationStatus } from "@/hooks/useApplications";
 
 export interface ApplicationNote {
@@ -188,10 +189,21 @@ export const ApplicationDetailSlideOver = ({
               {/* Status */}
               <div className="flex items-center gap-2">
                 <StatusBadge {...applicationStatusBadge(application.status)} />
+                {application.type === 'publisher' && <ApplicationKindBadge data={appData} />}
                 <span className="text-caption text-muted-foreground">
                   Submitted {formatRelativeDate(application.submitted_at)}
                 </span>
               </div>
+              {application.type === 'publisher' && publisherApplicationKind(appData) === "claim_only" && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 text-caption text-foreground">
+                  <p className="font-medium">Claim only: lighter review</p>
+                  <p className="text-muted-foreground mt-1">
+                    Confirm the person is really the publisher: the email domain matches the
+                    website, or the Instagram matches. No product review. Approving creates a
+                    login, marks the Index page claimed, and creates no listing.
+                  </p>
+                </div>
+              )}
 
               {/* Contact Information */}
               <InfoCard title="Contact Information">
@@ -481,7 +493,9 @@ export const ApplicationDetailSlideOver = ({
         onClose={() => setShowApproveModal(false)}
         onConfirm={handleApprove}
         title="Approve Application"
-        message={`Are you sure you want to approve ${application.name}? This will create their account and send an approval email.`}
+        message={application.type === 'publisher' && publisherApplicationKind(appData) === 'claim_only'
+          ? `Approve the claim for ${application.name}? This creates their login, marks their Index page claimed, and emails them a link to edit it. Nothing is listed for sale.`
+          : `Are you sure you want to approve ${application.name}? This will create their account and send an approval email.`}
         confirmLabel="Approve"
       />
 

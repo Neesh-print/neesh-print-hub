@@ -23,6 +23,7 @@ import {
 
 // Apply pages
 import { PublisherApplication, RetailerApplication } from "./pages/apply";
+import { SellerOnly } from "./components/publisher/SellerOnly";
 
 // Publisher pages
 import {
@@ -191,6 +192,7 @@ const AppRoutes = () => {
       <Route path="/legal/privacy" element={<ExternalRedirect to={`${MARKETING_SITE}/privacy`} />} />
       <Route path="/legal/terms" element={<ExternalRedirect to={`${MARKETING_SITE}/terms`} />} />
       <Route path="/legal/publisher-agreement" element={<ExternalRedirect to={`${MARKETING_SITE}/publisher-agreement`} />} />
+      <Route path="/legal/index-terms" element={<ExternalRedirect to={`${MARKETING_SITE}/index-terms`} />} />
       <Route path="/legal/retailer-agreement" element={<ExternalRedirect to={`${MARKETING_SITE}/retailer-agreement`} />} />
 
       {/* Legacy home redirect for logged-in users */}
@@ -224,7 +226,7 @@ const AppRoutes = () => {
         path="/publisher/orders"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherOrdersList />
+            <SellerOnly><PublisherOrdersList /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -232,7 +234,7 @@ const AppRoutes = () => {
         path="/publisher/orders/:id"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherOrderDetail />
+            <SellerOnly><PublisherOrderDetail /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -264,7 +266,7 @@ const AppRoutes = () => {
         path="/publisher/titles"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherTitlesList />
+            <SellerOnly><PublisherTitlesList /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -272,7 +274,7 @@ const AppRoutes = () => {
         path="/publisher/titles/import"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherBulkImport />
+            <SellerOnly><PublisherBulkImport /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -280,7 +282,7 @@ const AppRoutes = () => {
         path="/publisher/titles/new"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherEditTitle />
+            <SellerOnly><PublisherEditTitle /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -288,7 +290,7 @@ const AppRoutes = () => {
         path="/publisher/titles/:id/edit"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherEditTitle />
+            <SellerOnly><PublisherEditTitle /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -296,7 +298,7 @@ const AppRoutes = () => {
         path="/publisher/transactions"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherTransactionHistory />
+            <SellerOnly><PublisherTransactionHistory /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -304,7 +306,7 @@ const AppRoutes = () => {
         path="/publisher/transfers"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherTransfers />
+            <SellerOnly><PublisherTransfers /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -312,7 +314,7 @@ const AppRoutes = () => {
         path="/publisher/transfers/withdraw"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherWithdraw />
+            <SellerOnly><PublisherWithdraw /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -328,7 +330,7 @@ const AppRoutes = () => {
         path="/publisher/settings/payout"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <PublisherPayoutSettings />
+            <SellerOnly><PublisherPayoutSettings /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -338,7 +340,7 @@ const AppRoutes = () => {
         path="/onboarding/continue"
         element={
           <ProtectedRoute allowedRoles={['publisher', 'admin']}>
-            <ContinueOnboarding />
+            <SellerOnly><ContinueOnboarding /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -363,7 +365,7 @@ const AppRoutes = () => {
         path="/publisher/onboarding"
         element={
           <ProtectedRoute allowedRoles={['publisher']}>
-            <PublisherOnboarding />
+            <SellerOnly><PublisherOnboarding /></SellerOnly>
           </ProtectedRoute>
         }
       />
@@ -372,7 +374,7 @@ const AppRoutes = () => {
         path="/onboarding/start"
         element={
           <ProtectedRoute allowedRoles={['publisher']}>
-            <OnboardingStart />
+            <SellerOnly><OnboardingStart /></SellerOnly>
           </ProtectedRoute>
         }
       />
