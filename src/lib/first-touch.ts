@@ -87,7 +87,6 @@ export function captureFirstTouch(): void {
  * Values are stored as-is, so keep them stable once live.
  */
 export const REFERRAL_SOURCES = [
-  { value: 'ai_assistant', label: 'ChatGPT or another AI assistant' },
   { value: 'search', label: 'Google or another search engine' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'reddit', label: 'Reddit' },

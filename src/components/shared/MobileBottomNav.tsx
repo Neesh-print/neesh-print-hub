@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -9,7 +10,9 @@ import {
   Heart,
   Truck, 
   Menu,
-  BarChart3
+  BarChart3,
+  Globe,
+  MessageSquare
 } from "lucide-react";
 
 interface NavTab {
@@ -32,6 +35,7 @@ export const MobileBottomNav = ({
   wishlistCount = 0,
   onMoreClick 
 }: MobileBottomNavProps) => {
+  const { publisherStatus } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -55,8 +59,17 @@ export const MobileBottomNav = ({
     { label: "Fulfillment", icon: <Truck className="w-5 h-5" />, path: "/admin/fulfillment" },
   ];
 
+  // Claim-only publishers get their Index page and messages instead of
+  // titles for sale and orders.
+  const claimOnly = !!publisherStatus && !publisherStatus.sellsOnNeesh;
+  const claimOnlyTabs: NavTab[] = [
+    publisherTabs[0],
+    { label: "Index page", icon: <Globe className="w-5 h-5" />, path: "/publisher/index-listing" },
+    { label: "Messages", icon: <MessageSquare className="w-5 h-5" />, path: "/publisher/messages" },
+    publisherTabs[3],
+  ];
   const tabs = userRole === 'publisher' 
-    ? publisherTabs 
+    ? (claimOnly ? claimOnlyTabs : publisherTabs) 
     : userRole === 'retailer' 
       ? retailerTabs 
       : adminTabs;

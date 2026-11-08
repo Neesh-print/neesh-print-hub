@@ -285,7 +285,17 @@ export async function quoteCart(opts: {
     .select('id, title, wholesale_price, minimum_order_quantity, weight_grams, width_mm, height_mm, publisher_id, is_active')
     .in('id', items.map((i) => i.magazine_id))
   if (magErr) throw new Error(`Failed to load titles: ${magErr.message}`)
-  const magazines = new Map((magazineRows as MagazineRow[] | null ?? []).map((m) => [m.id, m]))
+  // Titles from claim-only publishers (sells_on_neesh = false) are never
+  // quoted: they can't be ordered.
+  const rows = (magazineRows as MagazineRow[] | null) ?? []
+  const { data: sellerRows, error: sellerErr } = await admin
+    .from('publishers')
+    .select('id')
+    .in('id', [...new Set(rows.map((m) => m.publisher_id))])
+    .eq('sells_on_neesh', true)
+  if (sellerErr) throw new Error(`Failed to load sellers: ${sellerErr.message}`)
+  const sellerIds = new Set(((sellerRows ?? []) as { id: string }[]).map((r) => r.id))
+  const magazines = new Map(rows.filter((m) => sellerIds.has(m.publisher_id)).map((m) => [m.id, m]))
 
   const byPublisher = new Map<string, CartLine[]>()
   for (const item of items) {

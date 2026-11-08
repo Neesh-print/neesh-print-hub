@@ -13,6 +13,8 @@ import { PublisherPayoutBanner } from "@/components/publisher/PublisherPayoutBan
 import { PublisherShippingBanner } from "@/components/publisher/shipping/PublisherShippingBanner";
 import { usePublisherAnalytics } from "@/hooks/usePublisherAnalytics";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
+import { useAuth } from "@/hooks/useAuth";
+import { ClaimOnlyDashboard } from "@/components/publisher/ClaimOnlyDashboard";
 
 // ... inside component ...
 
@@ -24,6 +26,7 @@ export const PublisherDashboard = () => {
   const [activePeriod, setActivePeriod] = useState("M");
   const [titlesExpanded, setTitlesExpanded] = useState(true);
 
+  const { publisherStatus } = useAuth();
   const { publisher, isLoading: publisherLoading, error: publisherError } = usePublisherProfile();
   const { magazines, isLoading: magazinesLoading, error: magazinesError, refetch: refetchMagazines } = useMagazines({
     publisherId: publisher?.id,
@@ -80,6 +83,11 @@ export const PublisherDashboard = () => {
     { key: "quantity", header: "Volume" },
     { key: "fulfillment_status", header: "Fulfillment", render: (value: string) => <StatusBadge status={value as import("@/components/neesh/StatusBadge").StatusType} /> },
   ];
+
+  // Claimed their Index page without selling: no sales dashboard.
+  if (publisherStatus && !publisherStatus.sellsOnNeesh) {
+    return <ClaimOnlyDashboard companyName={publisher?.company_name} />;
+  }
 
   if (isLoading) {
     return (

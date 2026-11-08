@@ -15,12 +15,11 @@ import {
   PUBLICATION_FREQUENCIES,
   DISTRIBUTION_REGIONS,
   FULFILLMENT_OPTIONS,
-  PUBLISHER_APPLICATION_STEPS,
 } from "@/lib/constants";
 import { IntlMinimumNote } from "@/components/publisher/shipping/IntlMinimumNote";
 import { isValidSubscribeUrl, normalizeSubscribeUrl } from "@/lib/subscribe-url";
+import { buildPublisherSteps, SELL_FIELDS, type StepKey } from "@/lib/publisher-application-steps";
 
-const TOTAL_STEPS = PUBLISHER_APPLICATION_STEPS;
 
 // The wizard keeps prices/quantities as strings so the inputs stay controlled;
 // the DB columns are numeric, so blanks must become null rather than NaN.
@@ -35,15 +34,15 @@ const toIntOrNull = (value: string | undefined): number | null => {
 };
 
 interface FormData {
-  // Step 1: Contact Info (no password - account created on approval)
+  // Contact info (no password - account created on approval)
   firstName: string;
   lastName: string;
   email: string;
-  // Step 2: Business Name
+  // Who publishes it (company or studio)
   businessName: string;
-  // Step 3: Magazine Title
+  // The magazine itself (prefilled, and its step skipped, on a claim)
   magazineTitle: string;
-  // Step 4: Cover Image
+  // Cover Image
   coverImageUrl: string;
   // Step 5: Description
   description: string;
@@ -54,7 +53,11 @@ interface FormData {
   // publisher_applications.subscribe_url and, once the claim links to an
   // Index title, onto directory_titles.subscribe_url.
   subscribeUrl: string;
-  // Step 7: Shipping Location
+  // "Do you want to sell on Neesh?" Null until answered; neither option is
+  // preselected. Saved in additional_info.wantsToSell, which a DB trigger
+  // mirrors to publisher_applications.wants_to_sell.
+  wantsToSell: boolean | null;
+  // Selling steps: Shipping Location
   shippingCountry: string;
   shipFromLine1: string;
   shipFromLine2: string;
@@ -75,12 +78,44 @@ interface FormData {
   fulfillmentMethod: string;
   // Step 11: Additional Info
   cloudLink: string;
-  // Step 12: Confirmation
+  // Confirmation. acceptTerms covers the marketplace terms (sellers);
+  // acceptIndexTerms covers the Index Terms (claim only).
   confirmRights: boolean;
   acceptTerms: boolean;
+  acceptIndexTerms: boolean;
   optInUpdates: boolean;
   referralSource: string;
   referralDetail: string;
+}
+
+// The publisher_applications row as get_publisher_application and the
+// signed-in select return it. additional_info holds the whole wizard form.
+interface PublisherApplicationDB {
+  id: string;
+  user_id: string | null;
+  status: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  business_name: string | null;
+  magazine_title: string | null;
+  cover_image_url: string | null;
+  description: string | null;
+  social_website_link: string | null;
+  instagram_handle: string | null;
+  shipping_country: string | null;
+  shipping_city: string | null;
+  shipping_state: string | null;
+  issue_frequency: string | null;
+  publication_type: string | null;
+  distribution_channels: string[] | null;
+  wholesale_price: number | null;
+  suggested_retail_price: number | null;
+  available_quantity: number | null;
+  fulfillment_method: string | null;
+  quotes_feedback: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  additional_info: Record<string, any> | null;
 }
 
 const defaultFormValues: FormData = {
@@ -94,6 +129,7 @@ const defaultFormValues: FormData = {
   websiteUrl: "",
   instagramHandle: "",
   subscribeUrl: "",
+  wantsToSell: null,
   shippingCountry: "",
   shipFromLine1: "",
   shipFromLine2: "",
@@ -112,6 +148,7 @@ const defaultFormValues: FormData = {
   cloudLink: "",
   confirmRights: false,
   acceptTerms: false,
+  acceptIndexTerms: false,
   optInUpdates: true,
   referralSource: "",
   referralDetail: "",
@@ -136,6 +173,9 @@ export const PublisherApplication = () => {
   const [isLoadingResume, setIsLoadingResume] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  // "Start selling on Neesh" from the portal: a signed-in claim-only
+  // publisher, resuming at the selling question with the page steps filled.
+  const [isSellUpgrade, setIsSellUpgrade] = useState(false);
 
   // Persist ID and Token
   useEffect(() => {
@@ -169,18 +209,32 @@ export const PublisherApplication = () => {
 
   const formValues = watch();
 
-  // Read the claim context handed over by the public index. The title
-  // prefills step 3; the slug rides along to submission so review can link
-  // this application to the existing directory profile.
+  const steps = buildPublisherSteps({
+    skipTitle: !!claimSlug && !!formValues.magazineTitle,
+    wantsToSell: formValues.wantsToSell,
+  });
+  const totalSteps = steps.length;
+  const stepKey: StepKey | "success" = isSubmitted ? "success" : steps[currentStep - 1] ?? "contact";
+  const sellStepNumber = steps.indexOf("sell") + 1;
+  const isClaimOnly = formValues.wantsToSell === false;
+
+  // Read the claim context handed over by the public index. The title (and
+  // the Index publisher name, when the link carries it) prefill the form; the
+  // slug rides along to submission so approval can mark that Index page
+  // claimed for this account.
   useEffect(() => {
     const claim = searchParams.get("claim");
     const title = searchParams.get("title");
+    const publisherName = searchParams.get("publisher");
     if (claim) {
       setClaimSlug(claim);
       localStorage.setItem("publisherClaimSlug", claim);
     }
     if (title && !getValues("magazineTitle")) {
       setValue("magazineTitle", title);
+    }
+    if (publisherName && !getValues("businessName")) {
+      setValue("businessName", publisherName);
     }
   }, [searchParams, getValues, setValue]);
 
@@ -217,13 +271,18 @@ export const PublisherApplication = () => {
                 firstName: dbData.first_name || '',
                 lastName: dbData.last_name || '',
                 email: dbData.email || '',
-                businessName: dbData.business_name || '',
-                magazineTitle: dbData.magazine_title || '',
+                // Right after the contact step the draft holds only the name and
+                // email; keep the title and publisher a claim link prefilled.
+                businessName: dbData.business_name || getValues('businessName') || '',
+                magazineTitle: dbData.magazine_title || getValues('magazineTitle') || '',
                 coverImageUrl: dbData.cover_image_url || '',
                 description: dbData.description || '',
                 websiteUrl: dbData.social_website_link || additionalInfo.websiteUrl || '',
                 instagramHandle: dbData.instagram_handle || '',
                 subscribeUrl: additionalInfo.subscribeUrl || '',
+                // Drafts started before the selling question existed resume
+                // with it unanswered, so they're asked when they reach it.
+                wantsToSell: typeof additionalInfo.wantsToSell === 'boolean' ? additionalInfo.wantsToSell : null,
                 shippingCountry: dbData.shipping_country || '',
                 shipFromLine1: additionalInfo.shipFromLine1 || '',
                 shipFromLine2: additionalInfo.shipFromLine2 || '',
@@ -242,6 +301,7 @@ export const PublisherApplication = () => {
                 cloudLink: dbData.quotes_feedback || '',
                 confirmRights: additionalInfo.confirmRights || false,
                 acceptTerms: additionalInfo.acceptTerms || false,
+                acceptIndexTerms: additionalInfo.acceptIndexTerms || false,
                 optInUpdates: additionalInfo.optInUpdates ?? true,
                 referralSource: additionalInfo.referralSource || '',
                 referralDetail: additionalInfo.referralDetail || '',
@@ -290,12 +350,20 @@ export const PublisherApplication = () => {
         try {
           const { data: publisher, error } = await supabase
             .from("publishers")
-            .select("id, application_status")
+            .select("id, application_status, sells_on_neesh")
             .eq("user_id", user.id)
             .single();
 
           if (!error && publisher) {
             if (publisher.application_status === "approved") {
+              // "Start selling on Neesh" from the portal.
+              if (searchParams.get("sell") === "1" && publisher.sells_on_neesh === false) {
+                const started = await startSellUpgrade(user.id, user.email ?? "");
+                if (started) {
+                  setIsLoadingResume(false);
+                  return;
+                }
+              }
               navigate("/publisher");
               return;
             }
@@ -322,7 +390,83 @@ export const PublisherApplication = () => {
     };
 
     checkForResume();
+    // startSellUpgrade and searchParams are read once on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, navigate, publisherId, accessToken, authLoading, reset]);
+
+  // Opens a selling application for a signed-in claim-only publisher: reuses
+  // their open draft if there is one, otherwise copies the page answers from
+  // their approved claim into a new draft. Lands on the selling question.
+  const startSellUpgrade = async (userId: string, email: string): Promise<boolean> => {
+    try {
+      const { data: rows } = await supabase
+        .from("publisher_applications")
+        .select("*")
+        .or(`user_id.eq.${userId},email.eq.${email}`)
+        .order("created_at", { ascending: false });
+      const apps = (rows ?? []) as unknown as PublisherApplicationDB[];
+      const openDraft = apps.find(
+        (a) => a.status === "draft" && a.user_id === userId && a.additional_info?.sellUpgrade
+      );
+      const source = openDraft ?? apps.find((a) => a.status === "approved") ?? apps[0];
+      if (!source) return false;
+      const info = source.additional_info || {};
+
+      let id = openDraft?.id ?? null;
+      if (!id) {
+        const { data: created, error: insertError } = await supabase
+          .from("publisher_applications")
+          .insert({
+            user_id: userId,
+            status: "draft",
+            first_name: source.first_name,
+            last_name: source.last_name,
+            email: source.email || email,
+            business_name: source.business_name,
+            magazine_title: source.magazine_title,
+            cover_image_url: source.cover_image_url,
+            description: source.description,
+            social_website_link: source.social_website_link,
+            instagram_handle: source.instagram_handle,
+            additional_info: {
+              ...info,
+              sellUpgrade: true,
+              wantsToSell: null,
+              ...(info.claimSlug ? { claimSlug: info.claimSlug } : {}),
+            },
+          })
+          .select("id")
+          .single();
+        if (insertError || !created) throw insertError ?? new Error("No draft created");
+        id = created.id;
+      }
+
+      reset({
+        ...defaultFormValues,
+        firstName: source.first_name || "",
+        lastName: source.last_name || "",
+        email: source.email || email,
+        businessName: source.business_name || "",
+        magazineTitle: source.magazine_title || "",
+        coverImageUrl: source.cover_image_url || "",
+        description: source.description || "",
+        websiteUrl: source.social_website_link || info.websiteUrl || "",
+        instagramHandle: source.instagram_handle || "",
+        subscribeUrl: info.subscribeUrl || "",
+        wantsToSell: openDraft && typeof info.wantsToSell === "boolean" ? info.wantsToSell : null,
+      });
+      setPublisherId(id);
+      setIsSellUpgrade(true);
+      // The page steps are already done; open at the selling question.
+      const upgradeSteps = buildPublisherSteps({ skipTitle: false, wantsToSell: null });
+      setCurrentStep(upgradeSteps.indexOf("sell") + 1);
+      return true;
+    } catch (err) {
+      console.error("Could not start the selling application:", err);
+      toast.error("We couldn't open the selling application. Please try again or email hi@neesh.art.");
+      return false;
+    }
+  };
 
   // Save progress to Supabase (saves to publisher_applications table)
   const saveProgress = useCallback(async (additionalData?: Partial<FormData>) => {
@@ -370,7 +514,6 @@ export const PublisherApplication = () => {
         
         console.log("Saving progress RPC:", { publisherId, data: mergedData });
 
-        // @ts-expect-error
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
            p_id: publisherId,
            p_token: accessToken,
@@ -436,7 +579,6 @@ export const PublisherApplication = () => {
       // Create application
       if (user) {
         // Authenticated users: direct insert with user_id
-        // @ts-expect-error
         const { data: appData, error: appError } = await supabase
           .from("publisher_applications")
           .insert({
@@ -453,7 +595,6 @@ export const PublisherApplication = () => {
         setPublisherId(appData.id);
       } else {
         // Anonymous users: use Secure RPC
-        // @ts-expect-error
         const { data, error } = await supabase.rpc('create_publisher_application', {
           p_first_name: values.firstName,
           p_last_name: values.lastName,
@@ -483,39 +624,37 @@ export const PublisherApplication = () => {
   };
 
   const validateCurrentStep = async (): Promise<boolean> => {
-    switch (currentStep) {
-      case 1:
+    switch (stepKey) {
+      case "contact":
         return await trigger(["firstName", "lastName", "email"]);
-      case 2:
-        return await trigger("businessName");
-      case 3:
+      case "title":
         return await trigger("magazineTitle");
-      case 4:
+      case "business":
+        return await trigger("businessName");
+      case "cover":
         return !!formValues.coverImageUrl;
-      case 5:
+      case "description":
         return await trigger("description");
-      case 6:
+      case "online":
         return !!(formValues.websiteUrl || formValues.instagramHandle) && await trigger("subscribeUrl");
-      case 7:
+      case "sell":
+        return formValues.wantsToSell !== null;
+      case "shipping":
         return await trigger(["shippingCountry", "shipFromLine1", "shippingCity", "shippingState", "shipFromPostalCode"]);
-      case 8:
-        return true; // Optional or simple select
-      case 9:
+      case "pricing":
         return await trigger(["wholesalePrice", "suggestedRetailPrice", "availableQuantity", "weightGrams"]);
-      case 10:
-        return true;
-      case 11:
-        return true;
-      case 12:
+      case "confirm":
         return formValues.confirmRights && formValues.acceptTerms;
+      case "claimConfirm":
+        return formValues.confirmRights && formValues.acceptIndexTerms;
       default:
         return true;
     }
   };
 
   const handleNext = async () => {
-    // Special handling for step 1 (save basic info)
-    if (currentStep === 1 && !publisherId) {
+    // The contact step creates the draft application.
+    if (stepKey === "contact" && !publisherId) {
       await handleSaveBasicInfo();
       return;
     }
@@ -523,27 +662,23 @@ export const PublisherApplication = () => {
     const isValid = await validateCurrentStep();
 
     if (!isValid) {
-      if (currentStep === 4 && !formValues.coverImageUrl) {
+      if (stepKey === "cover" && !formValues.coverImageUrl) {
         toast.error("Please upload a cover image");
         return;
       }
-      if (currentStep === 6 && !formValues.websiteUrl && !formValues.instagramHandle) {
+      if (stepKey === "online" && !formValues.websiteUrl && !formValues.instagramHandle) {
         toast.error("Please provide either a website or Instagram handle");
         return;
       }
-      if (currentStep === 12 && !formValues.confirmRights) {
-        toast.error("Please confirm you have distribution rights");
-        return;
-      }
-      if (currentStep === 12 && !formValues.acceptTerms) {
-        toast.error("Please accept the Terms of Service and Publisher Agreement");
+      if (stepKey === "sell") {
+        toast.error("Choose whether you want to sell on Neesh. Your claim goes through either way.");
         return;
       }
       return; // trigger() handles field errors
     }
 
     // Store the subscription link as a full URL (bare domains get https://).
-    if (currentStep === 6) {
+    if (stepKey === "online") {
       const subscribeUrl = normalizeSubscribeUrl(getValues("subscribeUrl"));
       setValue("subscribeUrl", subscribeUrl);
       await saveProgress({ subscribeUrl });
@@ -552,17 +687,28 @@ export const PublisherApplication = () => {
       await saveProgress();
     }
 
-    if (currentStep < TOTAL_STEPS) {
+    // A claim-only publisher who opened "Start selling" and then said not
+    // right now: nothing to submit, back to the dashboard.
+    if (stepKey === "sell" && isSellUpgrade && formValues.wantsToSell === false) {
+      toast.success("No problem. You can start selling any time from your dashboard.");
+      navigate("/publisher");
+      return;
+    }
+
+    // steps already reflects the selling answer, so this lands on the first
+    // selling step or on the claim confirmation.
+    if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
   };
 
+  // The first step after contact (or, when starting to sell from the portal,
+  // the selling question's own page steps) is as far back as you can go once
+  // the draft exists.
+  const canGoBack = currentStep > 1 && !(steps[currentStep - 2] === "contact" && publisherId);
+
   const handleBack = () => {
-    if (currentStep > 1) {
-      // Don't go back to step 1 if already have publisher ID
-      if (currentStep === 2 && publisherId) {
-        return;
-      }
+    if (canGoBack) {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -570,15 +716,22 @@ export const PublisherApplication = () => {
   const handleSaveAndExit = async () => {
     await saveProgress();
     toast.success("Progress saved! You can resume anytime.");
-    navigate("/");
+    navigate(isSellUpgrade ? "/publisher" : "/");
   };
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && currentStep !== 11 && currentStep !== 12) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      stepKey !== "additional" &&
+      stepKey !== "confirm" &&
+      stepKey !== "claimConfirm" &&
+      stepKey !== "success"
+    ) {
       e.preventDefault();
       handleNext();
     }
-  }, [currentStep, handleNext]);
+  }, [stepKey, handleNext]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -586,13 +739,24 @@ export const PublisherApplication = () => {
   }, [handleKeyDown]);
 
   const handleSubmit = async () => {
-    if (!formValues.confirmRights) {
-      toast.error("Please confirm you have distribution rights");
+    const claimOnly = formValues.wantsToSell === false;
+
+    if (formValues.wantsToSell === null) {
+      toast.error("Choose whether you want to sell on Neesh first.");
       return;
     }
 
-    if (!formValues.acceptTerms) {
-      toast.error("Please accept the Terms of Service and Publisher Agreement");
+    if (!formValues.confirmRights) {
+      toast.error(claimOnly
+        ? "Please confirm you publish this title or are authorized to represent it"
+        : "Please confirm you have distribution rights");
+      return;
+    }
+
+    if (claimOnly ? !formValues.acceptIndexTerms : !formValues.acceptTerms) {
+      toast.error(claimOnly
+        ? "Please accept the Terms of Service and Index Terms"
+        : "Please accept the Terms of Service and Publisher Agreement");
       return;
     }
 
@@ -609,6 +773,15 @@ export const PublisherApplication = () => {
     setIsSubmitting(true);
     const firstTouch = readFirstTouch();
 
+    // A claim-only submission carries none of the selling answers, even if
+    // the applicant filled some in before going back and choosing claim only.
+    const formForSubmission: Record<string, unknown> = { ...formValues };
+    if (claimOnly) {
+      for (const field of SELL_FIELDS) delete formForSubmission[field];
+    } else {
+      delete formForSubmission.acceptIndexTerms;
+    }
+
     try {
       const submissionData = {
         first_name: formValues.firstName,
@@ -620,25 +793,28 @@ export const PublisherApplication = () => {
         description: formValues.description,
         social_website_link: formValues.websiteUrl || formValues.instagramHandle,
         instagram_handle: formValues.instagramHandle?.replace("@", ""),
-        shipping_country: formValues.shippingCountry,
-        shipping_city: formValues.shippingCity,
-        shipping_state: formValues.shippingState,
-        issue_frequency: formValues.issueFrequency,
-        publication_type: formValues.publicationType,
-        distribution_channels: formValues.regionsCurrentlySold,
-        wholesale_price: toNumberOrNull(formValues.wholesalePrice),
-        suggested_retail_price: toNumberOrNull(formValues.suggestedRetailPrice),
-        available_quantity: toIntOrNull(formValues.availableQuantity),
-        fulfillment_method: formValues.fulfillmentMethod,
-        quotes_feedback: formValues.cloudLink,
+        shipping_country: claimOnly ? null : formValues.shippingCountry,
+        shipping_city: claimOnly ? null : formValues.shippingCity,
+        shipping_state: claimOnly ? null : formValues.shippingState,
+        issue_frequency: claimOnly ? null : formValues.issueFrequency,
+        publication_type: claimOnly ? null : formValues.publicationType,
+        distribution_channels: claimOnly ? [] : formValues.regionsCurrentlySold,
+        wholesale_price: claimOnly ? null : toNumberOrNull(formValues.wholesalePrice),
+        suggested_retail_price: claimOnly ? null : toNumberOrNull(formValues.suggestedRetailPrice),
+        available_quantity: claimOnly ? null : toIntOrNull(formValues.availableQuantity),
+        fulfillment_method: claimOnly ? null : formValues.fulfillmentMethod,
+        quotes_feedback: claimOnly ? null : formValues.cloudLink,
         status: "submitted",
         submitted_at: new Date().toISOString(),
         additional_info: {
-          ...formValues,
+          ...formForSubmission,
+          wantsToSell: !claimOnly,
           subscribeUrl: normalizeSubscribeUrl(formValues.subscribeUrl),
           ...(claimSlug ? { claimSlug } : {}),
+          ...(isSellUpgrade ? { sellUpgrade: true } : {}),
           ...(firstTouch ? { firstTouch } : {}),
-          acceptedTermsAt: formValues.acceptTerms ? new Date().toISOString() : null,
+          acceptedTermsAt: new Date().toISOString(),
+          acceptedTermsKind: claimOnly ? "index" : "marketplace",
         },
       };
 
@@ -653,8 +829,10 @@ export const PublisherApplication = () => {
       } else {
         // Anonymous users: Use secure RPC
         if (!accessToken) throw new Error("No access token found");
-        
-        // Convert to camelCase for RPC which expects JSON matching form data keys
+
+        // The RPC expects camelCase keys matching the form. It keeps earlier
+        // values for blank fields, so a claim-only submission can't clear
+        // selling answers saved before; approval ignores them for claim only.
         const rpcData = {
           firstName: submissionData.first_name,
           lastName: submissionData.last_name,
@@ -665,30 +843,30 @@ export const PublisherApplication = () => {
           description: submissionData.description,
           websiteUrl: formValues.websiteUrl, // use original form values for consistent casing
           instagramHandle: formValues.instagramHandle,
-          shippingCountry: submissionData.shipping_country,
-          shippingCity: submissionData.shipping_city,
-          issueFrequency: submissionData.issue_frequency,
-          publicationType: submissionData.publication_type,
-          regionsCurrentlySold: submissionData.distribution_channels, // map back to RPC expected key
-          wholesalePrice: formValues.wholesalePrice,
-          suggestedRetailPrice: formValues.suggestedRetailPrice,
-          availableQuantity: formValues.availableQuantity,
-          fulfillmentMethod: submissionData.fulfillment_method,
-          cloudLink: submissionData.quotes_feedback,
+          ...(claimOnly
+            ? {}
+            : {
+                shippingCountry: submissionData.shipping_country,
+                shippingCity: submissionData.shipping_city,
+                issueFrequency: submissionData.issue_frequency,
+                publicationType: submissionData.publication_type,
+                regionsCurrentlySold: submissionData.distribution_channels,
+                wholesalePrice: formValues.wholesalePrice,
+                suggestedRetailPrice: formValues.suggestedRetailPrice,
+                availableQuantity: formValues.availableQuantity,
+                fulfillmentMethod: submissionData.fulfillment_method,
+                cloudLink: submissionData.quotes_feedback,
+              }),
           status: 'submitted',
-          // Merge additional info if needed, but we essentially rebuilt it above
           ...submissionData.additional_info
         };
 
-        console.log("Submitting RPC update:", { publisherId, inputData: rpcData });
-
-        // @ts-expect-error
         const { error: rpcError } = await supabase.rpc('update_publisher_application', {
              p_id: publisherId,
              p_token: accessToken,
-             p_data: rpcData // Send camelCase data
+             p_data: rpcData
         });
-        
+
         if (rpcError) {
           console.error("RPC Error details:", rpcError);
           throw rpcError;
@@ -696,12 +874,12 @@ export const PublisherApplication = () => {
       }
 
       setIsSubmitted(true);
-      setCurrentStep(13); // Success Step
       trackPublisherApplication(formValues.referralSource);
       localStorage.removeItem('publisherClaimSlug');
 
       // Send application received confirmation email (fire and forget).
-      // claimTitle switches the email to the claim-received wording.
+      // claimTitle switches the email to the claim-received wording;
+      // claimOnly says nothing about selling.
       try {
         await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
@@ -716,9 +894,11 @@ export const PublisherApplication = () => {
               firstName: formValues.firstName,
               businessName: formValues.businessName || formValues.magazineTitle,
               role: 'publisher',
-              ...(claimSlug
+              ...(claimSlug || claimOnly
                 ? { claimTitle: formValues.magazineTitle || claimSlug }
                 : {}),
+              ...(claimOnly ? { claimOnly: true } : {}),
+              ...(isSellUpgrade ? { sellUpgrade: true } : {}),
             }),
           }
         );
@@ -748,8 +928,8 @@ export const PublisherApplication = () => {
   }
 
   const renderStep = () => {
-    switch (currentStep) {
-      case 1:
+    switch (stepKey) {
+      case "contact":
         // If already have publisher ID (started application), skip to step 2
         if (publisherId) {
           setCurrentStep(2);
@@ -759,10 +939,12 @@ export const PublisherApplication = () => {
           <div className="space-y-6 animate-fade-in">
             <div className="text-center mb-8">
               <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-                Let's get your magazine on Neesh
+                {claimSlug && formValues.magazineTitle
+                  ? `Claim ${formValues.magazineTitle}`
+                  : "Put your magazine on the Neesh Index"}
               </h1>
               <p className="text-muted-foreground text-lg max-w-md mx-auto mt-4">
-                Start your application. Takes about 3 minutes. We'll create your account once approved.
+                Takes about 3 minutes.
               </p>
             </div>
             <div className="space-y-4">
@@ -830,25 +1012,26 @@ export const PublisherApplication = () => {
               Continue
             </ButtonPrimary>
             <p className="text-center text-sm text-muted-foreground mt-4">
-              Once approved, we'll email you to set up your account.
+              We check every claim by hand. Once it&rsquo;s approved we&rsquo;ll email you a link to sign in.
             </p>
           </div>
         );
 
-      case 2:
+      case "business":
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              What's your publication called?
+              Who publishes {formValues.magazineTitle || "it"}?
             </h1>
             <Controller
               name="businessName"
               control={control}
-              rules={{ required: "Publication name is required" }}
+              rules={{ required: "Add who publishes it" }}
               render={({ field }) => (
                 <FormInput
-                  label="Publication / Company Name"
-                  placeholder="e.g., Kinfolk, Monocle, Apartamento"
+                  label="Publisher or company name"
+                  placeholder="e.g., Ouur Media, Pocko Editions"
+                  helperText="Your company or studio. Often the same as the magazine's name."
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.businessName?.message}
@@ -863,25 +1046,25 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 3:
+      case "title":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-                Which title are you looking to sell?
+                What&rsquo;s your magazine called?
               </h1>
               <p className="text-muted-foreground mt-2">
-                Start with one — you can add more later.
+                Start with one. You can add more later.
               </p>
             </div>
             <Controller
               name="magazineTitle"
               control={control}
-              rules={{ required: "Magazine title is required" }}
+              rules={{ required: "Add your magazine's name" }}
               render={({ field }) => (
                 <FormInput
-                  label="Magazine Title"
-                  placeholder="e.g., Issue 45, Spring 2025 Edition"
+                  label="Magazine name"
+                  placeholder="e.g., Kinfolk, Apartamento"
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.magazineTitle?.message}
@@ -896,7 +1079,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 4:
+      case "cover":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -931,11 +1114,11 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 5:
+      case "description":
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Tell us about your publication
+              Tell us about {formValues.magazineTitle || "your magazine"}
             </h1>
             <Controller
               name="description"
@@ -961,7 +1144,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 6:
+      case "online":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -969,7 +1152,7 @@ export const PublisherApplication = () => {
                 Where can we find you online?
               </h1>
               <p className="text-muted-foreground mt-2">
-                We use this to verify your publication.
+                We use this to check the magazine is yours.
               </p>
             </div>
             <div className="space-y-4">
@@ -1047,7 +1230,74 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 7:
+      case "sell":
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Do you want to sell on Neesh?
+              </h1>
+              {!isSellUpgrade && (
+                <p className="text-muted-foreground mt-3">
+                  Your claim goes through either way. Claiming gives you your page on the Neesh
+                  Index. You can edit it, keep your issues up to date, and see who&rsquo;s looking.
+                </p>
+              )}
+              <p className="text-muted-foreground mt-3">
+                Selling is a separate choice. If you sell on Neesh, shops, caf&eacute;s and hotels
+                can order copies from you at the wholesale price you set. Neesh takes 10% of
+                wholesale on each order. You ship, and you&rsquo;re paid through Stripe once the
+                order ships.
+              </p>
+              <p className="text-muted-foreground mt-3">
+                {isSellUpgrade
+                  ? "Selling adds six short steps, then a person reviews it."
+                  : "You can start selling any time from your dashboard."}
+              </p>
+            </div>
+            <div className="space-y-3" role="radiogroup" aria-label="Do you want to sell on Neesh?">
+              {[
+                {
+                  value: true,
+                  label: "Yes, I want to sell on Neesh",
+                  hint: "Six more steps: shipping, details, pricing, fulfillment, anything else, and terms.",
+                },
+                {
+                  value: false,
+                  label: isSellUpgrade ? "Not right now" : "Not right now, just claim my page",
+                  hint: isSellUpgrade
+                    ? "Back to your dashboard. Your page stays as it is."
+                    : "One more step: confirm the title is yours, then submit.",
+                },
+              ].map((option) => {
+                const selected = formValues.wantsToSell === option.value;
+                return (
+                  <label
+                    key={String(option.value)}
+                    className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      selected ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="wantsToSell"
+                      checked={selected}
+                      onChange={() => setValue("wantsToSell", option.value)}
+                      className="sr-only"
+                    />
+                    <span className="font-medium text-foreground">{option.label}</span>
+                    <p className="text-sm text-muted-foreground mt-1">{option.hint}</p>
+                  </label>
+                );
+              })}
+            </div>
+            <ButtonPrimary onClick={handleNext} fullWidth disabled={formValues.wantsToSell === null}>
+              Continue
+            </ButtonPrimary>
+          </div>
+        );
+
+      case "shipping":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1188,7 +1438,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 8:
+      case "details":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1283,7 +1533,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 9:
+      case "pricing":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1409,7 +1659,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 10:
+      case "fulfillment":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1469,7 +1719,7 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 11:
+      case "additional":
         return (
           <div className="space-y-6 animate-fade-in">
             <div>
@@ -1498,11 +1748,11 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 12:
+      case "confirm":
         return (
           <div className="space-y-6 animate-fade-in">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
-              Almost done!
+              Almost done
             </h1>
 
             <div className="card-neesh space-y-4">
@@ -1587,19 +1837,130 @@ export const PublisherApplication = () => {
           </div>
         );
 
-      case 13:
+      case "claimConfirm":
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground">
+                Confirm your claim
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                No pricing, stock or shipping needed. A person checks it, usually within a day.
+              </p>
+            </div>
+
+            <div className="card-neesh space-y-4">
+              <div className="flex gap-4">
+                {formValues.coverImageUrl && (
+                  <img
+                    src={formValues.coverImageUrl}
+                    alt="Cover preview"
+                    className="w-20 h-28 object-cover rounded-lg"
+                  />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">{formValues.magazineTitle}</p>
+                  <p className="text-sm text-muted-foreground">Published by {formValues.businessName}</p>
+                  <p className="text-sm text-muted-foreground mt-2">{formValues.email}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <FormSelect
+                label="How did you hear about Neesh?"
+                placeholder="Pick the closest answer"
+                options={REFERRAL_SOURCES.map(s => ({ value: s.value, label: s.label }))}
+                value={formValues.referralSource}
+                onChange={(value) => setValue("referralSource", value)}
+                required
+              />
+              <FormInput
+                label="Anything more specific? (optional)"
+                placeholder="The magazine, shop, post or person"
+                value={formValues.referralDetail}
+                onChange={(value) => setValue("referralDetail", value.slice(0, 200))}
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={formValues.confirmRights}
+                  onCheckedChange={(checked) => setValue("confirmRights", !!checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  I publish {formValues.magazineTitle || "this title"} or am authorized to represent it. <span className="text-destructive">*</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={formValues.acceptIndexTerms}
+                  onCheckedChange={(checked) => setValue("acceptIndexTerms", !!checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  I agree to the{" "}
+                  <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Terms of Service</a>,{" "}
+                  <a href="/legal/index-terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Index Terms</a>, and{" "}
+                  <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Privacy Policy</a>{" "}
+                  <span className="text-destructive">*</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={formValues.optInUpdates}
+                  onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-muted-foreground">
+                  I&rsquo;d like to receive platform updates and publisher insights
+                </span>
+              </label>
+            </div>
+
+            <ButtonPrimary
+              onClick={handleSubmit}
+              fullWidth
+              loading={isSubmitting}
+              disabled={!formValues.confirmRights || !formValues.acceptIndexTerms || !formValues.referralSource}
+            >
+              Submit claim
+            </ButtonPrimary>
+          </div>
+        );
+
+      case "success":
         return (
           <div className="text-center space-y-6 animate-fade-in">
             <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-accent" />
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-              That's with us now.
+              That&rsquo;s with us now.
             </h1>
             <p className="text-muted-foreground text-lg max-w-md mx-auto">
-              We review every application by hand — expect to hear back at{" "}
-              <span className="font-medium text-foreground">{formValues.email}</span>{" "}
-              within a few days. Once you're approved we'll email you to set up your account.
+              {isClaimOnly ? (
+                <>
+                  We check every claim by hand, usually within a day. Once it&rsquo;s approved
+                  we&rsquo;ll email{" "}
+                  <span className="font-medium text-foreground">{formValues.email}</span>{" "}
+                  a link to edit your page. No password needed.
+                </>
+              ) : isSellUpgrade ? (
+                <>
+                  We review every selling application by hand. Expect to hear back at{" "}
+                  <span className="font-medium text-foreground">{formValues.email}</span>{" "}
+                  within a few days. Your page stays as it is in the meantime.
+                </>
+              ) : (
+                <>
+                  We review every application by hand. Expect to hear back at{" "}
+                  <span className="font-medium text-foreground">{formValues.email}</span>{" "}
+                  within a few days. Once you&rsquo;re approved we&rsquo;ll email you a link to sign in.
+                </>
+              )}
             </p>
             <p className="text-sm text-muted-foreground">
               Questions? Reach out to{" "}
@@ -1608,8 +1969,8 @@ export const PublisherApplication = () => {
               </a>
             </p>
             <div className="pt-4">
-              <ButtonSecondary onClick={() => navigate("/")} className="min-w-[200px]">
-                Back to Home
+              <ButtonSecondary onClick={() => navigate(isSellUpgrade ? "/publisher" : "/")} className="min-w-[200px]">
+                {isSellUpgrade ? "Back to dashboard" : "Back to Home"}
               </ButtonSecondary>
             </div>
           </div>
@@ -1629,22 +1990,35 @@ export const PublisherApplication = () => {
             <Logo size="lg" />
           </a>
 
-          {/* Progress indicator: 12 content steps; the success screen (13)
+          {/* Progress indicator. The total follows the path: the claim path
+              until the selling question is answered yes. The success screen
               shows no step chrome. */}
-          {currentStep <= TOTAL_STEPS && (
-            <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F]">
-              Step {currentStep} of {TOTAL_STEPS}
+          {stepKey !== "success" && (
+            <span className="font-mono text-xs uppercase tracking-[0.1em] text-[#71747F] text-center">
+              {claimSlug && formValues.magazineTitle && !isSellUpgrade && (
+                <span className="block sm:inline text-foreground">
+                  Claim {formValues.magazineTitle}
+                  <span className="hidden sm:inline text-[#71747F]"> &middot; </span>
+                </span>
+              )}
+              {isSellUpgrade && (
+                <span className="block sm:inline text-foreground">
+                  Start selling
+                  <span className="hidden sm:inline text-[#71747F]"> &middot; </span>
+                </span>
+              )}
+              Step {currentStep} of {totalSteps}
             </span>
           )}
 
           <div className="flex items-center gap-4">
             {/* Auto-save indicator */}
-            {publisherId && currentStep > 1 && currentStep < 12 && (
+            {publisherId && currentStep > 1 && stepKey !== "confirm" && stepKey !== "claimConfirm" && stepKey !== "success" && (
               <AutoSaveIndicator status={saveStatus} lastSaved={lastSaved} />
             )}
 
             {/* Save & Exit button */}
-            {publisherId && currentStep > 1 && currentStep < 12 && (
+            {publisherId && currentStep > 1 && stepKey !== "confirm" && stepKey !== "claimConfirm" && stepKey !== "success" && (
               <ButtonSecondary
                 onClick={handleSaveAndExit}
                 className="gap-2 text-caption hidden sm:flex"
@@ -1657,18 +2031,18 @@ export const PublisherApplication = () => {
         </div>
 
         {/* Progress bar */}
-        {currentStep <= TOTAL_STEPS && (
+        {stepKey !== "success" && (
           <div className="h-0.5 bg-[#EFEEF6]">
             <div
               className="h-full bg-accent transition-all duration-300"
-              style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+              style={{ width: `${(currentStep / totalSteps) * 100}%` }}
             />
           </div>
         )}
       </header>
 
       {/* Back button */}
-      {currentStep > 1 && currentStep <= TOTAL_STEPS && !(currentStep === 2 && publisherId) && (
+      {stepKey !== "success" && canGoBack && (
         <div className="fixed top-20 left-6 md:left-8 z-40">
           <button
             onClick={handleBack}
@@ -1695,12 +2069,11 @@ export const PublisherApplication = () => {
           >
             {/* Progress card - Mobile only (removed, using header bar) */}
 
-            {claimSlug && !isSubmitted && (
+            {claimSlug && !isSubmitted && !isSellUpgrade && currentStep < sellStepNumber && (
               <div className="mb-6 p-4 rounded-lg border border-accent/40 bg-accent/5 text-sm text-foreground">
                 You&apos;re claiming{" "}
                 <strong>{formValues.magazineTitle || "your title"}</strong> from the
-                Neesh Index. Finish signup and we review every claim by hand,
-                usually within a day.
+                Neesh Index.
               </div>
             )}
 

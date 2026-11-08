@@ -7,6 +7,7 @@ import { BackNavigation, TabNavigation, DataTable, StatusBadge, ButtonPrimary, B
 import { LoadingScreen } from "@/components/shared";
 import { useApplications, type ApplicationStatus } from "@/hooks/useApplications";
 import { applicationStatusBadge } from "@/lib/applicationStatus";
+import { ApplicationKindBadge } from "@/components/admin/ApplicationKindBadge";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -364,7 +365,17 @@ export const AdminApplications = () => {
         </div>
       )
     },
-    { key: "name", header: "Business Name", sortable: true },
+    {
+      key: "name",
+      header: "Business Name",
+      sortable: true,
+      render: (value: unknown, row: ApplicationRow) => (
+        <div className="flex flex-col items-start gap-1">
+          <span>{value as string}</span>
+          {row.originalType === 'publisher' && <ApplicationKindBadge data={row.data} />}
+        </div>
+      )
+    },
     { 
       key: "contact", 
       header: "Contact",

@@ -1,5 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { EMAIL_SUBJECTS, generateApprovalEmail } from '../_shared/application-emails.ts'
+import {
+  EMAIL_SUBJECTS,
+  generateApprovalEmail,
+  generateClaimApprovalEmail,
+  generateSellApprovalEmail,
+} from '../_shared/application-emails.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -191,6 +196,45 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Claiming and selling are separate (claim-without-selling spec). The
+    // applicant's answer to "Do you want to sell on Neesh?" decides what
+    // approval creates. Applications from before the question existed all
+    // went through the selling steps, so a missing answer means selling.
+    const appInfo = (application.additional_info ?? {}) as Record<string, unknown>
+    const wantsToSell: boolean = type !== 'publisher'
+      ? true
+      : typeof application.wants_to_sell === 'boolean'
+        ? application.wants_to_sell
+        : typeof appInfo.wantsToSell === 'boolean'
+          ? appInfo.wantsToSell
+          : true
+    const claimOnly = type === 'publisher' && !wantsToSell
+    const claimSlug = typeof appInfo.claimSlug === 'string' && appInfo.claimSlug.trim()
+      ? appInfo.claimSlug.trim()
+      : null
+
+    // Claim only: mark the Index page claimed for this email first. It is
+    // what gives the account edit rights (directory_owned_publisher_ids reads
+    // claimed_email), and if the page is already someone else's we stop here
+    // before creating an account.
+    if (claimOnly) {
+      const { error: claimError } = await supabaseAdmin.rpc('directory_claim_for_account', {
+        p_title_slug: claimSlug,
+        p_email: email,
+        p_publisher_name: application.business_name || null,
+        p_title_name: application.magazine_title || null,
+        p_website: application.social_website_link || null,
+        p_description: application.description || null,
+      })
+      if (claimError) {
+        console.error('Could not claim the Index page:', claimError)
+        return new Response(
+          JSON.stringify({ error: `Could not claim the Index page: ${claimError.message}` }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     let userId = application.user_id
 
     // Step 1: Create auth user if they don't have one
@@ -315,14 +359,27 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Step 3: Ensure profile exists (upsert for both new and existing auth users)
+    // An approved claim-only publisher applying to sell ("Start selling on
+    // Neesh"). They already have an account and an Index page.
+    const { data: existingPublisher } = type === 'publisher'
+      ? await supabaseAdmin
+          .from('publishers')
+          .select('id, application_status, sells_on_neesh, sell_opt_in_at')
+          .eq('user_id', userId)
+          .maybeSingle()
+      : { data: null }
+    const isSellUpgrade = type === 'publisher' && wantsToSell &&
+      existingPublisher?.application_status === 'approved' && existingPublisher?.sells_on_neesh === false
+
+    // Step 3: Ensure profile exists (upsert for both new and existing auth users).
+    // An upgrading publisher keeps their profile as it is.
     const { error: profileUpsertError } = await supabaseAdmin
       .from('profiles')
       .upsert({
         user_id: userId,
         full_name: fullName,
         has_set_password: false,
-      }, { onConflict: 'user_id' })
+      }, { onConflict: 'user_id', ignoreDuplicates: isSellUpgrade })
 
     if (profileUpsertError) {
       console.error('Error upserting profile:', profileUpsertError)
@@ -342,8 +399,19 @@ Deno.serve(async (req) => {
           application_status: 'approved',
           verified: true,
           verified_at: new Date().toISOString(),
+          // Selling is recorded only when they chose it. A claim-only
+          // approval leaves sells_on_neesh alone: false for a new publisher
+          // (the column default), unchanged for anyone already selling.
+          ...(claimOnly
+            ? {}
+            : {
+                sells_on_neesh: true,
+                sell_opt_in_at: existingPublisher?.sells_on_neesh && existingPublisher?.sell_opt_in_at
+                  ? existingPublisher.sell_opt_in_at
+                  : new Date().toISOString(),
+              }),
           // shipping_v2: where they ship from (application stores an ISO code)
-          ...(/^[A-Za-z]{2}$/.test(application.shipping_country ?? '')
+          ...(!claimOnly && /^[A-Za-z]{2}$/.test(application.shipping_country ?? '')
             ? { ships_from_country: String(application.shipping_country).toUpperCase() }
             : {}),
         }, {
@@ -377,7 +445,10 @@ Deno.serve(async (req) => {
           : '',
         phone: text(info.shipFromPhone),
       }
-      if (publisherRecord?.id && shipsFrom.line1 && shipsFrom.city && shipsFrom.postal_code && shipsFrom.country) {
+      // Claim only: no shipping settings and no magazine, so nothing can
+      // reach the marketplace (the database also keeps a non-seller's
+      // magazines inactive).
+      if (!claimOnly && publisherRecord?.id && shipsFrom.line1 && shipsFrom.city && shipsFrom.postal_code && shipsFrom.country) {
         const { data: existingShipping } = await supabaseAdmin
           .from('publisher_shipping_settings')
           .select('ships_from_address')
@@ -392,12 +463,12 @@ Deno.serve(async (req) => {
       }
 
       // Create initial magazine from application data if magazine_title exists
-      if (publisherRecord?.id && application.magazine_title) {
+      if (!claimOnly && publisherRecord?.id && application.magazine_title) {
         // A title with no wholesale price can be added to a cart but not bought
         // (create-checkout rejects it), so only list it publicly once it's
         // priced. It still shows in the publisher's dashboard either way.
         const wholesalePrice = application.wholesale_price ?? null
-        const { error: magError } = await supabaseAdmin
+        const { data: newMagazine, error: magError } = await supabaseAdmin
           .from('magazines')
           .insert({
             title: application.magazine_title,
@@ -416,12 +487,48 @@ Deno.serve(async (req) => {
               : null,
             is_active: wholesalePrice !== null,
           })
+          .select('id')
+          .single()
 
         if (magError) {
           // Don't fail the approval if magazine creation fails (e.g. duplicate)
           console.error('Error creating magazine from application:', magError)
         } else {
           console.log(`Created magazine "${application.magazine_title}" for publisher ${publisherRecord.id}`)
+        }
+
+        // Starting to sell from a claimed page: link the new magazine to the
+        // Index title they already own instead of leaving it to name matching.
+        if (isSellUpgrade && newMagazine?.id) {
+          try {
+            const { data: ownedRows } = await supabaseAdmin.rpc('directory_owned_publisher_ids', { p_user: userId })
+            const ownedIds = ((ownedRows ?? []) as unknown[]).map((row) =>
+              typeof row === 'string' ? row : (row as Record<string, string>).directory_owned_publisher_ids
+            ).filter(Boolean)
+            if (ownedIds.length > 0) {
+              const { data: titles } = await supabaseAdmin
+                .from('directory_titles')
+                .select('id, slug, name')
+                .in('publisher_id', ownedIds)
+                .eq('removed', false)
+              const list = (titles ?? []) as { id: string; slug: string; name: string }[]
+              const key = (v: string | null | undefined) => (v ?? '').trim().toLowerCase()
+              const match = list.find((t) => claimSlug && t.slug === claimSlug) ??
+                list.find((t) => key(t.name) === key(application.magazine_title)) ??
+                (list.length === 1 ? list[0] : undefined)
+              if (match) {
+                const { error: linkError } = await supabaseAdmin.rpc('directory_sync_force_link', {
+                  p_mag: newMagazine.id,
+                  p_title: match.id,
+                })
+                if (linkError) console.error('Error linking magazine to Index title:', linkError)
+              } else {
+                console.log('No single Index title to link; left to the Index review queue')
+              }
+            }
+          } catch (linkErr) {
+            console.error('Error linking magazine to Index title:', linkErr)
+          }
         }
       }
     } else if (type === 'retailer') {
@@ -486,78 +593,123 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully approved ${type} application: ${applicationId}`)
 
-    // Step 7: Send approval email with magic link
-    // We send this AFTER everything else succeeds
+    // Step 7: Send the welcome email. We send this AFTER everything else succeeds.
+    //   - claim only: "Your page is yours", a one-time sign-in link that opens
+    //     their Index listing; no password.
+    //   - starting to sell from a claimed page: a sign-in link to the dashboard.
+    //   - everyone else: the set-password email, plus the email-link line.
+    // Links point at OUR app with the token_hash as a query parameter, so
+    // email clients that pre-fetch links can't use up the single-use token;
+    // the app calls verifyOtp() when the person opens it.
     const siteUrl = resolveSiteUrl(redirectUrl, Deno.env.get('SITE_URL'))
-    try {
-      console.log('Generating recovery link for approval email...')
-      const { data: linkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: email,
-        options: {
-          redirectTo: `${siteUrl}/reset-password`,
+    const loginUrl = `${siteUrl}/login`
+    const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there'
+    const businessName = type === 'publisher'
+      ? (application.business_name || application.magazine_title || 'Your Business')
+      : (application.shop_name || 'Your Shop')
+
+    const sendEmail = async (subject: string, emailHtml: string) => {
+      const resendApiKey = Deno.env.get('RESEND_API_KEY')
+      if (!resendApiKey) {
+        console.error('RESEND_API_KEY not found, cannot send approval email')
+        return
+      }
+      console.log(`Sending approval email to ${email}...`)
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          from: 'Neesh <hi@neesh.art>',
+          to: email,
+          subject,
+          reply_to: 'hi@neesh.art',
+          html: emailHtml,
+        }),
       })
+      if (!resendResponse.ok) {
+        console.error('Error sending approval email:', await resendResponse.json())
+      } else {
+        console.log('Approval email sent successfully')
+      }
+    }
 
-      if (recoveryLinkError) {
-        console.error('Error generating recovery link:', recoveryLinkError)
-      } else if (linkData?.properties?.hashed_token) {
-        // Build a link to OUR app with the token_hash as a query parameter.
-        // This avoids email clients (Gmail, Outlook) pre-fetching the Supabase
-        // /auth/v1/verify URL and consuming the single-use token before the
-        // user clicks it. The client-side JS will call verifyOtp() instead.
-        const recoveryUrl = `${siteUrl}/reset-password?token_hash=${linkData.properties.hashed_token}&type=recovery`
+    const signInLink = async (next: string): Promise<string | null> => {
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}` },
+      })
+      if (linkError || !linkData?.properties?.hashed_token) {
+        console.error('Error generating sign-in link:', linkError)
+        return null
+      }
+      return `${siteUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=magiclink&next=${encodeURIComponent(next)}`
+    }
 
-        // Send email using Resend
-        const resendApiKey = Deno.env.get('RESEND_API_KEY')
-        if (resendApiKey) {
-          const firstName = application.first_name || application.buyer_name?.split(' ')[0] || 'there'
-          const businessName = type === 'publisher'
-            ? (application.business_name || application.magazine_title || 'Your Business')
-            : (application.shop_name || 'Your Shop')
-
-          const html = generateApprovalEmail({
-            firstName,
-            businessName,
-            role: type,
-            recoveryLinkUrl: recoveryUrl,
-            forgotPasswordUrl: `${siteUrl}/forgot-password`,
-          })
-
-          console.log(`Sending approval email to ${email}...`)
-          const resendResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Neesh <hi@neesh.art>',
-              to: email,
-              subject: EMAIL_SUBJECTS.approval(businessName),
-              reply_to: 'hi@neesh.art',
-              html: html,
+    try {
+      if (claimOnly) {
+        const editPageUrl = await signInLink('/publisher/index-listing')
+        if (editPageUrl) {
+          const titleName = application.magazine_title || application.business_name || 'Your title'
+          await sendEmail(
+            EMAIL_SUBJECTS.claimApproval(titleName),
+            generateClaimApprovalEmail({
+              firstName,
+              titleName,
+              editPageUrl,
+              loginUrl,
+              startSellingUrl: `${siteUrl}/apply/publisher?sell=1`,
             }),
-          })
+          )
+        }
+      } else if (isSellUpgrade) {
+        const dashboardUrl = await signInLink('/publisher')
+        if (dashboardUrl) {
+          await sendEmail(
+            EMAIL_SUBJECTS.sellApproval(businessName),
+            generateSellApprovalEmail({ firstName, businessName, dashboardUrl, loginUrl }),
+          )
+        }
+      } else {
+        console.log('Generating recovery link for approval email...')
+        const { data: linkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: email,
+          options: {
+            redirectTo: `${siteUrl}/reset-password`,
+          },
+        })
 
-          if (!resendResponse.ok) {
-            const resendError = await resendResponse.json()
-            console.error('Error sending approval email:', resendError)
-          } else {
-            console.log('Approval email sent successfully')
-          }
-        } else {
-          console.error('RESEND_API_KEY not found, cannot send approval email')
+        if (recoveryLinkError) {
+          console.error('Error generating recovery link:', recoveryLinkError)
+        } else if (linkData?.properties?.hashed_token) {
+          const recoveryUrl = `${siteUrl}/reset-password?token_hash=${linkData.properties.hashed_token}&type=recovery`
+          await sendEmail(
+            EMAIL_SUBJECTS.approval(businessName),
+            generateApprovalEmail({
+              firstName,
+              businessName,
+              role: type,
+              recoveryLinkUrl: recoveryUrl,
+              forgotPasswordUrl: `${siteUrl}/forgot-password`,
+              loginUrl,
+            }),
+          )
         }
       }
     } catch (emailError) {
-      console.error('Error with recovery link / email:', emailError)
+      console.error('Error with sign-in link / email:', emailError)
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         userId,
+        claimOnly,
+        sellUpgrade: isSellUpgrade,
         message: `${type} application approved successfully`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

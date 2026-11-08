@@ -10,8 +10,12 @@ Authentication > Email Templates.
 | `recovery.html` | Reset Password | `{{ .TokenHash }}`, `{{ .SiteURL }}`, `{{ .Email }}` |
 
 They use the same layout as the edge function emails
-(`supabase/functions/_shared/email.ts`), rendered once to static HTML. The
-magic link URL is kept exactly as the live template had it.
+(`supabase/functions/_shared/email.ts`), rendered once to static HTML.
+
+The magic link ("Email me a sign-in link" on /login) goes to the app's
+`/auth/callback?token_hash=...&type=magiclink`, for the same reason as the
+reset link below: the app verifies the token only when the page loads in a
+browser. It used to go to Supabase's `/auth/v1/verify`.
 
 The reset link goes to the app's `/reset-password?token_hash=...&type=recovery`
 rather than `{{ .ConfirmationURL }}` (Supabase's `/auth/v1/verify`). The verify

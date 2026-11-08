@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { PublisherLayout } from "@/components/publisher/PublisherLayout";
+import { StartSellingCard } from "@/components/publisher/StartSellingCard";
+import { useAuth } from "@/hooks/useAuth";
 import { ButtonPrimary, FormInput, FormSelect, FormTextarea } from "@/components/neesh";
 import {
   useIndexListing,
@@ -357,6 +359,8 @@ function TitleCard({ title, tags, site }: { title: IndexTitle; tags: IndexTag[];
 
 export const PublisherIndexListing = () => {
   const { data, isLoading, error } = useIndexListing();
+  const { publisherStatus } = useAuth();
+  const claimOnly = !!publisherStatus && !publisherStatus.sellsOnNeesh;
   const site = data?.index_site ?? "https://neesh.art";
 
   return (
@@ -394,6 +398,8 @@ export const PublisherIndexListing = () => {
             </div>
           ))
         )}
+
+        {claimOnly && !isLoading && <StartSellingCard />}
 
         <p className="text-caption text-muted-foreground">
           Want a title taken off the Index, or a niche that is not on the list? Email{" "}
