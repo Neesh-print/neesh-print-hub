@@ -881,15 +881,14 @@ export const PublisherApplication = () => {
       // claimTitle switches the email to the claim-received wording;
       // claimOnly says nothing about selling.
       try {
-        await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-application-received-email`,
+        // functions.invoke sends the Authorization header the function's
+        // JWT check needs. The raw fetch only sent `apikey`, so every call
+        // was rejected with 401 UNAUTHORIZED_NO_AUTH_HEADER and applicants
+        // never got this email.
+        const { error: emailError } = await supabase.functions.invoke(
+          'send-application-received-email',
           {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            body: JSON.stringify({
+            body: {
               email: formValues.email,
               firstName: formValues.firstName,
               businessName: formValues.businessName || formValues.magazineTitle,
@@ -899,9 +898,10 @@ export const PublisherApplication = () => {
                 : {}),
               ...(claimOnly ? { claimOnly: true } : {}),
               ...(isSellUpgrade ? { sellUpgrade: true } : {}),
-            }),
+            },
           }
         );
+        if (emailError) console.error('Failed to send confirmation email:', emailError);
       } catch (emailError) {
         // Don't fail the submission if email fails
         console.error('Failed to send confirmation email:', emailError);
