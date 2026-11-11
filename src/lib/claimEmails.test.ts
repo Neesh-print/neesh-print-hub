@@ -4,6 +4,7 @@ import {
   generateApprovalEmail,
   generateClaimApprovalEmail,
   generateSellApprovalEmail,
+  EMAIL_SUBJECTS,
 } from "./emailTemplates";
 
 describe("claim-only emails", () => {
@@ -30,12 +31,18 @@ describe("claim-only emails", () => {
       loginUrl: "https://app.neesh.art/login",
       startSellingUrl: "https://app.neesh.art/apply/publisher?sell=1",
     });
-    expect(html).toContain("Your page is yours.");
+    expect(html).toContain("Your claim-only account is ready.");
+    expect(html).toContain("claim-only account");
+    expect(html).toMatch(/does <strong[^>]*>not<\/strong> list your titles for sale/);
     expect(html).toContain("Edit your page");
     expect(html).toContain("token_hash=abc");
     expect(html).toContain("Email me a sign-in link");
     expect(html).toContain("apply/publisher?sell=1");
     expect(html).not.toMatch(/set your password/i);
+  });
+
+  it("claim approval subject says claim-only", () => {
+    expect(EMAIL_SUBJECTS.claimApproval("CHEW")).toBe("Your claim-only account for CHEW on the Neesh Index");
   });
 
   it("seller approval mentions email sign-in when a login URL is given", () => {

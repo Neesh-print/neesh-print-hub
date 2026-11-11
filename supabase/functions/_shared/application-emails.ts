@@ -158,12 +158,16 @@ export interface ClaimApprovalEmailData {
 // link, and they can get another from the login page with only their email.
 export const generateClaimApprovalEmail = (data: ClaimApprovalEmailData): string =>
   renderEmail({
-    preheader: `${data.titleName} is yours on the Neesh Index. Edit your page with one click.`,
+    preheader: `Your claim-only account for ${data.titleName} is ready. You can edit your Index page; you are not set up to sell.`,
     label: 'Claim',
-    badge: { text: 'Approved', tone: 'success' },
-    heading: 'Your page is yours.',
-    intro: html`Hi ${data.firstName}, your claim for ${strong(data.titleName)} is approved. The page on the Neesh Index is now yours to edit and keep up to date.`,
+    badge: { text: 'Claim only', tone: 'success' },
+    heading: 'Your claim-only account is ready.',
+    intro: html`Hi ${data.firstName}, your claim for ${strong(data.titleName)} is approved as a ${strong('claim-only account')}. The page on the Neesh Index is now yours to edit and keep up to date.`,
     blocks: [
+      panel(
+        html`A claim-only account lets you manage your page on the Neesh Index. It does ${strong('not')} list your titles for sale on Neesh: shops, cafés and hotels cannot order copies from you, and you will not receive orders or payouts. If you filled in pricing, stock or shipping details when you applied, they have not been used.`,
+        'What claim only means',
+      ),
       button('Edit your page', data.editPageUrl),
       smallText(html`This button signs you in and works once, for an hour. There is no password to set: sign in any time with only your email by choosing ${strong('Email me a sign-in link')} on the ${link('login page', data.loginUrl)}.`),
       steps('What you can do', [
@@ -172,8 +176,8 @@ export const generateClaimApprovalEmail = (data: ClaimApprovalEmailData): string
         'See who is looking at your page.',
       ]),
       panel(
-        html`Claiming does not sign you up to sell. If you want shops, cafés and hotels to order copies from you at your wholesale price, ${link('start selling on Neesh', data.startSellingUrl)} whenever you like. Neesh takes 10% of wholesale on each order.`,
-        'Selling is there if you want it',
+        html`If you want shops, cafés and hotels to order copies from you at your wholesale price, ${link('apply to start selling on Neesh', data.startSellingUrl)}. We review it separately, and your page stays yours either way. Neesh takes 10% of wholesale on each order.`,
+        'Want to sell?',
       ),
       linkFallback(data.editPageUrl),
     ],
@@ -233,7 +237,7 @@ export const EMAIL_SUBJECTS = {
   rejection: (businessName: string) => `Application update for ${businessName}`,
   applicationReceived: (businessName: string) => `We received your application for ${businessName}`,
   claimReceived: (claimTitle: string) => `We got your claim for ${claimTitle}`,
-  claimApproval: (titleName: string) => `Your page is yours: ${titleName} on the Neesh Index`,
+  claimApproval: (titleName: string) => `Your claim-only account for ${titleName} on the Neesh Index`,
   sellApproval: (businessName: string) => `${businessName} can now sell on Neesh`,
   sellApplicationReceived: (businessName: string) => `We received your selling application for ${businessName}`,
 }
