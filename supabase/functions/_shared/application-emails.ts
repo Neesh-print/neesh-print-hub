@@ -237,7 +237,7 @@ export const EMAIL_SUBJECTS = {
   rejection: (businessName: string) => `Application update for ${businessName}`,
   applicationReceived: (businessName: string) => `We received your application for ${businessName}`,
   claimReceived: (claimTitle: string) => `We got your claim for ${claimTitle}`,
-  claimApproval: (titleName: string) => `Your claim-only account for ${titleName} on the Neesh Index`,
+  claimApproval: (titleName: string) => `Your page is yours: ${titleName} on the Neesh Index`,
   sellApproval: (businessName: string) => `${businessName} can now sell on Neesh`,
   sellApplicationReceived: (businessName: string) => `We received your selling application for ${businessName}`,
 }
