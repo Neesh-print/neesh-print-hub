@@ -41,8 +41,8 @@ describe("claim-only emails", () => {
     expect(html).not.toMatch(/set your password/i);
   });
 
-  it("claim approval subject says claim-only", () => {
-    expect(EMAIL_SUBJECTS.claimApproval("CHEW")).toBe("Your claim-only account for CHEW on the Neesh Index");
+  it("claim approval subject", () => {
+    expect(EMAIL_SUBJECTS.claimApproval("CHEW")).toBe("Your page is yours: CHEW on the Neesh Index");
   });
 
   it("seller approval mentions email sign-in when a login URL is given", () => {
