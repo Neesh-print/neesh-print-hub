@@ -52,3 +52,6 @@ verify_jwt = false
 # Public one-click unsubscribe; the link is HMAC-signed.
 [functions.outreach-unsubscribe]
 verify_jwt = false
+
+[functions.send-demand-rollup]
+verify_jwt = false

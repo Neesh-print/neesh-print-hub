@@ -119,7 +119,10 @@ export const AdminDemand = () => {
   return (
     <AdminLayout>
       <div className="px-4 md:px-6 pt-6 pb-4">
-        <h1 className="font-display font-bold text-title text-foreground">Demand</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-display font-bold text-title text-foreground">Demand</h1>
+          <RollupPreviewButton />
+        </div>
         <p className="text-body text-muted-foreground mt-1">
           Shop suggestions from readers, publisher emails drafted from requests, and replies to the people who asked.
           Nothing is sent until you approve it.
@@ -652,5 +655,41 @@ const DraftModal = ({ o, onClose }: { o: OutreachRow; onClose: () => void }) => 
         </div>
       )}
     </Modal>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Monday rollup preview
+// ---------------------------------------------------------------------------
+
+const RollupPreviewButton = () => {
+  const action = useDemandAction();
+  const [rollup, setRollup] = useState<{ subject: string; html: string; empty: boolean } | null>(null);
+  const open = () =>
+    action.mutate(
+      { action: "preview_rollup" },
+      { onSuccess: (r) => r.rollup && setRollup(r.rollup), onError: (e) => toast.error(errorText(e)) },
+    );
+  return (
+    <>
+      <ButtonSecondary onClick={open} loading={action.isPending} className="gap-2">
+        <Mail className="w-4 h-4" /> Preview Monday email
+      </ButtonSecondary>
+      {rollup && (
+        <Modal isOpen size="lg" onClose={() => setRollup(null)} title={rollup.subject}>
+          {rollup.empty && (
+            <p className="text-caption text-muted-foreground mb-3">
+              Nothing to report this week, so Monday's email would not be sent.
+            </p>
+          )}
+          <iframe
+            title="Monday demand rollup"
+            srcDoc={rollup.html}
+            sandbox=""
+            className="w-full h-[70vh] rounded-lg border border-border bg-white"
+          />
+        </Modal>
+      )}
+    </>
   );
 };

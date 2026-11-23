@@ -103,6 +103,7 @@ type Action =
   | { action: "run_verify" }
   | { action: "run_drafts" }
   | { action: "run_loop" }
+  | { action: "preview_rollup" }
   | { action: "update_draft"; id: string; subject: string; body: string }
   | { action: "send_outreach"; id: string }
   | { action: "skip_outreach"; id: string; reason: string };
@@ -118,6 +119,7 @@ export interface DemandActionResult {
   skipped?: { title: string; reason?: string }[];
   loop?: { label: string; action: string; detail?: string }[];
   thanks?: string;
+  rollup?: { subject: string; html: string; empty: boolean };
 }
 
 export async function runDemandAction(body: Action): Promise<DemandActionResult> {

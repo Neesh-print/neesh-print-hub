@@ -1,6 +1,7 @@
 import { adminClient, corsHeaders, getCaller, json } from '../_shared/http.ts'
 import { draftPublisherOutreach, revalidateIndex, sendOutreach, verifySuggestions } from '../_shared/demand.ts'
 import { draftSuggestionThanks, processDemandLoop } from '../_shared/demand-loop.ts'
+import { loadRollup } from '../_shared/demand-rollup-data.ts'
 
 // Admin actions for the Demand queue (demand-signal spec, Automations 1 and
 // 2). Admin only, checked against public.users.role. Every write runs as the
@@ -13,6 +14,7 @@ import { draftSuggestionThanks, processDemandLoop } from '../_shared/demand-loop
 //   run_verify {}                         check every new suggestion now
 //   run_drafts {}                         draft publisher emails now
 //   run_loop {}                           route space requests, draft requester emails now
+//   preview_rollup {}                     this week's Monday rollup, not sent
 //   update_draft { id, subject, body }
 //   send_outreach { id }                  send one approved draft through Resend
 //   skip_outreach { id, reason }
@@ -96,6 +98,10 @@ Deno.serve(async (req) => {
         return json({ ok: true, ...(await draftPublisherOutreach(db)) }, 200, cors)
       case 'run_loop':
         return json({ ok: true, loop: await processDemandLoop(db) }, 200, cors)
+      case 'preview_rollup': {
+        const r = await loadRollup(db)
+        return json({ ok: true, rollup: { subject: r.subject, html: r.html, empty: r.empty } }, 200, cors)
+      }
       case 'update_draft': {
         const subject = String(body.subject ?? '').trim()
         const text = String(body.body ?? '').trim()
