@@ -144,3 +144,15 @@ export const useDemandAction = () => {
     },
   });
 };
+
+/**
+ * What happened to the suggester's thank-you (template D) after an approval.
+ * "no email to thank" stays quiet; any other reason (a request from before
+ * automated replies started, an unsubscribe, the 2-email limit) is shown so
+ * the toast never claims a draft that doesn't exist.
+ */
+export const thanksNote = (thanks: string | undefined): string => {
+  if (thanks === "drafted") return ". A thank-you to the suggester is waiting in Emails";
+  if (!thanks || thanks === "no email to thank" || thanks === "not approved") return "";
+  return `. No thank-you drafted: ${thanks}`;
+};

@@ -74,7 +74,7 @@ async function draftForRequester(db: Db, d: RequesterDraftInput): Promise<string
     if ((dup ?? 0) > 0) return 'already emailed for this request'
   }
 
-  const { error } = await db.from('outreach_log').insert({
+  const { data: written, error } = await db.from('outreach_log').insert({
     recipient_email: email,
     recipient_type: d.recipientType,
     template: d.template,
@@ -86,10 +86,17 @@ async function draftForRequester(db: Db, d: RequesterDraftInput): Promise<string
     body: d.copy.body,
     status: 'draft',
     meta: d.meta ?? {},
-  })
+  }).select('id')
   if (error) return error.code === '23505' ? 'already drafted or sent' : error.message
+  // The outreach_requester_cutoff trigger drops drafts about requests made
+  // before the automations went live (Nov 23, 2026, 05:50 UTC): no error,
+  // just no row. Report it instead of claiming a draft exists.
+  if (!written?.length) return SKIPPED_BEFORE_CUTOFF
   return null
 }
+
+/** Why a requester draft was not written when the database's cutoff rule dropped it. */
+export const SKIPPED_BEFORE_CUTOFF = 'request is from before automated replies started'
 
 // ---------------------------------------------------------------------------
 // Template D: suggestion approved
