@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { trackSpaceSignup } from "@/lib/neesh-analytics";
 import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
 import { SmsMarketingOptIn } from "@/components/shared/SmsMarketingOptIn";
-import { buildSmsMarketingConsent, normalizeMobileNumber, SMS_PHONE_ERROR } from "@/lib/sms-consent";
+import { buildSmsMarketingConsent, mobileNumberError } from "@/lib/sms-consent";
 
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
@@ -35,8 +35,8 @@ interface FormData {
   state: string;
   country: string;
   websiteUrl: string;
+  // One optional box for marketing email and text; the number is optional.
   optInUpdates: boolean;
-  smsMarketingOptIn: boolean;
   smsMarketingPhone: string;
   acceptTerms: boolean;
   referralSource: string;
@@ -47,8 +47,7 @@ interface FormData {
 // never saved or restored.
 const FORM_FIELDS: (keyof FormData)[] = [
   "firstName", "lastName", "email", "storeName",
-  "city", "state", "country", "websiteUrl", "optInUpdates",
-  "smsMarketingOptIn", "smsMarketingPhone",
+  "city", "state", "country", "websiteUrl", "optInUpdates", "smsMarketingPhone",
   "referralSource", "referralDetail",
 ];
 
@@ -74,8 +73,7 @@ export const RetailerApplication = () => {
       state: "",
       country: "",
       websiteUrl: "",
-      optInUpdates: true,
-      smsMarketingOptIn: false,
+      optInUpdates: false,
       smsMarketingPhone: "",
       acceptTerms: false,
       referralSource: "",
@@ -99,6 +97,9 @@ export const RetailerApplication = () => {
         }
         Object.entries(parsed).forEach(([key, value]) => {
           if (!FORM_FIELDS.includes(key as keyof FormData)) return;
+          // Drafts saved before the box covered texts had it ticked by
+          // default, so they resume unticked; newer drafts carry the number.
+          if (key === "optInUpdates" && !("smsMarketingPhone" in parsed)) return;
           setValue(key as keyof FormData, value as string | boolean);
         });
         if (parsed.currentStep === 2) {
@@ -171,7 +172,7 @@ export const RetailerApplication = () => {
           country: values.country,
           website: normalizeWeb(values.websiteUrl),
           optInUpdates: values.optInUpdates,
-          smsMarketing: buildSmsMarketingConsent(values.smsMarketingOptIn, values.smsMarketingPhone),
+          smsMarketing: buildSmsMarketingConsent(values.optInUpdates, values.smsMarketingPhone),
           referralSource: values.referralSource,
           referralDetail: values.referralDetail.trim().slice(0, 200),
           firstTouch: readFirstTouch(),
@@ -458,34 +459,17 @@ export const RetailerApplication = () => {
                 )}
               />
               <Controller
-                name="optInUpdates"
-                control={control}
-                render={({ field }) => (
-                  <label className="flex items-start gap-3 cursor-pointer pt-2">
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="mt-0.5"
-                    />
-                    <span className="text-body text-muted-foreground">
-                      I'd like to receive platform updates and retailer insights
-                    </span>
-                  </label>
-                )}
-              />
-              <Controller
                 name="smsMarketingPhone"
                 control={control}
                 rules={{
-                  validate: (v, all) =>
-                    !all.smsMarketingOptIn || normalizeMobileNumber(v) !== null || SMS_PHONE_ERROR,
+                  validate: (v, all) => mobileNumberError(all.optInUpdates, v) ?? true,
                 }}
                 render={({ field }) => (
                   <div className="pt-2">
                     <SmsMarketingOptIn
-                      checked={watchedValues.smsMarketingOptIn}
+                      checked={watchedValues.optInUpdates}
                       onCheckedChange={(checked) => {
-                        setValue("smsMarketingOptIn", checked);
+                        setValue("optInUpdates", checked);
                         if (!checked) trigger("smsMarketingPhone");
                       }}
                       phone={field.value}

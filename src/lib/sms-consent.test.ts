@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildSmsMarketingConsent, normalizeMobileNumber, SMS_MARKETING_CONSENT_TEXT } from "./sms-consent";
+import {
+  buildSmsMarketingConsent,
+  mobileNumberError,
+  normalizeMobileNumber,
+  SMS_MARKETING_CONSENT_TEXT,
+  SMS_PHONE_ERROR,
+} from "./sms-consent";
 
 describe("normalizeMobileNumber", () => {
   it("reads ten digits as a US or Canada number", () => {
@@ -25,8 +31,22 @@ describe("normalizeMobileNumber", () => {
   });
 });
 
+describe("mobileNumberError", () => {
+  it("allows a blank number, which means email only", () => {
+    expect(mobileNumberError(true, "  ")).toBeUndefined();
+  });
+
+  it("flags a typed number that isn't valid", () => {
+    expect(mobileNumberError(true, "555")).toBe(SMS_PHONE_ERROR);
+  });
+
+  it("ignores the number when the box is unticked", () => {
+    expect(mobileNumberError(false, "555")).toBeUndefined();
+  });
+});
+
 describe("buildSmsMarketingConsent", () => {
-  it("records consent with the number, time and disclosure", () => {
+  it("records consent with the number, time and wording", () => {
     const consent = buildSmsMarketingConsent(true, "503 555 1234");
     expect(consent.smsMarketingOptIn).toBe(true);
     expect(consent.smsMarketingPhone).toBe("+15035551234");
@@ -43,7 +63,7 @@ describe("buildSmsMarketingConsent", () => {
     });
   });
 
-  it("records nothing when the number is invalid", () => {
-    expect(buildSmsMarketingConsent(true, "123").smsMarketingOptIn).toBe(false);
+  it("records nothing for email only (ticked, no number)", () => {
+    expect(buildSmsMarketingConsent(true, "").smsMarketingOptIn).toBe(false);
   });
 });

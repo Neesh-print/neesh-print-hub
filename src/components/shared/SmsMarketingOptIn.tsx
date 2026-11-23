@@ -1,7 +1,7 @@
 import type { Ref } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormInput } from "@/components/neesh";
-import { SMS_MARKETING_DISCLOSURE } from "@/lib/sms-consent";
+import { MARKETING_OPT_IN_LABEL, SMS_MARKETING_DISCLOSURE } from "@/lib/sms-consent";
 
 interface SmsMarketingOptInProps {
   checked: boolean;
@@ -15,9 +15,9 @@ interface SmsMarketingOptInProps {
   textClassName?: string;
 }
 
-// Optional and unticked by default: carriers require marketing SMS consent
-// to be a separate, affirmative choice. The number field only appears once
-// the box is ticked, since it's only used for these texts.
+// One optional, unticked box for marketing email and text. Carriers need
+// text consent to be separate from accepting the terms and never pre-ticked.
+// The number field appears once the box is ticked; left blank, it's email only.
 export const SmsMarketingOptIn = ({
   checked,
   onCheckedChange,
@@ -36,7 +36,7 @@ export const SmsMarketingOptIn = ({
         aria-describedby="sms-marketing-disclosure"
       />
       <span className={textClassName}>
-        Text me marketing messages from Neesh (optional)
+        {MARKETING_OPT_IN_LABEL} (optional)
         <span id="sms-marketing-disclosure" className="block mt-1 text-xs text-muted-foreground">
           {SMS_MARKETING_DISCLOSURE} See our{" "}
           <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">Terms of Service</a>{" "}
@@ -50,7 +50,7 @@ export const SmsMarketingOptIn = ({
         <FormInput
           ref={phoneRef}
           id="smsMarketingPhone"
-          label="Mobile number"
+          label="Mobile number for texts (optional)"
           type="tel"
           inputMode="tel"
           autoComplete="tel"
@@ -58,7 +58,6 @@ export const SmsMarketingOptIn = ({
           value={phone}
           onChange={onPhoneChange}
           error={phoneError}
-          required
         />
       </div>
     )}
