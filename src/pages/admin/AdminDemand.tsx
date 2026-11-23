@@ -26,6 +26,7 @@ import {
   type RejectReason,
   type Suggestion,
   type SuggestionStatus,
+  thanksNote,
 } from "@/hooks/useDemandQueue";
 
 // Demand queue (demand-signal spec, Automations 1 and 2). Suggestions: shop
@@ -84,6 +85,7 @@ const REJECT_OPTIONS: { value: RejectReason; label: string }[] = [
 type Tab = "suggestions" | "emails";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Something went wrong");
+
 
 export const AdminDemand = () => {
   const [params, setParams] = useSearchParams();
@@ -297,7 +299,7 @@ const SuggestionCard = ({ s, onReject }: { s: Suggestion; onReject: () => void }
             (r.revalidated
               ? `${s.shop_name} is listed for ${s.title?.name}`
               : `${s.shop_name} is listed. The Index updates on its next rebuild`) +
-              (r.thanks === "drafted" ? ". A thank-you to the suggester is waiting in Emails" : ""),
+              thanksNote(r.thanks),
           ),
         onError: (e) => toast.error(errorText(e)),
       },

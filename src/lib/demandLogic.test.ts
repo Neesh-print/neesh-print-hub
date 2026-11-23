@@ -216,3 +216,15 @@ describe("space routing", () => {
     expect(inferSegment([])).toBeNull();
   });
 });
+
+describe("approval message for the suggester's thank-you", () => {
+  it("says a draft is waiting only when one was written", async () => {
+    const { thanksNote } = await import("@/hooks/useDemandQueue");
+    expect(thanksNote("drafted")).toBe(". A thank-you to the suggester is waiting in Emails");
+    expect(thanksNote("no email to thank")).toBe("");
+    expect(thanksNote(undefined)).toBe("");
+    expect(thanksNote("request is from before automated replies started")).toBe(
+      ". No thank-you drafted: request is from before automated replies started",
+    );
+  });
+});
