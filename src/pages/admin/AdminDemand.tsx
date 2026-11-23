@@ -226,7 +226,7 @@ const SuggestionsTab = ({ suggestions, toReview }: { suggestions: Suggestion[]; 
           <EmptyState
             icon={<CheckCircle2 className="w-12 h-12" />}
             title="No suggestions to review"
-            description="New shop suggestions are checked every 15 minutes and land here."
+            description="New shop suggestions are checked once a day and land here. Use Check new now to check sooner."
           />
         </div>
       ) : (
