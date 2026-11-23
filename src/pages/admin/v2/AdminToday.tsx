@@ -13,6 +13,7 @@ import {
   ageInDays,
   money,
   needsYouCount,
+  reviewWaiting,
   problemsOf,
   summarizeToday,
   type OverviewOrder,
@@ -100,7 +101,7 @@ export const AdminToday = () => {
   }
 
   const { review } = data;
-  const total = needsYouCount(today, review.applicationsWaiting);
+  const total = needsYouCount(today, reviewWaiting(review));
   const readyTotal = today.ready.reduce((s, o) => s + (o.transfer?.net ?? 0), 0);
   const payoutCount = today.ready.length + today.failed.length + today.blocked.length;
 
@@ -127,6 +128,15 @@ export const AdminToday = () => {
       what: "Applications waiting",
       sub: `${review.applicationDrafts} draft${review.applicationDrafts === 1 ? "" : "s"} not submitted`,
       to: "/admin/applications",
+    },
+    {
+      n: review.demandSuggestions + review.demandEmails,
+      what: "Demand to review",
+      sub: [
+        `${review.demandSuggestions} shop suggestion${review.demandSuggestions === 1 ? "" : "s"}`,
+        `${review.demandEmails} email${review.demandEmails === 1 ? "" : "s"} to approve`,
+      ].join(" · "),
+      to: review.demandSuggestions === 0 && review.demandEmails > 0 ? "/admin/demand?tab=emails" : "/admin/demand",
     },
     { n: review.publishersCantBePaid, what: "Publishers can't be paid", sub: "Stripe setup not finished", to: "/admin/network?setup=payouts" },
     { n: review.publishersWithoutAddress, what: "No ships-from address", sub: "Shipping can't be quoted for their titles", to: "/admin/network?setup=address" },

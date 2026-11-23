@@ -3,6 +3,7 @@ import {
   inView,
   isCountedSale,
   payoutStateOf,
+  reviewWaiting,
   problemsOf,
   stageOf,
   summarizeToday,
@@ -175,5 +176,14 @@ describe("summarizeToday", () => {
     expect(external.pulse.orders7d).toBe(4);
     expect(external.pulse.sales7d).toBeCloseTo(all.pulse.sales7d - 100);
     expect(external.toShip.map((o) => o.id)).toContain("n");
+  });
+});
+
+describe("reviewWaiting", () => {
+  it("counts applications plus the demand queue", () => {
+    expect(reviewWaiting({ applicationsWaiting: 2, demandSuggestions: 4, demandEmails: 1 })).toBe(7);
+  });
+  it("treats missing demand counts as zero", () => {
+    expect(reviewWaiting({ applicationsWaiting: 3 })).toBe(3);
   });
 });

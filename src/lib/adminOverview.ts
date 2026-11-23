@@ -225,6 +225,10 @@ export interface TodaySummary {
   activity: { at: string; text: string }[];
 }
 
+/** Review items that count toward "things need you": applications and the demand queue. */
+export const reviewWaiting = (review: { applicationsWaiting: number; demandSuggestions?: number; demandEmails?: number }) =>
+  review.applicationsWaiting + (review.demandSuggestions ?? 0) + (review.demandEmails ?? 0);
+
 /** Items on the Today screen that wait on an admin; the nav badge shows the same number. */
 export const needsYouCount = (today: TodaySummary, applicationsWaiting: number) =>
   today.toShip.length +

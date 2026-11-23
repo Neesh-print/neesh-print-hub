@@ -4,7 +4,7 @@ import { BarChart3, BookOpen, Clock, LogOut, MessageSquare, Package, Settings, U
 import { Logo } from "@/components/neesh/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminOverview } from "@/hooks/useAdminOverview";
-import { needsYouCount, summarizeToday } from "@/lib/adminOverview";
+import { needsYouCount, reviewWaiting, summarizeToday } from "@/lib/adminOverview";
 import { cn } from "@/lib/utils";
 
 interface Section {
@@ -77,7 +77,7 @@ export const AdminV2Layout = ({ children, variant = "v2" }: AdminV2LayoutProps) 
 
   const badge = useMemo(() => {
     if (!data) return null;
-    return needsYouCount(summarizeToday(data.orders, new Date()), data.review.applicationsWaiting);
+    return needsYouCount(summarizeToday(data.orders, new Date()), reviewWaiting(data.review));
   }, [data]);
 
   const section = SECTIONS.find((s) => s.match(pathname));

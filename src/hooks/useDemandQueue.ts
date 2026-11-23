@@ -137,6 +137,10 @@ export const useDemandAction = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: runDemandAction,
-    onSettled: () => qc.invalidateQueries({ queryKey: QUEUE_KEY }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: QUEUE_KEY });
+      // Today's Review card and the nav badge count the same queue.
+      qc.invalidateQueries({ queryKey: ["admin-overview"] });
+    },
   });
 };
