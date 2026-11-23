@@ -137,6 +137,13 @@ export function placeArea(row: Row): string | undefined {
   const value = row.source.neighborhood || src.borough;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
+/** A space that asked Neesh for a title (demand-signal Automation 4): the titles it wants, or null. */
+export function demandWants(row: Row): string[] | null {
+  const src = row.source as Record<string, unknown>;
+  if (src.hot !== true) return null;
+  const wants = (src.demand as { wants_titles?: unknown } | undefined)?.wants_titles;
+  return Array.isArray(wants) ? wants.filter((t): t is string => typeof t === "string") : [];
+}
 export function spaceType(row: Row): string | undefined {
   const value = (row.source as Record<string, unknown>).space_type;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;

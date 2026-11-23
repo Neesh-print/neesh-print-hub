@@ -9,6 +9,12 @@ import {
   publisherDraft,
   sameShop,
   spamReason,
+  requesterDraft,
+  storeNearPostcode,
+  businessDomain,
+  domainStem,
+  inferSegment,
+  unsubscribeLine,
   type TitleDemand,
 } from "../../supabase/functions/_shared/demand-logic";
 
@@ -145,5 +151,68 @@ describe("publisher copy", () => {
     const { subject, body } = publisherDraft("B", { ...base, title_state: "claimed", open_space_30d: 1 });
     expect(subject).toBe("A new stockist wants to order Heavy Traffic directly");
     expect(body.startsWith("A space in New York wants to order Heavy Traffic directly from you.")).toBe(true);
+  });
+});
+
+describe("requester copy (D to G)", () => {
+  const cases = [
+    requesterDraft("D", { title: "MacGuffin", titleSlug: "macguffin", shop: "Paradis Superstore", city: "Brussels" }),
+    requesterDraft("E", { title: "Slanted", shop: "Casa Magazines", area: "Manhattan", storeSlug: "casa-magazines-new-york" }),
+    requesterDraft("F", { title: "Anchoa", magazineId: "m1" }),
+    requesterDraft("G", { title: "Anchoa", magazineId: "m1", qty: 12 }),
+  ];
+  it("follows the spec wording", () => {
+    expect(cases[0].subject).toBe("Paradis Superstore is now on the Neesh Index for MacGuffin");
+    expect(cases[0].body).toMatch(/^Thanks for the tip\. Paradis Superstore in Brussels now shows up as a place to find MacGuffin\./);
+    expect(cases[1].body).toMatch(/^You asked where to find Slanted in person\. Casa Magazines in Manhattan has it\./);
+    expect(cases[2].subject).toBe("You can order Anchoa on Neesh now");
+    expect(cases[3].body).toMatch(/^Anchoa is back in stock on Neesh, 12 copies available\./);
+  });
+  it("signs Neesh, tags links, no em dashes or pricing", () => {
+    for (const [i, c] of cases.entries()) {
+      expect(c.body.endsWith("Neesh")).toBe(true);
+      expect(c.body).toContain("utm_content=" + "DEFG"[i]);
+      expect(c.subject + c.body).not.toMatch(/\u2014|\$|price|fee|%/i);
+    }
+  });
+  it("has a one-line unsubscribe", () => {
+    expect(unsubscribeLine("https://x.test/u")).not.toContain("\n");
+  });
+});
+
+describe("near you", () => {
+  const nyc = { city: "New York", country: "US", address: null };
+  it("matches inside New York City", () => {
+    expect(storeNearPostcode("11211", nyc)).toBe(true);
+    expect(storeNearPostcode("10003", { city: null, country: "US", address: "1 Main St, Brooklyn, NY 11201" })).toBe(true);
+  });
+  it("matches the same ZIP3 elsewhere", () => {
+    expect(storeNearPostcode("87501", { city: "Santa Fe", country: "US", address: "2 Plaza, Santa Fe, NM 87505" })).toBe(true);
+    expect(storeNearPostcode("87501", { city: "Santa Fe", country: "US", address: null })).toBe(false);
+    expect(storeNearPostcode("02912", nyc)).toBe(false);
+  });
+  it("never matches outside the US or without a postcode", () => {
+    expect(storeNearPostcode("11211", { city: "London", country: "GB", address: "11211" })).toBe(false);
+    expect(storeNearPostcode(null, nyc)).toBe(false);
+  });
+});
+
+describe("space routing", () => {
+  it("only uses real business domains", () => {
+    expect(businessDomain("Owner@FlowersForSantaFe.com")).toBe("flowersforsantafe.com");
+    expect(businessDomain("someone@gmail.com")).toBeNull();
+    expect(businessDomain("x@evil.com),contact_email.ilike.%")).toBeNull();
+    expect(businessDomain(null)).toBeNull();
+  });
+  it("searches Places by the domain stem", () => {
+    expect(domainStem("flowersforsantafe.com")).toBe("flowersforsantafe");
+    expect(domainStem("olucompany.co.uk")).toBe("olucompany");
+  });
+  it("guesses the ICP segment from place types", () => {
+    expect(inferSegment(["florist", "store"])).toBe("Dwell");
+    expect(inferSegment(["cafe", "food"])).toBe("Presence");
+    expect(inferSegment(["hair_care", "beauty_salon"])).toBe("Wait");
+    expect(inferSegment(["book_store"])).toBe("Catalog");
+    expect(inferSegment([])).toBeNull();
   });
 });

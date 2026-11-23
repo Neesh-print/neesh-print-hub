@@ -261,3 +261,132 @@ export const publisherDraft = (template: PublisherTemplate, d: TitleDemand): Dra
 /** Request roles each template counts, for linking demand_signal_ids. */
 export const rolesFor = (template: PublisherTemplate): string[] =>
   template === 'B' ? ['space'] : ['reader', 'space']
+
+// ---------------------------------------------------------------------------
+// Automation 3: close the loop with requesters (templates D, E, F, G)
+// ---------------------------------------------------------------------------
+
+export type RequesterTemplate = 'D' | 'E' | 'F' | 'G'
+export const INDEX_URL = 'https://neesh.art'
+export const REQUESTER_CAP = 2
+export const STALE_DAYS = 120
+
+/** Plain-text copy for D to G, word for word from the spec, signed "Neesh". */
+export const requesterDraft = (
+  template: RequesterTemplate,
+  v: { title: string; titleSlug?: string; shop?: string; city?: string | null; area?: string | null; storeSlug?: string; magazineId?: string; qty?: number },
+): DraftEmail => {
+  const title = v.title.trim()
+  switch (template) {
+    case 'D':
+      return {
+        subject: `${v.shop} is now on the Neesh Index for ${title}`,
+        body: [
+          `Thanks for the tip. ${v.shop}${v.city ? ` in ${v.city}` : ''} now shows up as a place to find ${title}.`,
+          withUtm(`${INDEX_URL}/titles/${v.titleSlug}`, 'D'),
+          'Neesh',
+        ].join('\n\n'),
+      }
+    case 'E':
+      return {
+        subject: `${title} is at a shop near you`,
+        body: [
+          `You asked where to find ${title} in person. ${v.shop}${v.area ? ` in ${v.area}` : ''} has it.`,
+          withUtm(`${INDEX_URL}/stores/${v.storeSlug}`, 'E'),
+          'Neesh',
+        ].join('\n\n'),
+      }
+    case 'F':
+      return {
+        subject: `You can order ${title} on Neesh now`,
+        body: [
+          `You asked about ${title}. The publisher is now taking orders directly on Neesh.`,
+          withUtm(`${APP_URL}/retailer/catalogue/${v.magazineId}`, 'F'),
+          'Neesh',
+        ].join('\n\n'),
+      }
+    case 'G':
+      return {
+        subject: `${title} is back in stock`,
+        body: [
+          `${title} is back in stock on Neesh, ${v.qty} ${v.qty === 1 ? 'copy' : 'copies'} available.`,
+          withUtm(`${APP_URL}/retailer/catalogue/${v.magazineId}`, 'G'),
+          'Neesh',
+        ].join('\n\n'),
+      }
+  }
+}
+
+/** The one-line unsubscribe added under every reader and space email at send time. */
+export const unsubscribeLine = (url: string): string => `Don't want these emails? Unsubscribe: ${url}`
+
+const zip5 = (s: string | null | undefined): string | null => {
+  const m = /\b(\d{5})(?:-\d{4})?\b/.exec(s ?? '')
+  return m ? m[1] : null
+}
+
+export const isNycZip = (zip: string | null | undefined): boolean => !!zip && NYC_ZIP.test(zip.trim().slice(0, 5))
+
+/**
+ * Is this store near the reader's postcode? Stores have no coordinates
+ * (spec, known gaps), so v1 says yes when both are in New York City, or
+ * when the store's address carries a ZIP with the same first three digits
+ * (one USPS sectional center, roughly a metro area).
+ */
+export const storeNearPostcode = (
+  postcode: string | null | undefined,
+  store: { city: string | null; country: string; address: string | null },
+): boolean => {
+  const reader = zip5(postcode)
+  if (!reader || store.country !== 'US') return false
+  if (isNycZip(reader) && (store.city === 'New York' || isNycZip(zip5(store.address)))) return true
+  const storeZip = zip5(store.address)
+  return !!storeZip && storeZip.slice(0, 3) === reader.slice(0, 3)
+}
+
+// ---------------------------------------------------------------------------
+// Automation 4: route space requests
+// ---------------------------------------------------------------------------
+
+// Mailbox providers: a match on these domains says nothing about the space.
+const GENERIC_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com', 'aol.com', 'proton.me', 'protonmail.com', 'hey.com',
+  'fastmail.com', 'gmx.com', 'mail.com', 'yandex.com', 'zoho.com', 'comcast.net', 'verizon.net',
+])
+
+/** The space's own domain from an email, or null for mailbox providers. */
+export const businessDomain = (email: string | null | undefined): string | null => {
+  const d = email?.split('@')[1]?.trim().toLowerCase()
+  if (!d || !/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(d) || GENERIC_DOMAINS.has(d)) return null
+  return d
+}
+
+/** Bare host of a URL, without www. */
+export const hostOf = (url: string | null | undefined): string | null => {
+  if (!url) return null
+  try {
+    return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+/** "flowersforsantafe.com" -> "flowersforsantafe", for a Places text search. */
+export const domainStem = (domain: string): string => domain.replace(/\.(com|net|org|co|shop|store|studio|nyc|us)(\.[a-z]{2})?$/, '')
+
+const SEGMENT_TYPES: [string, RegExp][] = [
+  ['Wait', /hair|barber|nail|beauty|spa|dent|doctor|clinic|salon|tattoo/],
+  ['Taste', /hotel|lodging|cowork|office|agency|studio|architect/],
+  ['Catalog', /book|library|museum|newsstand|record|music_store|grocery/],
+  ['Presence', /cafe|coffee|bar|bakery|restaurant|wine|tea|food|club/],
+  ['Dwell', /clothing|boutique|home_goods|furniture|gallery|florist|gift|store|shop/],
+]
+
+/** ICP segment from Google place types, or null when nothing fits. */
+export const inferSegment = (types: string[] | null | undefined): string | null => {
+  const joined = (types ?? []).join(' ').toLowerCase()
+  if (!joined) return null
+  for (const [segment, re] of SEGMENT_TYPES) if (re.test(joined)) return segment
+  return null
+}

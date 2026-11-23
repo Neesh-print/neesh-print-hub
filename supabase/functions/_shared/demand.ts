@@ -16,6 +16,7 @@ import {
   spamReason,
   SPAM_IP_LIMIT,
   type TitleDemand,
+  unsubscribeLine,
 } from './demand-logic.ts'
 
 type Db = SupabaseClient
@@ -390,16 +391,57 @@ export async function draftPublisherOutreach(db: Db, opts: { dryRun?: boolean } 
 // ---------------------------------------------------------------------------
 
 const FROM_GEM = 'Gem <gem@neesh.art>'
+const FROM_NEESH = 'Neesh <hi@neesh.art>'
+
+// Unsubscribe links carry the outreach row id and an HMAC of it, never the
+// address. Keyed with the service role key, which only the functions hold.
+const hmac = async (value: string): Promise<string> => {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`unsubscribe:${value}`))
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32)
+}
+
+export const unsubscribeUrl = async (outreachId: string): Promise<string> =>
+  `${(Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '')}/functions/v1/outreach-unsubscribe?id=${outreachId}&t=${await hmac(outreachId)}`
+
+export const verifyUnsubscribe = async (outreachId: string, token: string): Promise<boolean> => {
+  const expected = await hmac(outreachId)
+  if (token.length !== expected.length) return false
+  let diff = 0
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ token.charCodeAt(i)
+  return diff === 0
+}
+
+/** Record an unsubscribe and skip anything still waiting for that address. */
+export async function suppress(db: Db, email: string, reason: string, outreachId?: string) {
+  const address = email.trim().toLowerCase()
+  await db
+    .from('outreach_suppressions')
+    .upsert({ email: address, reason, source_outreach_id: outreachId ?? null }, { onConflict: 'email', ignoreDuplicates: true })
+  await db
+    .from('outreach_log')
+    .update({ status: 'skipped', skip_reason: reason })
+    .eq('recipient_email', address)
+    .eq('status', 'draft')
+}
 
 export async function sendOutreach(db: Db, id: string, approver: string): Promise<{ resendId: string }> {
   const { data: row, error } = await db.from('outreach_log').select('*').eq('id', id).single()
   if (error || !row) throw new Error('draft not found')
   if (row.status !== 'draft') throw new Error(`this email is already ${row.status}`)
-  if (row.recipient_type !== 'publisher') throw new Error('only publisher emails are sent from this queue for now')
   if (!row.subject?.trim() || !row.body?.trim()) throw new Error('subject and body are required')
   if (/—/.test(row.subject + row.body)) throw new Error('remove the em dash before sending')
+  const toPublisher = row.recipient_type === 'publisher'
 
-  if (row.title_id) {
+  const { data: suppressed } = await db.from('outreach_suppressions').select('email').eq('email', row.recipient_email).maybeSingle()
+  if (suppressed) throw new Error('this address unsubscribed')
+  if (toPublisher && row.title_id) {
     const { data: t } = await db.from('directory_titles').select('do_not_contact, distributor_exclusive').eq('id', row.title_id).single()
     if (t?.do_not_contact) throw new Error('this title is flagged do not contact')
     if (t?.distributor_exclusive) throw new Error('this title is flagged distributor exclusive')
@@ -423,15 +465,21 @@ export async function sendOutreach(db: Db, id: string, approver: string): Promis
     .select('id')
   if (!claimed?.length) throw new Error('this email is already being sent')
 
+  const unsub = await unsubscribeUrl(id)
+  // Readers and spaces get the spec's one-line unsubscribe; publisher emails
+  // read as a personal note from Gem and carry it in the header only.
+  const text = toPublisher ? row.body : `${row.body.trimEnd()}\n\n${unsubscribeLine(unsub)}`
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: FROM_GEM,
+      from: toPublisher ? FROM_GEM : FROM_NEESH,
       to: [row.recipient_email],
-      reply_to: 'gem@neesh.art',
+      reply_to: toPublisher ? 'gem@neesh.art' : 'hi@neesh.art',
       subject: row.subject,
-      text: row.body,
+      text,
+      headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
       tags: [{ name: 'campaign', value: 'demand' }, { name: 'template', value: row.template }],
     }),
   })
@@ -441,20 +489,51 @@ export async function sendOutreach(db: Db, id: string, approver: string): Promis
     throw new Error(`Resend refused the email: ${sent?.message ?? res.status}`)
   }
 
+  const now = new Date().toISOString()
   const { error: upErr } = await db
     .from('outreach_log')
-    .update({ status: 'sent', sent_at: new Date().toISOString(), resend_message_id: sent.id })
+    .update({ status: 'sent', sent_at: now, resend_message_id: sent.id, body: text })
     .eq('id', id)
   if (upErr) console.error('sent but could not mark outreach_log', id, upErr.message)
 
-  if (row.demand_signal_ids?.length) {
+  await applyResolution(db, row, now)
+  return { resendId: sent.id }
+}
+
+interface SentRow {
+  template: string
+  demand_signal_ids: number[] | null
+  suggestion_ids: string[] | null
+  stock_notification_ids: string[] | null
+  meta: { resolution?: string; stockist_id?: string; magazine_id?: string } | null
+}
+
+/** What a sent email resolves: publisher contacted, request resolved, suggester or space notified. */
+async function applyResolution(db: Db, row: SentRow, now: string) {
+  const signals = row.demand_signal_ids ?? []
+  const meta = row.meta ?? {}
+  if (['A', 'B', 'C'].includes(row.template) && signals.length) {
+    await db.from('directory_demand_signals').update({ status: 'publisher_contacted' }).in('id', signals).eq('status', 'open')
+  }
+  if (['E', 'F'].includes(row.template) && signals.length) {
     await db
       .from('directory_demand_signals')
-      .update({ status: 'publisher_contacted' })
-      .in('id', row.demand_signal_ids)
-      .eq('status', 'open')
+      .update({
+        status: 'resolved',
+        resolution: meta.resolution ?? (row.template === 'E' ? 'stockist_added' : 'now_selling'),
+        resolved_at: now,
+        requester_notified_at: now,
+        resolved_by_stockist_id: meta.stockist_id ?? null,
+        resolved_by_magazine_id: meta.magazine_id ?? null,
+      })
+      .in('id', signals)
   }
-  return { resendId: sent.id }
+  if (row.template === 'D' && row.suggestion_ids?.length) {
+    await db.from('directory_stockist_suggestions').update({ requester_notified_at: now }).in('id', row.suggestion_ids)
+  }
+  if (row.template === 'G' && row.stock_notification_ids?.length) {
+    await db.from('stock_notifications').update({ notified_at: now }).in('id', row.stock_notification_ids)
+  }
 }
 
 // ---------------------------------------------------------------------------

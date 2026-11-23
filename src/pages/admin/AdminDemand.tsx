@@ -62,6 +62,16 @@ const TEMPLATE_LABEL: Record<string, string> = {
   A: "A · Not claimed",
   B: "B · Claimed, not selling",
   C: "C · Out of stock",
+  D: "D · Suggestion approved",
+  E: "E · Stockist near a reader",
+  F: "F · Now orderable",
+  G: "G · Back in stock",
+};
+
+const RECIPIENT_LABEL: Record<OutreachRow["recipient_type"], string> = {
+  publisher: "Publisher",
+  reader: "Reader",
+  space: "Space",
 };
 
 const REJECT_OPTIONS: { value: RejectReason; label: string }[] = [
@@ -111,7 +121,8 @@ export const AdminDemand = () => {
       <div className="px-4 md:px-6 pt-6 pb-4">
         <h1 className="font-display font-bold text-title text-foreground">Demand</h1>
         <p className="text-body text-muted-foreground mt-1">
-          Shop suggestions from readers and publisher emails drafted from requests. Nothing is sent until you approve it.
+          Shop suggestions from readers, publisher emails drafted from requests, and replies to the people who asked.
+          Nothing is sent until you approve it.
         </p>
       </div>
 
@@ -129,7 +140,7 @@ export const AdminDemand = () => {
           {(
             [
               ["suggestions", `Suggestions (${toReview.length})`],
-              ["emails", `Publisher emails (${drafts.length})`],
+              ["emails", `Emails (${drafts.length})`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -280,9 +291,10 @@ const SuggestionCard = ({ s, onReject }: { s: Suggestion; onReject: () => void }
       {
         onSuccess: (r) =>
           toast.success(
-            r.revalidated
+            (r.revalidated
               ? `${s.shop_name} is listed for ${s.title?.name}`
-              : `${s.shop_name} is listed. The Index updates on its next rebuild`,
+              : `${s.shop_name} is listed. The Index updates on its next rebuild`) +
+              (r.thanks === "drafted" ? ". A thank-you to the suggester is waiting in Emails" : ""),
           ),
         onError: (e) => toast.error(errorText(e)),
       },
@@ -421,23 +433,32 @@ const EmailsTab = ({ outreach }: { outreach: OutreachRow[] }) => {
   const action = useDemandAction();
   const [open, setOpen] = useState<OutreachRow | null>(null);
   const drafts = outreach.filter((o) => o.status === "draft" || o.status === "approved");
+  const sections = [
+    { key: "publisher", title: "To publishers", rows: drafts.filter((o) => o.recipient_type === "publisher") },
+    { key: "requester", title: "To readers and spaces", rows: drafts.filter((o) => o.recipient_type !== "publisher") },
+  ].filter((sec) => sec.rows.length > 0);
   const history = outreach.filter((o) => o.status === "sent" || o.status === "skipped");
 
-  const runDrafts = () =>
-    action.mutate(
-      { action: "run_drafts" },
-      {
-        onSuccess: (r) => {
-          const n = r.drafted?.length ?? 0;
-          const missing = r.needsContact?.length ?? 0;
-          toast.success(
-            `${n === 0 ? "No new drafts" : `${n} new draft${n === 1 ? "" : "s"}`}` +
-              (missing ? `. ${missing} title${missing === 1 ? " needs" : "s need"} a publisher email: ${r.needsContact!.join(", ")}` : ""),
-          );
-        },
-        onError: (e) => toast.error(errorText(e)),
-      },
-    );
+  const runDrafts = async () => {
+    try {
+      const pub = await action.mutateAsync({ action: "run_drafts" });
+      const loop = await action.mutateAsync({ action: "run_loop" });
+      const n = (pub.drafted?.length ?? 0) + (loop.loop?.filter((r) => r.action === "draft").length ?? 0);
+      const routed = loop.loop?.filter((r) => r.action === "routed").length ?? 0;
+      const missing = pub.needsContact?.length ?? 0;
+      toast.success(
+        [
+          n === 0 ? "No new drafts" : `${n} new draft${n === 1 ? "" : "s"}`,
+          routed ? `${routed} space request${routed === 1 ? "" : "s"} routed` : "",
+          missing ? `${missing} title${missing === 1 ? " needs" : "s need"} a publisher email: ${pub.needsContact!.join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join(". "),
+      );
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  };
 
   return (
     <section className="px-4 md:px-6 pb-8">
@@ -446,7 +467,8 @@ const EmailsTab = ({ outreach }: { outreach: OutreachRow[] }) => {
           <RefreshCw className="w-4 h-4" /> Draft now
         </ButtonSecondary>
         <p className="text-caption text-muted-foreground">
-          Drafts are written daily at 10am ET for titles with 2+ reader or 1+ space requests in 30 days.
+          Publisher drafts are written daily at 10am ET. Replies to readers and spaces are drafted hourly when a request
+          resolves.
         </p>
       </div>
 
@@ -455,15 +477,22 @@ const EmailsTab = ({ outreach }: { outreach: OutreachRow[] }) => {
           <EmptyState
             icon={<Mail className="w-12 h-12" />}
             title="No emails waiting"
-            description="When a title crosses the demand threshold, its publisher email shows up here as a draft."
+            description="Publisher emails and replies to the people who asked show up here as drafts."
           />
         </div>
       ) : (
-        <div className="space-y-3">
-          {drafts.map((o) => (
-            <OutreachCard key={o.id} o={o} onOpen={() => setOpen(o)} />
-          ))}
-        </div>
+        sections.map((sec) => (
+          <div key={sec.key} className="mb-6">
+            <h2 className="font-display font-semibold text-heading text-foreground mb-3">
+              {sec.title} <span className="text-muted-foreground">({sec.rows.length})</span>
+            </h2>
+            <div className="space-y-3">
+              {sec.rows.map((o) => (
+                <OutreachCard key={o.id} o={o} onOpen={() => setOpen(o)} />
+              ))}
+            </div>
+          </div>
+        ))
       )}
 
       {history.length > 0 && (
@@ -501,9 +530,11 @@ const OutreachCard = ({ o, onOpen }: { o: OutreachRow; onOpen: () => void }) => 
       </span>
     </div>
     <p className="text-caption text-muted-foreground mt-1">
-      To {o.publisher?.name ? `${o.publisher.name}, ` : ""}
-      {o.recipient_email} · {o.demand_signal_ids.length} request{o.demand_signal_ids.length === 1 ? "" : "s"} · Drafted{" "}
-      {format(new Date(o.created_at), "MMM d")}
+      {RECIPIENT_LABEL[o.recipient_type]}: {o.publisher?.name ? `${o.publisher.name}, ` : ""}
+      {o.recipient_email}
+      {o.recipient_type === "publisher" &&
+        ` · ${o.demand_signal_ids.length} request${o.demand_signal_ids.length === 1 ? "" : "s"}`}{" "}
+      · Drafted {format(new Date(o.created_at), "MMM d")}
     </p>
     <p className="text-body text-foreground mt-2 font-semibold">{o.subject}</p>
     <p className="text-caption text-muted-foreground mt-1 line-clamp-2 whitespace-pre-line">{o.body}</p>
@@ -607,8 +638,13 @@ const DraftModal = ({ o, onClose }: { o: OutreachRow; onClose: () => void }) => 
       ) : (
         <div className="space-y-4">
           <p className="text-caption text-muted-foreground">
-            From Gem &lt;gem@neesh.art&gt; to {o.recipient_email} · {TEMPLATE_LABEL[o.template] ?? o.template}. Sent as plain
-            text through Resend. Counts toward this publisher's 2-email limit.
+            {o.recipient_type === "publisher"
+              ? "From Gem <gem@neesh.art>"
+              : "From Neesh <hi@neesh.art>"}{" "}
+            to {o.recipient_email} · {TEMPLATE_LABEL[o.template] ?? o.template}. Sent as plain text through Resend.
+            {o.recipient_type === "publisher"
+              ? " Counts toward this publisher's 2-email limit."
+              : " A one-line unsubscribe link is added at the bottom. Counts toward this person's 2-email limit."}
           </p>
           <FormInput label="Subject" value={subject} onChange={setSubject} />
           <FormTextarea label="Body" value={body} onChange={setBody} rows={14} className="font-mono text-sm" />

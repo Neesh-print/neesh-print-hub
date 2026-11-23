@@ -1,16 +1,18 @@
 import { adminClient, corsHeaders, getCaller, json } from '../_shared/http.ts'
 import { draftPublisherOutreach, revalidateIndex, sendOutreach, verifySuggestions } from '../_shared/demand.ts'
+import { draftSuggestionThanks, processDemandLoop } from '../_shared/demand-loop.ts'
 
 // Admin actions for the Demand queue (demand-signal spec, Automations 1 and
 // 2). Admin only, checked against public.users.role. Every write runs as the
 // service role; the app only reads these tables.
 //
-//   approve_suggestion { id }             store + stockist rows, then refresh the Index pages
+//   approve_suggestion { id }             store + stockist rows, refresh the Index pages, draft template D
 //   approve_confirmed {}                  the same for every confirmed suggestion
 //   reject_suggestion { id, reason }      not_stocked | closed | spam | other
 //   reverify_suggestion { id }            run the checks again
 //   run_verify {}                         check every new suggestion now
 //   run_drafts {}                         draft publisher emails now
+//   run_loop {}                           route space requests, draft requester emails now
 //   update_draft { id, subject, body }
 //   send_outreach { id }                  send one approved draft through Resend
 //   skip_outreach { id, reason }
@@ -26,7 +28,9 @@ async function approve(db: ReturnType<typeof adminClient>, id: string, reviewer:
     r.store_slug && `/stores/${r.store_slug}`,
     r.city_slug && `/cities/${r.city_slug}`,
   ].filter(Boolean) as string[]
-  return { ...r, paths }
+  // Template D: thank the suggester, as a draft like every requester email.
+  const thanks = await draftSuggestionThanks(db, id).catch((err) => String(err))
+  return { ...r, paths, thanks: thanks ?? 'drafted' }
 }
 
 Deno.serve(async (req) => {
@@ -51,7 +55,7 @@ Deno.serve(async (req) => {
       case 'approve_suggestion': {
         const r = await approve(db, id, caller.userId)
         const revalidated = await revalidateIndex(r.paths)
-        return json({ ok: true, revalidated, paths: r.paths }, 200, cors)
+        return json({ ok: true, revalidated, paths: r.paths, thanks: r.thanks }, 200, cors)
       }
       case 'approve_confirmed': {
         const { data } = await db
@@ -90,6 +94,8 @@ Deno.serve(async (req) => {
         return json({ ok: true, results: await verifySuggestions(db, { limit: 25 }) }, 200, cors)
       case 'run_drafts':
         return json({ ok: true, ...(await draftPublisherOutreach(db)) }, 200, cors)
+      case 'run_loop':
+        return json({ ok: true, loop: await processDemandLoop(db) }, 200, cors)
       case 'update_draft': {
         const subject = String(body.subject ?? '').trim()
         const text = String(body.body ?? '').trim()

@@ -45,3 +45,10 @@ verify_jwt = false
 # Admin-checked inside the handler via the caller's own session.
 [functions.demand-review]
 verify_jwt = true
+
+[functions.process-demand-loop]
+verify_jwt = false
+
+# Public one-click unsubscribe; the link is HMAC-signed.
+[functions.outreach-unsubscribe]
+verify_jwt = false
