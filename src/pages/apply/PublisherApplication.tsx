@@ -9,6 +9,8 @@ import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, Fi
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
+import { SmsMarketingOptIn } from "@/components/shared/SmsMarketingOptIn";
+import { buildSmsMarketingConsent, normalizeMobileNumber, SMS_PHONE_ERROR } from "@/lib/sms-consent";
 import { trackPublisherApplication } from "@/lib/neesh-analytics";
 import {
   COUNTRIES,
@@ -84,6 +86,10 @@ interface FormData {
   acceptTerms: boolean;
   acceptIndexTerms: boolean;
   optInUpdates: boolean;
+  // The marketing SMS checkbox and number as typed. These stay in drafts;
+  // the consent record (smsMarketing* keys) is only written on submit.
+  smsOptInBox: boolean;
+  smsPhoneInput: string;
   referralSource: string;
   referralDetail: string;
 }
@@ -150,6 +156,8 @@ const defaultFormValues: FormData = {
   acceptTerms: false,
   acceptIndexTerms: false,
   optInUpdates: true,
+  smsOptInBox: false,
+  smsPhoneInput: "",
   referralSource: "",
   referralDetail: "",
 };
@@ -166,6 +174,7 @@ export const PublisherApplication = () => {
     localStorage.getItem("publisherClaimSlug")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [smsPhoneError, setSmsPhoneError] = useState<string | undefined>();
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [publisherId, setPublisherId] = useState<string | null>(() => localStorage.getItem('publisherAppId'));
@@ -303,6 +312,8 @@ export const PublisherApplication = () => {
                 acceptTerms: additionalInfo.acceptTerms || false,
                 acceptIndexTerms: additionalInfo.acceptIndexTerms || false,
                 optInUpdates: additionalInfo.optInUpdates ?? true,
+                smsOptInBox: additionalInfo.smsOptInBox === true,
+                smsPhoneInput: additionalInfo.smsPhoneInput || '',
                 referralSource: additionalInfo.referralSource || '',
                 referralDetail: additionalInfo.referralDetail || '',
              };
@@ -765,6 +776,12 @@ export const PublisherApplication = () => {
       return;
     }
 
+    if (formValues.smsOptInBox && !normalizeMobileNumber(formValues.smsPhoneInput)) {
+      setSmsPhoneError(SMS_PHONE_ERROR);
+      document.getElementById("smsMarketingPhone")?.focus();
+      return;
+    }
+
     if (!publisherId) {
       toast.error("Session error. Please refresh and try again.");
       return;
@@ -815,6 +832,7 @@ export const PublisherApplication = () => {
           ...(firstTouch ? { firstTouch } : {}),
           acceptedTermsAt: new Date().toISOString(),
           acceptedTermsKind: claimOnly ? "index" : "marketplace",
+          ...buildSmsMarketingConsent(formValues.smsOptInBox, formValues.smsPhoneInput),
         },
       };
 
@@ -1824,6 +1842,19 @@ export const PublisherApplication = () => {
                   I'd like to receive platform updates and publisher insights
                 </span>
               </label>
+              <SmsMarketingOptIn
+                checked={formValues.smsOptInBox}
+                onCheckedChange={(checked) => {
+                  setValue("smsOptInBox", checked);
+                  if (!checked) setSmsPhoneError(undefined);
+                }}
+                phone={formValues.smsPhoneInput}
+                onPhoneChange={(value) => {
+                  setValue("smsPhoneInput", value);
+                  setSmsPhoneError(undefined);
+                }}
+                phoneError={smsPhoneError}
+              />
             </div>
 
             <ButtonPrimary
@@ -1918,6 +1949,19 @@ export const PublisherApplication = () => {
                   I&rsquo;d like to receive platform updates and publisher insights
                 </span>
               </label>
+              <SmsMarketingOptIn
+                checked={formValues.smsOptInBox}
+                onCheckedChange={(checked) => {
+                  setValue("smsOptInBox", checked);
+                  if (!checked) setSmsPhoneError(undefined);
+                }}
+                phone={formValues.smsPhoneInput}
+                onPhoneChange={(value) => {
+                  setValue("smsPhoneInput", value);
+                  setSmsPhoneError(undefined);
+                }}
+                phoneError={smsPhoneError}
+              />
             </div>
 
             <ButtonPrimary

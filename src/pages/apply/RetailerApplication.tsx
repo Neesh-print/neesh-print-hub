@@ -11,6 +11,8 @@ import { normalizeWeb } from "@/lib/normalize-web";
 import { toast } from "sonner";
 import { trackSpaceSignup } from "@/lib/neesh-analytics";
 import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
+import { SmsMarketingOptIn } from "@/components/shared/SmsMarketingOptIn";
+import { buildSmsMarketingConsent, normalizeMobileNumber, SMS_PHONE_ERROR } from "@/lib/sms-consent";
 
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
@@ -34,6 +36,8 @@ interface FormData {
   country: string;
   websiteUrl: string;
   optInUpdates: boolean;
+  smsMarketingOptIn: boolean;
+  smsMarketingPhone: string;
   acceptTerms: boolean;
   referralSource: string;
   referralDetail: string;
@@ -44,12 +48,13 @@ interface FormData {
 const FORM_FIELDS: (keyof FormData)[] = [
   "firstName", "lastName", "email", "storeName",
   "city", "state", "country", "websiteUrl", "optInUpdates",
+  "smsMarketingOptIn", "smsMarketingPhone",
   "referralSource", "referralDetail",
 ];
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   1: ["firstName", "lastName", "email", "password", "storeName"],
-  2: ["city", "state", "country", "websiteUrl", "referralSource", "acceptTerms"],
+  2: ["city", "state", "country", "websiteUrl", "referralSource", "smsMarketingPhone", "acceptTerms"],
 };
 
 export const RetailerApplication = () => {
@@ -70,6 +75,8 @@ export const RetailerApplication = () => {
       country: "",
       websiteUrl: "",
       optInUpdates: true,
+      smsMarketingOptIn: false,
+      smsMarketingPhone: "",
       acceptTerms: false,
       referralSource: "",
       referralDetail: "",
@@ -164,6 +171,7 @@ export const RetailerApplication = () => {
           country: values.country,
           website: normalizeWeb(values.websiteUrl),
           optInUpdates: values.optInUpdates,
+          smsMarketing: buildSmsMarketingConsent(values.smsMarketingOptIn, values.smsMarketingPhone),
           referralSource: values.referralSource,
           referralDetail: values.referralDetail.trim().slice(0, 200),
           firstTouch: readFirstTouch(),
@@ -463,6 +471,30 @@ export const RetailerApplication = () => {
                       I'd like to receive platform updates and retailer insights
                     </span>
                   </label>
+                )}
+              />
+              <Controller
+                name="smsMarketingPhone"
+                control={control}
+                rules={{
+                  validate: (v, all) =>
+                    !all.smsMarketingOptIn || normalizeMobileNumber(v) !== null || SMS_PHONE_ERROR,
+                }}
+                render={({ field }) => (
+                  <div className="pt-2">
+                    <SmsMarketingOptIn
+                      checked={watchedValues.smsMarketingOptIn}
+                      onCheckedChange={(checked) => {
+                        setValue("smsMarketingOptIn", checked);
+                        if (!checked) trigger("smsMarketingPhone");
+                      }}
+                      phone={field.value}
+                      onPhoneChange={field.onChange}
+                      phoneError={errors.smsMarketingPhone?.message}
+                      phoneRef={field.ref}
+                      textClassName="text-body text-muted-foreground"
+                    />
+                  </div>
                 )}
               />
               <Controller

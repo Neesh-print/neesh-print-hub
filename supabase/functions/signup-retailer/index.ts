@@ -18,6 +18,11 @@ interface SignupRetailerRequest {
   country: string
   website: string
   optInUpdates: boolean
+  smsMarketing?: {
+    smsMarketingOptIn?: boolean
+    smsMarketingPhone?: string | null
+    smsMarketingConsentText?: string | null
+  } | null
   acceptedTermsAt?: string
   referralSource?: string
   referralDetail?: string
@@ -74,6 +79,15 @@ Deno.serve(async (req) => {
     }
     // The client asserts acceptance by sending a timestamp; we only take it as
     // a signal and stamp the record server-side, since client clocks lie.
+    // Marketing SMS consent (src/lib/sms-consent.ts). Kept only with an E.164
+    // number and the disclosure text that was shown, and stamped here.
+    const sms = body.smsMarketing
+    const smsPhone = typeof sms?.smsMarketingPhone === 'string' ? sms.smsMarketingPhone : ''
+    const smsText = typeof sms?.smsMarketingConsentText === 'string' ? sms.smsMarketingConsentText.slice(0, 1000) : ''
+    const smsMarketing =
+      sms?.smsMarketingOptIn === true && /^\+[1-9]\d{7,14}$/.test(smsPhone) && smsText
+        ? { optIn: true, phone: smsPhone, consentText: smsText }
+        : null
     const termsAsserted =
       typeof body.acceptedTermsAt === 'string' && !isNaN(Date.parse(body.acceptedTermsAt))
 
@@ -170,6 +184,14 @@ Deno.serve(async (req) => {
         additional_notes: JSON.stringify({
           optInUpdates,
           acceptedTermsAt,
+          ...(smsMarketing
+            ? {
+                smsMarketingOptIn: true,
+                smsMarketingPhone: smsMarketing.phone,
+                smsMarketingConsentAt: now,
+                smsMarketingConsentText: smsMarketing.consentText,
+              }
+            : { smsMarketingOptIn: false }),
           ...(referralSource ? { referralSource } : {}),
           ...(referralDetail ? { referralDetail } : {}),
           ...(firstTouch ? { firstTouch } : {}),

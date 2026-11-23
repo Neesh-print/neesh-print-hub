@@ -8,7 +8,7 @@ export const privacy: LegalDoc = {
   markdown: `
 # Neesh Privacy Policy
 
-**Effective date: August 19, 2026**
+**Effective date: November 23, 2026**
 
 Neesh ("Neesh," "we," "us") is operated by WAU LLC, an Oregon limited liability company. Neesh is a wholesale marketplace that connects independent magazine publishers with retailers. This policy explains what personal information we collect, how we use it, who we share it with, and the choices you have. It applies to neesh.art and all Neesh services, including publisher and retailer accounts, applications, and our email communications.
 
@@ -30,6 +30,14 @@ We use your information to operate the marketplace: reviewing applications, crea
 
 We do not sell your personal information, we do not "sell" or "share" it as those terms are defined in US state privacy laws, and we do not disclose it to third parties for their own advertising or use it for targeted advertising or profiling with significant effects.
 
+## Text messages (SMS)
+
+If you give us your mobile number and opt in to text messages, for example in your account settings or during an application, we will send you SMS messages about your Neesh account and activity. These can include order and shipping updates, application decisions, account alerts, and sign-in or verification codes. If you also opt in to marketing texts, we will send you promotional messages, such as new titles, product updates, events, and offers. Marketing texts are a separate choice: agreeing to them is not a condition of any purchase or of using Neesh, and you can receive account texts without them.
+
+Message frequency varies. Message and data rates may apply. Reply **STOP** to any message to opt out of all text messages from us at any time, or ask us at **hi@neesh.art** to stop only marketing texts. After you opt out, we will send one message confirming it and no further texts unless you opt in again. Reply **HELP** for help, or email **hi@neesh.art**. Opting out of texts does not affect transactional emails about your account or orders. Carriers are not liable for delayed or undelivered messages.
+
+We use your mobile number and SMS consent only to send you the messages you asked for. **We do not sell, rent, or share mobile numbers or SMS opt-in data and consent with third parties or affiliates for their marketing or promotional purposes.** We share your mobile number only with the service providers that deliver our text messages for us, such as our SMS provider and the mobile carriers, and only so they can deliver those messages.
+
 ## Who we share information with
 
 We share information with service providers who process it on our behalf, only as needed to run Neesh:
@@ -38,6 +46,7 @@ We share information with service providers who process it on our behalf, only a
 - **Stripe** — payment processing, identity verification for payouts, and payouts to publishers
 - **Resend** — transactional and marketing email delivery, including open and click tracking
 - **HubSpot** — customer relationship management and email signups
+- **JustCall** — text message (SMS) delivery
 - **Google Cloud Storage** — hosting of some site images and uploaded files
 - **Vercel** — website hosting
 
@@ -53,7 +62,7 @@ We keep personal information for as long as your account is active or as needed 
 
 ## Your rights
 
-Depending on where you live, you may have rights under laws such as the UK and EU GDPR, Canada's PIPEDA, or the Oregon Consumer Privacy Act. These include the right to access the personal information we hold about you, correct it, delete it, receive a copy in a portable format, object to or restrict certain processing, and withdraw consent where processing is based on consent. Where we rely on legal bases under the GDPR, we process your information to perform our contract with you (operating your account and transactions), for our legitimate interests (running and securing the marketplace), with your consent (marketing email), and to comply with legal obligations.
+Depending on where you live, you may have rights under laws such as the UK and EU GDPR, Canada's PIPEDA, or the Oregon Consumer Privacy Act. These include the right to access the personal information we hold about you, correct it, delete it, receive a copy in a portable format, object to or restrict certain processing, and withdraw consent where processing is based on consent. Where we rely on legal bases under the GDPR, we process your information to perform our contract with you (operating your account and transactions), for our legitimate interests (running and securing the marketplace), with your consent (marketing email and text messages), and to comply with legal obligations.
 
 To exercise any of these rights, email **hi@neesh.art** from the address associated with your account (or with enough information for us to verify you). You may also use an authorized agent to submit a request on your behalf; we will ask the agent for proof of your written authorization and may still verify your identity directly. We will respond within 45 days, or sooner where applicable law requires it, and will tell you if we need an extension.
 
