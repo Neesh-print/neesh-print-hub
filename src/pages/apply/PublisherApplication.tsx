@@ -9,6 +9,8 @@ import { ButtonPrimary, ButtonSecondary, FormInput, FormTextarea, FormSelect, Fi
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
+import { SmsMarketingOptIn } from "@/components/shared/SmsMarketingOptIn";
+import { buildSmsMarketingConsent, mobileNumberError } from "@/lib/sms-consent";
 import { trackPublisherApplication } from "@/lib/neesh-analytics";
 import {
   COUNTRIES,
@@ -83,7 +85,11 @@ interface FormData {
   confirmRights: boolean;
   acceptTerms: boolean;
   acceptIndexTerms: boolean;
+  // One optional box for marketing email and text. smsPhoneInput is the
+  // number as typed (optional) and stays in drafts; the SMS consent record
+  // (smsMarketing* keys) is only written on submit.
   optInUpdates: boolean;
+  smsPhoneInput: string;
   referralSource: string;
   referralDetail: string;
 }
@@ -149,7 +155,8 @@ const defaultFormValues: FormData = {
   confirmRights: false,
   acceptTerms: false,
   acceptIndexTerms: false,
-  optInUpdates: true,
+  optInUpdates: false,
+  smsPhoneInput: "",
   referralSource: "",
   referralDetail: "",
 };
@@ -166,6 +173,7 @@ export const PublisherApplication = () => {
     localStorage.getItem("publisherClaimSlug")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [smsPhoneError, setSmsPhoneError] = useState<string | undefined>();
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [publisherId, setPublisherId] = useState<string | null>(() => localStorage.getItem('publisherAppId'));
@@ -302,7 +310,10 @@ export const PublisherApplication = () => {
                 confirmRights: additionalInfo.confirmRights || false,
                 acceptTerms: additionalInfo.acceptTerms || false,
                 acceptIndexTerms: additionalInfo.acceptIndexTerms || false,
-                optInUpdates: additionalInfo.optInUpdates ?? true,
+                // Drafts saved before the box covered texts had it ticked by
+                // default, so they resume unticked; newer drafts carry smsPhoneInput.
+                optInUpdates: 'smsPhoneInput' in additionalInfo && additionalInfo.optInUpdates === true,
+                smsPhoneInput: additionalInfo.smsPhoneInput || '',
                 referralSource: additionalInfo.referralSource || '',
                 referralDetail: additionalInfo.referralDetail || '',
              };
@@ -746,22 +757,23 @@ export const PublisherApplication = () => {
       return;
     }
 
-    if (!formValues.confirmRights) {
+    // One box covers both the rights confirmation and the terms.
+    if (!formValues.confirmRights || (claimOnly ? !formValues.acceptIndexTerms : !formValues.acceptTerms)) {
       toast.error(claimOnly
-        ? "Please confirm you publish this title or are authorized to represent it"
-        : "Please confirm you have distribution rights");
-      return;
-    }
-
-    if (claimOnly ? !formValues.acceptIndexTerms : !formValues.acceptTerms) {
-      toast.error(claimOnly
-        ? "Please accept the Terms of Service and Index Terms"
-        : "Please accept the Terms of Service and Publisher Agreement");
+        ? "Please confirm you can represent this title and accept the Terms of Service and Index Terms"
+        : "Please confirm you have distribution rights and accept the Terms of Service and Publisher Agreement");
       return;
     }
 
     if (!formValues.referralSource) {
       toast.error("Let us know how you heard about Neesh");
+      return;
+    }
+
+    const phoneError = mobileNumberError(formValues.optInUpdates, formValues.smsPhoneInput);
+    if (phoneError) {
+      setSmsPhoneError(phoneError);
+      document.getElementById("smsMarketingPhone")?.focus();
       return;
     }
 
@@ -815,6 +827,7 @@ export const PublisherApplication = () => {
           ...(firstTouch ? { firstTouch } : {}),
           acceptedTermsAt: new Date().toISOString(),
           acceptedTermsKind: claimOnly ? "index" : "marketplace",
+          ...buildSmsMarketingConsent(formValues.optInUpdates, formValues.smsPhoneInput),
         },
       };
 
@@ -1792,38 +1805,34 @@ export const PublisherApplication = () => {
             <div className="space-y-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
-                  checked={formValues.confirmRights}
-                  onCheckedChange={(checked) => setValue("confirmRights", !!checked)}
+                  checked={formValues.confirmRights && formValues.acceptTerms}
+                  onCheckedChange={(checked) => {
+                    setValue("confirmRights", !!checked);
+                    setValue("acceptTerms", !!checked);
+                  }}
                   className="mt-0.5"
                 />
                 <span className="text-sm">
-                  I confirm I have the rights to distribute this publication. <span className="text-destructive">*</span>
-                </span>
-              </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={formValues.acceptTerms}
-                  onCheckedChange={(checked) => setValue("acceptTerms", !!checked)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm">
-                  I agree to the{" "}
+                  I have the rights to distribute this publication, and I agree to the{" "}
                   <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Terms of Service</a>,{" "}
                   <a href="/legal/publisher-agreement" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Publisher Agreement</a>, and{" "}
                   <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Privacy Policy</a>{" "}
                   <span className="text-destructive">*</span>
                 </span>
               </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={formValues.optInUpdates}
-                  onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm text-muted-foreground">
-                  I'd like to receive platform updates and publisher insights
-                </span>
-              </label>
+              <SmsMarketingOptIn
+                checked={formValues.optInUpdates}
+                onCheckedChange={(checked) => {
+                  setValue("optInUpdates", checked);
+                  if (!checked) setSmsPhoneError(undefined);
+                }}
+                phone={formValues.smsPhoneInput}
+                onPhoneChange={(value) => {
+                  setValue("smsPhoneInput", value);
+                  setSmsPhoneError(undefined);
+                }}
+                phoneError={smsPhoneError}
+              />
             </div>
 
             <ButtonPrimary
@@ -1886,38 +1895,34 @@ export const PublisherApplication = () => {
             <div className="space-y-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <Checkbox
-                  checked={formValues.confirmRights}
-                  onCheckedChange={(checked) => setValue("confirmRights", !!checked)}
+                  checked={formValues.confirmRights && formValues.acceptIndexTerms}
+                  onCheckedChange={(checked) => {
+                    setValue("confirmRights", !!checked);
+                    setValue("acceptIndexTerms", !!checked);
+                  }}
                   className="mt-0.5"
                 />
                 <span className="text-sm">
-                  I publish {formValues.magazineTitle || "this title"} or am authorized to represent it. <span className="text-destructive">*</span>
-                </span>
-              </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={formValues.acceptIndexTerms}
-                  onCheckedChange={(checked) => setValue("acceptIndexTerms", !!checked)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm">
-                  I agree to the{" "}
+                  I publish {formValues.magazineTitle || "this title"} or am authorized to represent it, and I agree to the{" "}
                   <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Terms of Service</a>,{" "}
                   <a href="/legal/index-terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Index Terms</a>, and{" "}
                   <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-accent">Privacy Policy</a>{" "}
                   <span className="text-destructive">*</span>
                 </span>
               </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={formValues.optInUpdates}
-                  onCheckedChange={(checked) => setValue("optInUpdates", !!checked)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm text-muted-foreground">
-                  I&rsquo;d like to receive platform updates and publisher insights
-                </span>
-              </label>
+              <SmsMarketingOptIn
+                checked={formValues.optInUpdates}
+                onCheckedChange={(checked) => {
+                  setValue("optInUpdates", checked);
+                  if (!checked) setSmsPhoneError(undefined);
+                }}
+                phone={formValues.smsPhoneInput}
+                onPhoneChange={(value) => {
+                  setValue("smsPhoneInput", value);
+                  setSmsPhoneError(undefined);
+                }}
+                phoneError={smsPhoneError}
+              />
             </div>
 
             <ButtonPrimary

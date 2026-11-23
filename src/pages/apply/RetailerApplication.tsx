@@ -11,6 +11,8 @@ import { normalizeWeb } from "@/lib/normalize-web";
 import { toast } from "sonner";
 import { trackSpaceSignup } from "@/lib/neesh-analytics";
 import { readFirstTouch, REFERRAL_SOURCES } from "@/lib/first-touch";
+import { SmsMarketingOptIn } from "@/components/shared/SmsMarketingOptIn";
+import { buildSmsMarketingConsent, mobileNumberError } from "@/lib/sms-consent";
 
 const STORAGE_KEY = "neesh_retailer_application_draft";
 const TOTAL_STEPS = 2;
@@ -33,7 +35,9 @@ interface FormData {
   state: string;
   country: string;
   websiteUrl: string;
+  // One optional box for marketing email and text; the number is optional.
   optInUpdates: boolean;
+  smsMarketingPhone: string;
   acceptTerms: boolean;
   referralSource: string;
   referralDetail: string;
@@ -43,13 +47,13 @@ interface FormData {
 // never saved or restored.
 const FORM_FIELDS: (keyof FormData)[] = [
   "firstName", "lastName", "email", "storeName",
-  "city", "state", "country", "websiteUrl", "optInUpdates",
+  "city", "state", "country", "websiteUrl", "optInUpdates", "smsMarketingPhone",
   "referralSource", "referralDetail",
 ];
 
 const STEP_FIELDS: Record<number, (keyof FormData)[]> = {
   1: ["firstName", "lastName", "email", "password", "storeName"],
-  2: ["city", "state", "country", "websiteUrl", "referralSource", "acceptTerms"],
+  2: ["city", "state", "country", "websiteUrl", "referralSource", "smsMarketingPhone", "acceptTerms"],
 };
 
 export const RetailerApplication = () => {
@@ -69,7 +73,8 @@ export const RetailerApplication = () => {
       state: "",
       country: "",
       websiteUrl: "",
-      optInUpdates: true,
+      optInUpdates: false,
+      smsMarketingPhone: "",
       acceptTerms: false,
       referralSource: "",
       referralDetail: "",
@@ -92,6 +97,9 @@ export const RetailerApplication = () => {
         }
         Object.entries(parsed).forEach(([key, value]) => {
           if (!FORM_FIELDS.includes(key as keyof FormData)) return;
+          // Drafts saved before the box covered texts had it ticked by
+          // default, so they resume unticked; newer drafts carry the number.
+          if (key === "optInUpdates" && !("smsMarketingPhone" in parsed)) return;
           setValue(key as keyof FormData, value as string | boolean);
         });
         if (parsed.currentStep === 2) {
@@ -164,6 +172,7 @@ export const RetailerApplication = () => {
           country: values.country,
           website: normalizeWeb(values.websiteUrl),
           optInUpdates: values.optInUpdates,
+          smsMarketing: buildSmsMarketingConsent(values.optInUpdates, values.smsMarketingPhone),
           referralSource: values.referralSource,
           referralDetail: values.referralDetail.trim().slice(0, 200),
           firstTouch: readFirstTouch(),
@@ -450,19 +459,26 @@ export const RetailerApplication = () => {
                 )}
               />
               <Controller
-                name="optInUpdates"
+                name="smsMarketingPhone"
                 control={control}
+                rules={{
+                  validate: (v, all) => mobileNumberError(all.optInUpdates, v) ?? true,
+                }}
                 render={({ field }) => (
-                  <label className="flex items-start gap-3 cursor-pointer pt-2">
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="mt-0.5"
+                  <div className="pt-2">
+                    <SmsMarketingOptIn
+                      checked={watchedValues.optInUpdates}
+                      onCheckedChange={(checked) => {
+                        setValue("optInUpdates", checked);
+                        if (!checked) trigger("smsMarketingPhone");
+                      }}
+                      phone={field.value}
+                      onPhoneChange={field.onChange}
+                      phoneError={errors.smsMarketingPhone?.message}
+                      phoneRef={field.ref}
+                      textClassName="text-body text-muted-foreground"
                     />
-                    <span className="text-body text-muted-foreground">
-                      I'd like to receive platform updates and retailer insights
-                    </span>
-                  </label>
+                  </div>
                 )}
               />
               <Controller
