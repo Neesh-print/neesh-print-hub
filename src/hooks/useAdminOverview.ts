@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { formatOrderRef } from "@/lib/orderStatus";
 import type { OverviewOrder } from "@/lib/adminOverview";
@@ -14,7 +15,14 @@ export interface AdminReviewCounts {
   spacesTotal: number;
   /** Internal spaces among spacesTotal, for "Exclude internal". */
   internalSpaces: number;
+  /** Shop suggestions not yet approved or rejected (/admin/demand). */
+  demandSuggestions: number;
+  /** Publisher and requester email drafts waiting for approval (/admin/demand). */
+  demandEmails: number;
 }
+
+// The demand tables aren't in the generated types yet.
+const untyped = supabase as unknown as SupabaseClient;
 
 export interface AdminOverviewData {
   orders: OverviewOrder[];
@@ -163,7 +171,7 @@ async function fetchAdminOverview(): Promise<AdminOverviewData> {
       .map((s) => s.publisher_id),
   );
 
-  const [pubWaiting, spaceWaiting, drafts, liveTitles] = await Promise.all([
+  const [pubWaiting, spaceWaiting, drafts, liveTitles, demandSuggestions, demandEmails] = await Promise.all([
     count(supabase.from("publisher_applications").select("id", { count: "exact", head: true }).in("status", ["submitted", "pending"])),
     count(supabase.from("retailer_applications").select("id", { count: "exact", head: true }).in("status", ["submitted", "pending"])),
     count(supabase.from("publisher_applications").select("id", { count: "exact", head: true }).eq("status", "draft")),
@@ -171,6 +179,13 @@ async function fetchAdminOverview(): Promise<AdminOverviewData> {
       .from("magazines")
       .select("id, title, cover_image_url, wholesale_price, suggested_retail_price, weight_grams, inventory_count, fulfillment_method, is_active, publisher_id")
       .eq("is_active", true),
+    count(
+      untyped
+        .from("directory_stockist_suggestions")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["new", "verifying", "needs_review"]),
+    ),
+    count(untyped.from("outreach_log").select("id", { count: "exact", head: true }).eq("status", "draft")),
   ]);
   if (liveTitles.error) throw liveTitles.error;
   // Same rule as Catalog's "Needs attention" tab (test publishers left out of both), so the two numbers match.
@@ -202,6 +217,8 @@ async function fetchAdminOverview(): Promise<AdminOverviewData> {
       titlesNeedingAttention,
       spacesTotal: spaceRows.filter((r) => !r.is_test).length,
       internalSpaces: spaceRows.filter((r) => !r.is_test && r.is_internal).length,
+      demandSuggestions,
+      demandEmails,
     },
   };
 }
