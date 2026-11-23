@@ -34,3 +34,14 @@ verify_jwt = false
 # Owner-checked inside the handler via the caller's own session.
 [functions.index-listing]
 verify_jwt = true
+
+# Demand-signal automations: pg_cron calls these with the shared reminder secret.
+[functions.verify-stockist-suggestions]
+verify_jwt = false
+
+[functions.draft-publisher-outreach]
+verify_jwt = false
+
+# Admin-checked inside the handler via the caller's own session.
+[functions.demand-review]
+verify_jwt = true

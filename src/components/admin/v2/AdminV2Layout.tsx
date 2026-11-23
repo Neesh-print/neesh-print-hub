@@ -31,11 +31,12 @@ const SECTIONS: Section[] = [
     label: "Network",
     to: "/admin/network",
     icon: <Users className="h-[18px] w-[18px]" />,
-    match: (p) => startsWithAny(p, ["/admin/network", "/admin/publishers", "/admin/retailers", "/admin/applications", "/admin/nustand"]),
+    match: (p) => startsWithAny(p, ["/admin/network", "/admin/publishers", "/admin/retailers", "/admin/applications", "/admin/nustand", "/admin/demand"]),
     tabs: [
       { label: "Directory", to: "/admin/network" },
       { label: "Applications", to: "/admin/applications" },
       { label: "Prospects", to: "/admin/nustand" },
+      { label: "Demand", to: "/admin/demand" },
     ],
   },
   {
