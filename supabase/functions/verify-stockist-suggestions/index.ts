@@ -2,9 +2,9 @@ import { adminClient, json } from '../_shared/http.ts'
 import { verifySuggestions } from '../_shared/demand.ts'
 
 // Automation 1 (demand-signal spec): checks new shop suggestions and moves
-// them to needs_review with evidence for the admin queue. Called every 15
-// minutes by pg_cron (job verify-stockist-suggestions) when there are new
-// rows. verify_jwt = false, guarded by the shared REMINDER_SECRET in the
+// them to needs_review with evidence for the admin queue. Called daily at
+// 14:45 UTC by pg_cron (job verify-stockist-suggestions) when there are new
+// rows; "Check new now" on /admin/demand runs it on demand. verify_jwt = false, guarded by the shared REMINDER_SECRET in the
 // x-reminder-secret header, like the reminder jobs. Body: { ids?, limit? }.
 
 const cors = { 'Access-Control-Allow-Origin': '*' }
