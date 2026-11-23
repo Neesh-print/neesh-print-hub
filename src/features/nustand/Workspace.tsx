@@ -19,6 +19,7 @@ import {
   needsWebsiteConfirm,
   noWebsiteFound,
   orderedContacts,
+  demandWants,
   placeArea,
   spaceType,
   reviewSchema,
@@ -167,6 +168,9 @@ export function Workspace({
         })
         .sort(
           (a, b) =>
+            // Spaces that asked for a title come first (stock requests).
+            Number(!!demandWants(b) && b.review.stage !== "Closed") -
+              Number(!!demandWants(a) && a.review.stage !== "Closed") ||
             (b.review.fit_score ?? b.source.fit.score ?? -1) -
               (a.review.fit_score ?? a.source.fit.score ?? -1) ||
             (b.source.contact_score ?? 0) - (a.source.contact_score ?? 0),
@@ -556,6 +560,11 @@ export function Workspace({
                 className="border border-neutral-200 p-4 space-y-2"
               >
                 <h2 className="font-semibold">{row.source.name}</h2>
+                {demandWants(row) && (
+                  <p className="text-xs font-semibold text-red-800">
+                    Asked to stock {demandWants(row)!.join(", ") || "a title"}
+                  </p>
+                )}
                 <p className="text-xs text-neutral-600">
                   {row.source.neighborhood || "Neighborhood unknown"} ·{" "}
                   {row.review.segment ||
@@ -667,6 +676,11 @@ export function Workspace({
                             <SourceLink url={webSearchUrl(row)}>
                               Search the web
                             </SourceLink>
+                          </p>
+                        )}
+                        {demandWants(row) && (
+                          <p className="text-xs mt-1 font-semibold text-red-800">
+                            Asked to stock {demandWants(row)!.join(", ") || "a title"}
                           </p>
                         )}
                         <p className="text-neutral-500 text-xs mt-1">

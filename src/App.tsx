@@ -82,6 +82,7 @@ import {
 } from "./pages/admin";
 import { AdminNustand } from "./pages/admin/AdminNustand";
 import { AdminIndexReview } from "./pages/admin/AdminIndexReview";
+import { AdminDemand } from "./pages/admin/AdminDemand";
 import { AdminSettings } from "./pages/admin/AdminSettings";
 import { AdminToday } from "./pages/admin/v2/AdminToday";
 import { AdminOrdersV2 } from "./pages/admin/v2/AdminOrdersV2";
@@ -581,6 +582,7 @@ const AppRoutes = () => {
       <Route path="/admin/applications" element={adminOnly(<AdminApplications />)} />
       <Route path="/admin/applications/:id" element={adminOnly(<AdminApplicationDetail />)} />
       <Route path="/admin/nustand" element={adminOnly(<AdminNustand />)} />
+      <Route path="/admin/demand" element={adminOnly(<AdminDemand />)} />
       <Route path="/admin/magazines" element={adminOnly(<AdminCatalog />)} />
       <Route path="/admin/magazines/import" element={adminOnly(<AdminBulkImport />)} />
       <Route path="/admin/index-review" element={adminOnly(<AdminIndexReview />)} />
